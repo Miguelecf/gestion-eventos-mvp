@@ -1,0 +1,46 @@
+package com.mvp.backend.feature.users.model;
+
+import com.mvp.backend.feature.events.model.Event;
+import com.mvp.backend.shared.BaseEntity;
+import com.mvp.backend.shared.Priority;
+import jakarta.persistence.*;
+import lombok.*;
+
+import java.util.List;
+
+@Entity
+@Table(name = "users")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class User extends BaseEntity {
+
+    @Column(nullable = false, length = 100, unique = true)
+    private String username;
+
+    @Column(nullable = false, length = 100)
+    private String name;
+
+    @Column(nullable = false, length = 100)
+    private String lastName;
+
+    @Column(nullable = false,length = 100)
+    private String email;
+
+    @Column(nullable = false, length = 100)
+    private String password;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private Priority priority;
+
+    @Column(nullable = false, length = 100)
+    private String role;
+
+    @OneToMany(mappedBy = "user")
+    private List<Event> events;
+
+
+}
