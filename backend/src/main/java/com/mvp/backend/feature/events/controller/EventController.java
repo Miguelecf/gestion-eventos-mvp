@@ -38,14 +38,14 @@ public class EventController {
 
     @GetMapping("/date")
     public List<EventResponse> byDate(
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+            @RequestParam @DateTimeFormat(pattern = "dd-MM-yyyy") LocalDate date) {
         return service.findByDate(date);
     }
 
     @GetMapping("/range")
     public List<EventResponse> byRange(
-            @RequestParam("start") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate start,
-            @RequestParam("end")   @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate end) {
+            @RequestParam("start") @DateTimeFormat(pattern = "dd-MM-yyyy") LocalDate start,
+            @RequestParam("end")   @DateTimeFormat(pattern = "dd-MM-yyyy") LocalDate end) {
         return service.findByDateBetween(start, end);
     }
 
