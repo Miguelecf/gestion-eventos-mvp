@@ -72,6 +72,7 @@ public class EventController {
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
+
     @PutMapping("/{id}")
     public EventResponse update(@PathVariable Long id, @Valid @RequestBody EventRequest req) {
         return service.update(id, req);
