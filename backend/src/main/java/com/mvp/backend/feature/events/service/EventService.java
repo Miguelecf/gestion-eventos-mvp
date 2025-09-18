@@ -144,25 +144,24 @@ public class EventService {
     /* -----Mapping----- */
     private EventResponse toResponse(Event e) {
         return new EventResponse(
-                e.getId(),
-                e.isActive(),
-                e.getCreatedAt(),
-                e.getUpdatedAt(),
-                e.getDeletedAt(),
+
+                e.getName(),
+                e.getRequestingArea(),
+                e.getRequirements(),
+                e.getCoverage(),
+                e.getObservations(),
+
                 e.getDate(),
                 e.getTechnicalSchedule(),
                 e.getScheduleFrom(),
                 e.getScheduleTo(),
                 e.getStatus(),
-                e.getName(),
-                e.getRequestingArea(),
-                e.getRequirements(),
-                e.getCoverage(),
-                e.getRequestDate(),
-                e.getObservations(),
                 e.getPriority(),
+                e.getRequestDate(),
+
                 e.getUser() != null ? e.getUser().getId() : null
         );
     }
+
 
 }

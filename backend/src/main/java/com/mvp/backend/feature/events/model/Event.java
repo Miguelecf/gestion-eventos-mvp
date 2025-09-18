@@ -23,8 +23,8 @@ public class Event extends BaseEntity {
     @Column(nullable = false)
     private LocalDate date;
 
-    @Column(length = 255)
-    private String technicalSchedule; //horario técnico
+    @Column
+    private LocalTime technicalSchedule; //horario técnico
 
     @Column
     private LocalTime scheduleFrom;
