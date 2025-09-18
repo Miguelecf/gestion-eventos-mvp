@@ -7,6 +7,11 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
 public record EventResponse(
+        Long id,
+        boolean active,
+        Instant createdAt,
+        Instant updatedAt,
+        Instant deletedAt,
 
         String name,
         String requestingArea,

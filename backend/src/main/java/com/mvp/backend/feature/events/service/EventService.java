@@ -144,6 +144,11 @@ public class EventService {
     /* -----Mapping----- */
     private EventResponse toResponse(Event e) {
         return new EventResponse(
+                e.getId(),
+                e.isActive(),
+                e.getCreatedAt(),
+                e.getUpdatedAt(),
+                e.getDeletedAt(),
 
                 e.getName(),
                 e.getRequestingArea(),
