@@ -1,7 +1,10 @@
 package com.mvp.backend.feature.events.model;
 
 
+import com.mvp.backend.feature.catalogs.model.Department;
+import com.mvp.backend.feature.catalogs.model.Space;
 import com.mvp.backend.feature.users.model.User;
+import com.mvp.backend.shared.AudienceType;
 import com.mvp.backend.shared.BaseEntity;
 import com.mvp.backend.shared.Priority;
 import jakarta.persistence.*;
@@ -42,14 +45,24 @@ public class Event extends BaseEntity {
     @Column(length = 150)
     private String requestingArea;
 
+    // ---- Ubicación: Space o freeLocation (validar que no estén ambos)
+    @ManyToOne
+    @JoinColumn(name = "space_id")
+    private Space space;
+
+    @Column(length = 200)
+    private String freeLocation;
+
+    // ---- Área/departamento responsable del evento
+    @ManyToOne
+    @JoinColumn(name = "department_id")
+    private Department department;
+
     @Column(length = 255)
     private String requirements;
 
     @Column(columnDefinition = "TEXT")
     private String coverage;
-
-    @Column(nullable = false)
-    private Instant requestDate;
 
     @Column(columnDefinition = "TEXT")
     private String observations;
@@ -59,10 +72,51 @@ public class Event extends BaseEntity {
     @Column(length = 20, nullable = false)
     private Priority priority;
 
-    //Relación con el usuario
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    private AudienceType audienceType;
+
+    @Builder.Default
+    @Column(nullable = false)
+    private boolean internal = false; // excluye de calendario público
+
+    @Builder.Default
+    @Column(nullable = false)
+    private boolean ceremonialOk = false;
+
+    @Builder.Default
+    @Column(nullable = false)
+    private boolean technicalOk = false;
+
+    @Builder.Default
+    @Column(nullable = false)
+    private boolean requiresTech = false;
+
+    // buffers (pueden tomar defaults desde Space)
+    @Builder.Default
+    @Column(nullable = false)
+    private Integer bufferBeforeMin = 0;
+
+    @Builder.Default
+    @Column(nullable = false)
+    private Integer bufferAfterMin = 0;
+
+    // ---- Referente/Contacto (útil para notificaciones y logística)
+    @Column(length = 120)
+    private String contactName;
+
+    @Column(length = 120)
+    private String contactEmail;
+
+    @Column(length = 30)
+    private String contactPhone;
+
+    // ---- Auditoría de autoría
     @ManyToOne(optional = false)
-    @JoinColumn(name="user_id",nullable=false)
-    private User user;
+    @JoinColumn(name = "created_by_user_id", nullable = false)
+    private User createdBy;
 
-
+    @ManyToOne
+    @JoinColumn(name = "last_modified_by_user_id")
+    private User lastModifiedBy;
 }

@@ -38,9 +38,4 @@ public class User extends BaseEntity {
 
     @Column(nullable = false, length = 100)
     private String role;
-
-    @OneToMany(mappedBy = "user")
-    private List<Event> events;
-
-
 }

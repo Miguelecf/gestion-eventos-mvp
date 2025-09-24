@@ -28,7 +28,7 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     List<Event> findByStatus(Status status);
 
     //Buscar por user
-    List<Event> findByUserId(Long userId);
+    List<Event> findByCreatedById(Long userId);
 
     //Buscar activo
 

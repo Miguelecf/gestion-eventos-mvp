@@ -16,7 +16,7 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: update   # en dev que cree/actualice las tablas
+      ddl-auto: validate      # Flyway controla el esquema
     properties:
       hibernate:
         dialect: org.hibernate.dialect.MySQLDialect   # MySQLDialect (MySQL8Dialect está deprecated)
@@ -32,11 +32,11 @@ spring:
       enabled: true
       path: /h2-console
 
-flyway:
-  enabled: true
-  locations: classpath:db/migration
-  baseline-on-migrate: true
-  baseline-version: 0
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    baseline-version: 0
 
 server:
   port: 9090
