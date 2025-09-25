@@ -38,6 +38,17 @@ spring:
     baseline-on-migrate: true
     baseline-version: 0
 
+  mail:
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:1025}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${MAIL_SMTP_AUTH:false}
+          starttls:
+            enable: ${MAIL_SMTP_STARTTLS_ENABLE:false}
 server:
   port: 9090
 
@@ -50,3 +61,9 @@ management:
     health:
       probes:
         enabled: true
+jwt:
+  secret: ${JWT_SECRET:aaee89681dd2ffeec808837802a9fdb19b157c71aea36e1886e42c7b2fe0fd7c}
+  access-token:
+    expiration: ${JWT_ACCESS_TOKEN_EXPIRATION:900000} # 15 minutes by default
+  refresh-token:
+    expiration: ${JWT_REFRESH_TOKEN_EXPIRATION:604800000} # 7 days by default

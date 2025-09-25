@@ -48,10 +48,15 @@ CREATE TABLE users (
   username VARCHAR(100) NOT NULL,
   name VARCHAR(100) NOT NULL,
   last_name VARCHAR(100) NOT NULL,
-  email VARCHAR(120) NOT NULL,
-  password VARCHAR(255) NOT NULL,
+  email VARCHAR(100) NOT NULL,
+  password VARCHAR(100) NOT NULL,
   priority VARCHAR(20) NOT NULL,
   role VARCHAR(100) NOT NULL,
+
+  -- nuevos campos
+  must_change_password BIT(1) NOT NULL DEFAULT b'1',
+  failed_login_attempts INT NOT NULL DEFAULT 0,
+  last_login_at DATETIME(6) NULL,
 
   CONSTRAINT uk_users_username UNIQUE (username),
   CONSTRAINT uk_users_email UNIQUE (email)
@@ -179,3 +184,24 @@ CREATE TABLE event_requests (
   CONSTRAINT fk_event_requests_dept FOREIGN KEY (requesting_department_id) REFERENCES departments(id),
   CONSTRAINT fk_event_requests_converted FOREIGN KEY (converted_event_id) REFERENCES events(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ===========================
+-- Refresh Tokens (nuevo)
+-- ===========================
+CREATE TABLE refresh_tokens (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  token_hash VARCHAR(128) NOT NULL,
+  expires_at DATETIME(6) NOT NULL,
+  revoked BIT(1) NOT NULL DEFAULT b'0',
+  created_at DATETIME(6) NOT NULL,
+  updated_at DATETIME(6) NOT NULL,
+  rotated_from BIGINT NULL,
+
+  CONSTRAINT uk_refresh_tokens_hash UNIQUE (token_hash),
+  CONSTRAINT fk_refresh_tokens_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_refresh_tokens_rotated_from FOREIGN KEY (rotated_from) REFERENCES refresh_tokens(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE INDEX ix_refresh_tokens_user ON refresh_tokens (user_id);
+CREATE INDEX ix_refresh_tokens_expires ON refresh_tokens (expires_at);

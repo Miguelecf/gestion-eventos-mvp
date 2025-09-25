@@ -6,6 +6,7 @@ import com.mvp.backend.shared.Priority;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.Instant;
 import java.util.List;
 
 @Entity
@@ -38,4 +39,15 @@ public class User extends BaseEntity {
 
     @Column(nullable = false, length = 100)
     private String role;
+
+    @Builder.Default
+    @Column(name = "must_change_password", nullable = false)
+    private boolean mustChangePassword = true;
+
+    @Builder.Default
+    @Column(name = "failed_login_attempts", nullable = false)
+    private int failedLoginAttempts = 0;
+
+    @Column(name = "last_login_at")
+    private Instant lastLoginAt;
 }

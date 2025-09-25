@@ -8,6 +8,7 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 @SpringBootApplication
 public class BackendApplication {
@@ -19,6 +20,21 @@ public class BackendApplication {
 
 	@Autowired
 	private UserRepository userRepository;
+
+    @Bean
+    CommandLineRunner encodeSeedPasswords(UserRepository repo, PasswordEncoder pe) {
+        return args -> {
+            repo.findAll().forEach(u -> {
+                String p = u.getPassword();
+                if (p != null && !p.startsWith("$2")) { // heurística: no es BCrypt
+                    u.setPassword(pe.encode(p));        // hashear
+                    u.setMustChangePassword(false);     // opcional: para que no te bloquee en login
+                    repo.save(u);
+                    System.out.println("Password hasheada para user " + u.getUsername());
+                }
+            });
+        };
+    }
 
 	@Bean
 	CommandLineRunner initUsers(UserRepository userRepository) {
