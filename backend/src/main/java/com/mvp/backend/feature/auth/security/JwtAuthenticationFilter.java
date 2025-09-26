@@ -73,8 +73,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest req) {
         String p = req.getServletPath();
+        String m = req.getMethod();
+
         return p != null && (
-                p.startsWith("/auth/") ||
+                        (p.equals("/auth/login") && m.equals("POST")) ||
+                        (p.equals("/auth/register") && m.equals("POST")) ||
+                        (p.equals("/auth/refresh") && m.equals("POST")) ||
                         p.startsWith("/public/") ||
                         p.startsWith("/v3/api-docs") || p.startsWith("/swagger") || p.startsWith("/swagger-ui")
         ) || "OPTIONS".equalsIgnoreCase(req.getMethod());
