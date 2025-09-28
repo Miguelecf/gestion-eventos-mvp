@@ -109,7 +109,7 @@ public class AuthService {
                 .build();
     }
 
-    @Transactional
+    @Transactional(readOnly = false)
     public void changePassword(ChangePasswordRequest request) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !(authentication.getPrincipal() instanceof UserPrincipal principal)) {
@@ -127,10 +127,12 @@ public class AuthService {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "La contraseña actual no es válida");
         }
 
-        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
-        user.setMustChangePassword(false);
-        user.setFailedLoginAttempts(0);
-        userService.save(user);
+        String hash = passwordEncoder.encode(request.getNewPassword());
+        int updated = userService.updatePassword(user.getId(), hash);
+        if (updated != 1) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "No se pudo actualizar la contraseña");
+        }
+
         refreshTokenService.revokeAll(user);
     }
 

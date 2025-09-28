@@ -65,4 +65,9 @@ public class UserService {
     public User save(User user) {
         return userRepository.save(user);
     }
+
+    @Transactional
+    public int updatePassword(Long id, String passwordHash){
+        return userRepository.updatePassword(id, passwordHash);
+    }
 }
