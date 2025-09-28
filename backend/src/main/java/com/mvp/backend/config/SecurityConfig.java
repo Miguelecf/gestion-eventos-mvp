@@ -34,6 +34,10 @@ public class SecurityConfig {
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(HttpMethod.GET, "/api/catalogs/spaces/public").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/catalogs/**").hasAnyRole("ADMIN_FULL","ADMIN_CEREMONIAL","ADMIN_TECNICA")
+                        .requestMatchers(HttpMethod.POST, "/api/catalogs/**").hasAnyRole("ADMIN_FULL","ADMIN_CEREMONIAL","ADMIN_TECNICA")
+                        .requestMatchers(HttpMethod.PATCH, "/api/catalogs/**").hasAnyRole("ADMIN_FULL","ADMIN_CEREMONIAL","ADMIN_TECNICA")
                         .requestMatchers(HttpMethod.POST, "/auth/register", "/auth/login", "/auth/refresh").permitAll()
                         .requestMatchers(HttpMethod.POST, "/auth/change-password", "/auth/logout").authenticated()
                         .requestMatchers(HttpMethod.GET,"/auth/me").authenticated()
