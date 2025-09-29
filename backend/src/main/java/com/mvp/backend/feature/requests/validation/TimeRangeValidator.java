@@ -1,14 +1,14 @@
 package com.mvp.backend.feature.requests.validation;
 
-import com.mvp.backend.feature.requests.dto.CreateEventRequestDto;
+import com.mvp.backend.shared.validation.HasScheduleRange;
 import jakarta.validation.ConstraintValidator;
 import jakarta.validation.ConstraintValidatorContext;
 
 import java.time.LocalTime;
 
-public class TimeRangeValidator implements ConstraintValidator<TimeRange, CreateEventRequestDto> {
+public class TimeRangeValidator implements ConstraintValidator<TimeRange, HasScheduleRange> {
     @Override
-    public boolean isValid(CreateEventRequestDto value, ConstraintValidatorContext context) {
+    public boolean isValid(HasScheduleRange value, ConstraintValidatorContext context) {
         if (value == null) {
             return true;
         }

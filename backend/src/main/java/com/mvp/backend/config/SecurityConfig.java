@@ -35,6 +35,7 @@ public class SecurityConfig {
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.POST, "/event-requests").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/public/track/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/catalogs/spaces/public").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/catalogs/**").hasAnyRole("ADMIN_FULL","ADMIN_CEREMONIAL","ADMIN_TECNICA")
                         .requestMatchers(HttpMethod.POST, "/api/catalogs/**").hasAnyRole("ADMIN_FULL","ADMIN_CEREMONIAL","ADMIN_TECNICA")

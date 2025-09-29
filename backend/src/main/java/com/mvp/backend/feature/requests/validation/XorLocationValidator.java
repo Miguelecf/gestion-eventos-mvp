@@ -1,12 +1,12 @@
 package com.mvp.backend.feature.requests.validation;
 
-import com.mvp.backend.feature.requests.dto.CreateEventRequestDto;
+import com.mvp.backend.shared.validation.HasLocationChoice;
 import jakarta.validation.ConstraintValidator;
 import jakarta.validation.ConstraintValidatorContext;
 
-public class XorLocationValidator implements ConstraintValidator<XorLocation, CreateEventRequestDto> {
+public class XorLocationValidator implements ConstraintValidator<XorLocation, HasLocationChoice> {
     @Override
-    public boolean isValid(CreateEventRequestDto value, ConstraintValidatorContext context) {
+    public boolean isValid(HasLocationChoice value, ConstraintValidatorContext context) {
         if (value == null) {
             return true;
         }

@@ -4,18 +4,39 @@ import com.mvp.backend.feature.catalogs.model.Department;
 import com.mvp.backend.feature.catalogs.model.Space;
 import com.mvp.backend.feature.catalogs.repository.DepartmentRepository;
 import com.mvp.backend.feature.catalogs.repository.SpaceRepository;
+import com.mvp.backend.feature.events.model.Event;
+import com.mvp.backend.feature.history.model.HistoryType;
+import com.mvp.backend.feature.history.model.EventHistory;
+import com.mvp.backend.feature.history.model.EventRequestHistory;
+import com.mvp.backend.feature.history.repository.EventHistoryRepository;
+import com.mvp.backend.feature.history.repository.EventRequestHistoryRepository;
 import com.mvp.backend.feature.requests.dto.CreateEventRequestDto;
 import com.mvp.backend.feature.requests.dto.EventRequestCreatedDto;
+import com.mvp.backend.feature.requests.dto.TrackingResponse;
+import com.mvp.backend.feature.requests.dto.TrackingResponse.DepartmentData;
+import com.mvp.backend.feature.requests.dto.TrackingResponse.EventData;
+import com.mvp.backend.feature.requests.dto.TrackingResponse.LocationData;
+import com.mvp.backend.feature.requests.dto.TrackingResponse.LocationData.LocationType;
+import com.mvp.backend.feature.requests.dto.TrackingResponse.RequestData;
+import com.mvp.backend.feature.requests.dto.TrackingResponse.ScheduleData;
+import com.mvp.backend.feature.requests.dto.TrackingResponse.TimelineEntry;
+import com.mvp.backend.feature.requests.dto.TrackingResponse.TimelineEntry.Scope;
+import com.mvp.backend.feature.requests.dto.TrackingResponse.TimelineEntry.Type;
 import com.mvp.backend.feature.requests.model.EventRequest;
 import com.mvp.backend.feature.requests.model.RequestStatus;
 import com.mvp.backend.feature.requests.repository.EventRequestRepository;
 import com.mvp.backend.shared.DomainValidationException;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -26,6 +47,8 @@ public class EventRequestService {
     private final EventRequestRepository eventRequestRepository;
     private final SpaceRepository spaceRepository;
     private final DepartmentRepository departmentRepository;
+    private final EventRequestHistoryRepository eventRequestHistoryRepository;
+    private final EventHistoryRepository eventHistoryRepository;
 
     @Transactional
     public EventRequestCreatedDto create(CreateEventRequestDto dto) {
@@ -79,9 +102,130 @@ public class EventRequestService {
 
         EventRequest saved = eventRequestRepository.save(request);
 
+        eventRequestHistoryRepository.save(EventRequestHistory.builder()
+                .request(saved)
+                .at(saved.getRequestDate())
+                .type(HistoryType.STATUS)
+                .fromValue(null)
+                .toValue(saved.getStatus().name())
+                .build());
+
         // TODO: agregar el envio de notificacion mail cuando se crea una solicitud de evento
 
         return new EventRequestCreatedDto(saved.getTrackingUuid(), saved.getStatus(), saved.getRequestDate());
+    }
+
+    @Transactional(readOnly = true)
+    public TrackingResponse getTracking(String trackingUuid) {
+        EventRequest request = eventRequestRepository.findByTrackingUuid(trackingUuid)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Tracking token not found"));
+
+        Event event = request.getConvertedEvent();
+        RequestStatus requestStatus = event != null ? RequestStatus.CONVERTED : request.getStatus();
+        TrackingResponse.RequestData requestData = new TrackingResponse.RequestData(requestStatus, request.getRequestDate());
+
+        TrackingResponse.EventData eventData = null;
+        TrackingResponse.ScheduleData scheduleData;
+        TrackingResponse.LocationData locationData;
+        TrackingResponse.DepartmentData departmentData;
+
+        if (event != null) {
+            eventData = new TrackingResponse.EventData(event.getId(), event.getStatus(), event.isInternal());
+            scheduleData = new TrackingResponse.ScheduleData(
+                    event.getDate(),
+                    event.getScheduleFrom(),
+                    event.getScheduleTo(),
+                    event.getTechnicalSchedule(),
+                    event.getBufferBeforeMin(),
+                    event.getBufferAfterMin()
+            );
+            locationData = toLocationData(event.getSpace(), event.getFreeLocation());
+            departmentData = event.getDepartment() != null
+                    ? new DepartmentData(event.getDepartment().getId(), event.getDepartment().getName())
+                    : null;
+        } else {
+            scheduleData = new TrackingResponse.ScheduleData(
+                    request.getDate(),
+                    request.getScheduleFrom(),
+                    request.getScheduleTo(),
+                    request.getTechnicalSchedule(),
+                    request.getBufferBeforeMin(),
+                    request.getBufferAfterMin()
+            );
+            locationData = toLocationData(request.getSpace(), request.getFreeLocation());
+            departmentData = request.getRequestingDepartment() != null
+                    ? new TrackingResponse.DepartmentData(request.getRequestingDepartment().getId(), request.getRequestingDepartment().getName())
+                    : null;
+        }
+
+        List<TrackingResponse.TimelineEntry> timeline = buildTimeline(request, event);
+
+        return new TrackingResponse(
+                request.getTrackingUuid(),
+                requestData,
+                eventData,
+                scheduleData,
+                locationData,
+                departmentData,
+                timeline
+        );
+    }
+
+    private List<TrackingResponse.TimelineEntry> buildTimeline(EventRequest request, Event event) {
+        List<TrackingResponse.TimelineEntry> entries = new ArrayList<>();
+
+        List<EventRequestHistory> requestHistories = eventRequestHistoryRepository
+                .findByRequestIdOrderByAtAsc(request.getId());
+        for (EventRequestHistory history : requestHistories) {
+            Type type = mapType(history.getType());
+            if (type == null) {
+                continue;
+            }
+            entries.add(new TimelineEntry(
+                    history.getAt(),
+                    Scope.REQUEST,
+                    type,
+                    history.getFromValue(),
+                    history.getToValue(),
+                    history.getDetails()
+            ));
+        }
+
+        if (event != null) {
+            List<EventHistory> eventHistories = eventHistoryRepository.findByEventIdOrderByAtAsc(event.getId());
+            for (EventHistory history : eventHistories) {
+                Type type = mapType(history.getType());
+                if (type == null) {
+                    continue;
+                }
+                entries.add(new TimelineEntry(
+                        history.getAt(),
+                        Scope.EVENT,
+                        type,
+                        history.getFromValue(),
+                        history.getToValue(),
+                        history.getDetails()
+                ));
+            }
+        }
+
+        entries.sort(Comparator.comparing(TimelineEntry::at));
+        return List.copyOf(entries);
+    }
+
+    private Type mapType(HistoryType type) {
+        return switch (type) {
+            case STATUS -> Type.STATUS;
+            case SCHEDULE_CHANGE -> Type.SCHEDULE_CHANGE;
+        };
+    }
+
+    private LocationData toLocationData(Space space, String freeLocation) {
+        if (space != null) {
+            return new LocationData(LocationType.SPACE, space.getId(), space.getName(), null);
+        }
+        String normalized = trimToNull(freeLocation);
+        return new LocationData(LocationType.FREE, null, null, normalized);
     }
 
     private void validateBuffers(CreateEventRequestDto dto) {
