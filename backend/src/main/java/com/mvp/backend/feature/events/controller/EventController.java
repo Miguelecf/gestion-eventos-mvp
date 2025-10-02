@@ -1,5 +1,7 @@
 package com.mvp.backend.feature.events.controller;
 
+import com.mvp.backend.feature.events.dto.CreateEventDto;
+import com.mvp.backend.feature.events.dto.EventCreateResult;
 import com.mvp.backend.feature.events.dto.EventRequest;
 import com.mvp.backend.feature.events.dto.EventResponse;
 import com.mvp.backend.feature.events.model.Status;
@@ -65,6 +67,11 @@ public class EventController {
     }
 
     /* ------- Commands ------- */
+    @PostMapping("/newEvent")
+    public ResponseEntity<EventCreateResult> newEvent(@Valid @RequestBody CreateEventDto req) {
+        EventCreateResult created = service.newEvent(req);
+        return ResponseEntity.status(HttpStatus.CREATED).body(created);
+    }
 
     @PostMapping
     public ResponseEntity<EventResponse> create(@Valid @RequestBody EventRequest req) {
