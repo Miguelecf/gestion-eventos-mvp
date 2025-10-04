@@ -1,5 +1,8 @@
 package com.mvp.backend.feature.requests.service;
 
+import com.mvp.backend.feature.availability.exception.AvailabilityConflictException;
+import com.mvp.backend.feature.availability.model.AvailabilityParams;
+import com.mvp.backend.feature.availability.service.AvailabilityService;
 import com.mvp.backend.feature.catalogs.model.Department;
 import com.mvp.backend.feature.catalogs.model.Space;
 import com.mvp.backend.feature.catalogs.repository.DepartmentRepository;
@@ -49,6 +52,7 @@ public class EventRequestService {
     private final DepartmentRepository departmentRepository;
     private final EventRequestHistoryRepository eventRequestHistoryRepository;
     private final EventHistoryRepository eventHistoryRepository;
+    private final AvailabilityService availabilityService;
 
     @Transactional
     public EventRequestCreatedDto create(CreateEventRequestDto dto) {
@@ -61,7 +65,26 @@ public class EventRequestService {
             space = spaceRepository.findById(dto.spaceId())
                     .filter(Space::isActive)
                     .orElseThrow(() -> new EntityNotFoundException("Space not found"));
-            // TODO: agregar el chequeo de espacio para el formulario interno
+        }
+        //chequeo si hay espacio disponible
+        Integer resolvedBufferBefore = resolveBufferBefore(dto, space);
+        Integer resolvedBufferAfter = resolveBufferAfter(dto, space);
+
+        String freeLocation = trimToNull(dto.freeLocation());
+
+        var availabilityParams = AvailabilityParams.builder()
+                .date(dto.date())
+                .spaceId(dto.spaceId())
+                .freeLocation(freeLocation)
+                .scheduleFrom(dto.scheduleFrom())
+                .scheduleTo(dto.scheduleTo())
+                .bufferBeforeMin(resolvedBufferBefore)
+                .bufferAfterMin(resolvedBufferAfter)
+                .build();
+
+        var availabilityResult = availabilityService.checkSpaceAvailability(availabilityParams);
+        if (Boolean.FALSE.equals(availabilityResult.isAvailable())) {
+            throw AvailabilityConflictException.publicConflict(availabilityResult);
         }
 
         Department department = null;
@@ -70,7 +93,6 @@ public class EventRequestService {
                     .orElseThrow(() -> new EntityNotFoundException("Department not found"));
         }
 
-        String freeLocation = trimToNull(dto.freeLocation());
         String contactPhone = dto.contactPhone().trim();
         String contactEmail = dto.contactEmail().trim();
         String contactName = dto.contactName().trim();
@@ -94,8 +116,8 @@ public class EventRequestService {
                 .contactName(contactName)
                 .contactEmail(contactEmail)
                 .contactPhone(contactPhone)
-                .bufferBeforeMin(dto.bufferBeforeMin())
-                .bufferAfterMin(dto.bufferAfterMin())
+                .bufferBeforeMin(resolvedBufferBefore)
+                .bufferAfterMin(resolvedBufferAfter)
                 .status(RequestStatus.RECEIVED)
                 .requestDate(Instant.now())
                 .build();
@@ -169,6 +191,26 @@ public class EventRequestService {
                 departmentData,
                 timeline
         );
+    }
+
+    private Integer resolveBufferBefore(CreateEventRequestDto dto, Space space) {
+        if (dto.bufferBeforeMin() != null) {
+            if (dto.bufferBeforeMin() < 0 || dto.bufferBeforeMin() > 240) {
+                throw new DomainValidationException("bufferBeforeMin must be between 0 and 240");
+            }
+            return dto.bufferBeforeMin();
+        }
+        return space != null ? space.getDefaultBufferBeforeMin() : 0;
+    }
+
+    private Integer resolveBufferAfter(CreateEventRequestDto dto, Space space) {
+        if (dto.bufferAfterMin() != null) {
+            if (dto.bufferAfterMin() < 0 || dto.bufferAfterMin() > 240) {
+                throw new DomainValidationException("bufferAfterMin must be between 0 and 240");
+            }
+            return dto.bufferAfterMin();
+        }
+        return space != null ? space.getDefaultBufferAfterMin() : 0;
     }
 
     private List<TrackingResponse.TimelineEntry> buildTimeline(EventRequest request, Event event) {

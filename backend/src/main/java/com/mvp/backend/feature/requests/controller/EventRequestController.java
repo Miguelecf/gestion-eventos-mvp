@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/event-requests")
+@RequestMapping("/public/event-requests")
 @RequiredArgsConstructor
 public class EventRequestController {
 

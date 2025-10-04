@@ -1,9 +1,6 @@
 package com.mvp.backend.feature.events.controller;
 
-import com.mvp.backend.feature.events.dto.CreateEventDto;
-import com.mvp.backend.feature.events.dto.EventCreateResult;
-import com.mvp.backend.feature.events.dto.EventRequest;
-import com.mvp.backend.feature.events.dto.EventResponse;
+import com.mvp.backend.feature.events.dto.*;
 import com.mvp.backend.feature.events.model.Status;
 import com.mvp.backend.feature.events.service.EventService;
 import com.mvp.backend.shared.Priority;
@@ -29,59 +26,52 @@ public class EventController {
 
     // Lista sólo los "activos"
     @GetMapping
-    public List<EventResponse> listActive() {
+    public List<EventResponseDto> listActive() {
         return service.listActive();
     }
 
     @GetMapping("/{id}")
-    public EventResponse getById(@PathVariable Long id) {
+    public EventResponseDto getById(@PathVariable Long id) {
         return service.getById(id);
     }
 
     @GetMapping("/date")
-    public List<EventResponse> byDate(
+    public List<EventResponseDto> byDate(
             @RequestParam @DateTimeFormat(pattern = "dd-MM-yyyy") LocalDate date) {
         return service.findByDate(date);
     }
 
     @GetMapping("/range")
-    public List<EventResponse> byRange(
+    public List<EventResponseDto> byRange(
             @RequestParam("start") @DateTimeFormat(pattern = "dd-MM-yyyy") LocalDate start,
             @RequestParam("end")   @DateTimeFormat(pattern = "dd-MM-yyyy") LocalDate end) {
         return service.findByDateBetween(start, end);
     }
 
     @GetMapping("/priority/{priority}")
-    public List<EventResponse> byPriority(@PathVariable Priority priority) {
+    public List<EventResponseDto> byPriority(@PathVariable Priority priority) {
         return service.findByPriority(priority);
     }
 
     @GetMapping("/status/{status}")
-    public List<EventResponse> byStatus(@PathVariable Status status) {
+    public List<EventResponseDto> byStatus(@PathVariable Status status) {
         return service.findByStatus(status);
     }
 
     @GetMapping("/user/{userId}")
-    public List<EventResponse> byUser(@PathVariable Long userId) {
+    public List<EventResponseDto> byUser(@PathVariable Long userId) {
         return service.findByUser(userId);
     }
 
     /* ------- Commands ------- */
-    @PostMapping("/newEvent")
-    public ResponseEntity<EventCreateResult> newEvent(@Valid @RequestBody CreateEventDto req) {
-        EventCreateResult created = service.newEvent(req);
-        return ResponseEntity.status(HttpStatus.CREATED).body(created);
-    }
-
     @PostMapping
-    public ResponseEntity<EventResponse> create(@Valid @RequestBody EventRequest req) {
-        EventResponse created = service.create(req);
+    public ResponseEntity<EventCreateResult> create(@Valid @RequestBody CreateEventDto req) {
+        EventCreateResult created = service.create(req);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
-
-    @PutMapping("/{id}")
-    public EventResponse update(@PathVariable Long id, @Valid @RequestBody EventRequest req) {
+    @PatchMapping("/{id}")
+    public EventUpdateResult update(@PathVariable Long id, @Valid @RequestBody UpdateEventDto req) {
         return service.update(id, req);
     }
 
