@@ -1,16 +1,15 @@
 package com.mvp.backend.feature.events.service;
 
-
-import com.mvp.backend.feature.events.dto.EventRequest;
-import com.mvp.backend.feature.events.dto.EventResponse;
+import com.mvp.backend.feature.availability.exception.AvailabilityConflictException;
+import com.mvp.backend.feature.availability.model.AvailabilityParams;
+import com.mvp.backend.feature.availability.service.AvailabilityService;
+import com.mvp.backend.feature.events.dto.*;
 import com.mvp.backend.feature.events.model.Event;
 import com.mvp.backend.feature.events.model.Status;
 import com.mvp.backend.feature.events.repository.EventRepository;
 import com.mvp.backend.feature.users.model.User;
-import com.mvp.backend.feature.users.repository.UserRepository;
 import com.mvp.backend.shared.Priority;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -18,8 +17,6 @@ import com.mvp.backend.feature.catalogs.model.Department;
 import com.mvp.backend.feature.catalogs.model.Space;
 import com.mvp.backend.feature.catalogs.repository.DepartmentRepository;
 import com.mvp.backend.feature.catalogs.repository.SpaceRepository;
-import com.mvp.backend.feature.events.dto.CreateEventDto;
-import com.mvp.backend.feature.events.dto.EventCreateResult;
 import com.mvp.backend.feature.history.model.HistoryType;
 import com.mvp.backend.feature.history.model.EventHistory;
 import com.mvp.backend.feature.history.repository.EventHistoryRepository;
@@ -45,19 +42,18 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 @RequiredArgsConstructor
 @Transactional
 public class EventService {
-
+    private static final int MAX_BUFFER_MINUTES = 240;
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
 
     private final EventRepository eventRepository;
     private final UserService userService;
-    private final UserRepository userRepository;
     private final SpaceRepository spaceRepository;
     private final DepartmentRepository departmentRepository;
     private final EventHistoryRepository eventHistoryRepository;
     private final AvailabilityService availabilityService;
 
     /* ---------- Commands ---------- */
-    public EventCreateResult newEvent(CreateEventDto dto) {
+    public EventCreateResult create(CreateEventDto dto) {
         User currentUser = getCurrentUser();
 
         Space space = null;
@@ -75,8 +71,8 @@ public class EventService {
             throw new DomainValidationException("Either spaceId or freeLocation must be provided");
         }
 
-        Integer bufferBefore = dto.bufferBeforeMin();
-        Integer bufferAfter = dto.bufferAfterMin();
+        Integer bufferBefore = resolveBuffer(dto.bufferBeforeMin(), space != null ? space.getDefaultBufferBeforeMin() : 0, "bufferBeforeMin");
+        Integer bufferAfter = resolveBuffer(dto.bufferAfterMin(), space != null ? space.getDefaultBufferAfterMin() : 0, "bufferAfterMin");
         if (space != null) {
             if (bufferBefore == null) {
                 bufferBefore = space.getDefaultBufferBeforeMin();
@@ -95,6 +91,22 @@ public class EventService {
 
         if (bufferBefore < 0 || bufferAfter < 0) {
             throw new DomainValidationException("Buffers must be greater or equal than 0");
+        }
+
+        //chequeo de disponibilidad al crear un evento
+        AvailabilityParams params = AvailabilityParams.builder()
+                .date(dto.date())
+                .spaceId(dto.spaceId())
+                .freeLocation(freeLocation)
+                .scheduleFrom(dto.scheduleFrom())
+                .scheduleTo(dto.scheduleTo())
+                .bufferBeforeMin(bufferBefore)
+                .bufferAfterMin(bufferAfter)
+                .build();
+
+        var availabilityResult = availabilityService.checkSpaceAvailability(params);
+        if (Boolean.FALSE.equals(availabilityResult.isAvailable())) {
+            throw AvailabilityConflictException.internalConflict(availabilityResult);
         }
 
         String contactName = trimToNull(dto.contactName());
@@ -144,83 +156,131 @@ public class EventService {
                 .toValue(saved.getStatus().name())
                 .build());
 
-        List<EventCreateResult.ConflictDetail> conflicts = List.copyOf(availabilityService.check(
-                dto.date(),
-                dto.scheduleFrom(),
-                dto.scheduleTo(),
-                space != null ? space.getId() : null,
-                bufferBefore,
-                bufferAfter
-        ));
+        List<EventCreateResult.ConflictDetail> conflicts = new ArrayList<>();
 
         // TODO: enviar notificaciones aal correo del usuario creador
 
         return new EventCreateResult(saved.getId(), saved.getStatus(), !conflicts.isEmpty(), conflicts);
     }
 
-    public EventResponse create(EventRequest req){
+    public EventUpdateResult  update(Long id, UpdateEventDto req) {
 
-        User user = userRepository.findById(req.userId()).orElseThrow(()
-                -> new ResponseStatusException(NOT_FOUND,"User not found"));
+        User currentUser = getCurrentUser();
 
-        if (req.scheduleFrom().isAfter(req.scheduleTo()))
-        { throw new ResponseStatusException(NOT_FOUND,"Schedule from must be before schedule to");}
-
-        // Forzamos estado inicial razonable si no viene o viene inválido
-        Status initialStatus = req.status() != null ? req.status() : Status.SOLICITADO;
-
-        Event ev = Event.builder()
-                .date(req.date())
-                .scheduleFrom(req.scheduleFrom())
-                .technicalSchedule(req.technicalSchedule())
-                .scheduleTo(req.scheduleTo())
-                .status(initialStatus)
-                .name(req.name())
-                .requestingArea(req.requestingArea())
-                .requirements(req.requirements())
-                .coverage(req.coverage())
-                .observations(req.observations())
-                .priority(req.priority())
-                .createdBy(user)
-                .build();
-
-        Event saved = eventRepository.save(ev);
-        return toResponse(saved);
-    }
-
-    public EventResponse update(Long id, EventRequest req) {
         Event ev = eventRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Event not found"));
-
-        if (req.scheduleFrom() != null && req.scheduleTo() != null && req.scheduleFrom().isAfter(req.scheduleTo())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "scheduleFrom must be before scheduleTo");
-        }
-
-        if (!Objects.equals(ev.getCreatedBy().getId(), req.userId())) {
-            User user = userService.getById(req.userId());
-            ev.setCreatedBy(user);
-        }
 
         LocalDate previousDate = ev.getDate();
         LocalTime previousFrom = ev.getScheduleFrom();
         LocalTime previousTo = ev.getScheduleTo();
         Status previousStatus = ev.getStatus();
+        Long previousSpaceId   = ev.getSpace() != null ? ev.getSpace().getId() : null;
+        Integer previousBufferBefore = ev.getBufferBeforeMin();
+        Integer previousBufferAfter  = ev.getBufferAfterMin();
 
-        ev.setDate(req.date());
-        ev.setTechnicalSchedule(req.technicalSchedule());
-        ev.setScheduleFrom(req.scheduleFrom());
-        ev.setScheduleTo(req.scheduleTo());
-        if (req.status() != null) {
-            ev.setStatus(req.status());
+        Space newSpace = null;
+        if (req.spaceId() != null) {
+            newSpace = spaceRepository.findById(req.spaceId())
+                    .filter(Space::isActive)
+                    .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Space not found"));
         }
-        ev.setName(req.name());
-        ev.setRequestingArea(req.requestingArea());
-        ev.setRequirements(req.requirements());
-        ev.setCoverage(req.coverage());
-        ev.setObservations(req.observations());
-        if (req.priority() != null) {
-            ev.setPriority(req.priority());
+        Department newDept = null;
+        if (req.departmentId() != null) {
+            newDept = departmentRepository.findById(req.departmentId())
+                    .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Department not found"));
         }
+
+        LocalDate effDate  = req.date() != null ? req.date() : ev.getDate();
+        LocalTime effFrom  = req.scheduleFrom() != null ? req.scheduleFrom() : ev.getScheduleFrom();
+        LocalTime effTo    = req.scheduleTo() != null ? req.scheduleTo() : ev.getScheduleTo();
+        Space   effSpace   = req.spaceId() != null ? newSpace : ev.getSpace();
+        String  effFreeLoc = req.freeLocation() != null ? trimToNull(req.freeLocation()) : ev.getFreeLocation();
+
+        boolean hasSpace = effSpace != null;
+        boolean hasFree  = effFreeLoc != null && !effFreeLoc.isBlank();
+        if (hasSpace == hasFree) {
+            throw new DomainValidationException("Debe indicarse un espacio o una ubicación libre, pero no ambos.");
+        }
+
+        if (effFrom != null && effTo != null && !effTo.isAfter(effFrom)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "scheduleTo must be after scheduleFrom");
+        }
+
+        // asignar los cambios
+        if (req.date() != null)                ev.setDate(req.date());
+        if (req.technicalSchedule() != null)   ev.setTechnicalSchedule(req.technicalSchedule());
+        if (req.scheduleFrom() != null)        ev.setScheduleFrom(req.scheduleFrom());
+        if (req.scheduleTo() != null)          ev.setScheduleTo(req.scheduleTo());
+        if (req.status() != null)              ev.setStatus(req.status());
+
+        if (req.name() != null)                ev.setName(req.name().trim());
+        if (req.requestingArea() != null)      ev.setRequestingArea(trimToNull(req.requestingArea()));
+        if (req.requirements() != null)        ev.setRequirements(trimToNull(req.requirements()));
+        if (req.coverage() != null)            ev.setCoverage(trimToNull(req.coverage()));
+        if (req.observations() != null)        ev.setObservations(trimToNull(req.observations()));
+
+        if (req.priority() != null)            ev.setPriority(req.priority());
+        if (req.audienceType() != null)        ev.setAudienceType(req.audienceType());
+        if (req.internal() != null)            ev.setInternal(req.internal());
+        if (req.requiresTech() != null)        ev.setRequiresTech(req.requiresTech());
+
+        if (req.contactName() != null)         ev.setContactName(trimToNull(req.contactName()));
+        if (req.contactEmail() != null)        ev.setContactEmail(trimToNull(req.contactEmail()));
+        if (req.contactPhone() != null)        ev.setContactPhone(trimToNull(req.contactPhone()));
+
+        if (newDept != null)                   ev.setDepartment(newDept);
+
+        if (req.spaceId() != null) {           // Cambia a espacio
+            ev.setSpace(newSpace);
+            ev.setFreeLocation(null);
+        } else if (req.freeLocation() != null) { // Cambia a free location
+            ev.setSpace(null);
+            ev.setFreeLocation(effFreeLoc);
+        }
+
+        hasSpace = ev.getSpace() != null;
+
+        // buffers
+        Long currentSpaceId  = hasSpace ? ev.getSpace().getId() : null;
+        boolean spaceChanged = !Objects.equals(previousSpaceId, currentSpaceId);
+
+        if (req.bufferBeforeMin() != null) {
+            mustBeBetween(req.bufferBeforeMin(), 0, 240, "bufferBeforeMin");
+            ev.setBufferBeforeMin(req.bufferBeforeMin());
+        } else if (spaceChanged) {
+            ev.setBufferBeforeMin(hasSpace ? ev.getSpace().getDefaultBufferBeforeMin() : 0);
+        }
+
+        if (req.bufferAfterMin() != null) {
+            mustBeBetween(req.bufferAfterMin(), 0, 240, "bufferAfterMin");
+            ev.setBufferAfterMin(req.bufferAfterMin());
+        } else if (spaceChanged) {
+            ev.setBufferAfterMin(hasSpace ? ev.getSpace().getDefaultBufferAfterMin() : 0);
+        }
+
+        // chequeo de disponibilidad usando valores efectivos finales
+        Integer effBufB = ev.getBufferBeforeMin();
+        Integer effBufA = ev.getBufferAfterMin();
+
+        // chequeo de disponibilidad
+        AvailabilityParams params = AvailabilityParams.builder()
+                .date(effDate)
+                .spaceId(hasSpace ? ev.getSpace().getId() : null)
+                .freeLocation(!hasSpace ? ev.getFreeLocation() : null)
+                .scheduleFrom(effFrom)
+                .scheduleTo(effTo)
+                .bufferBeforeMin(effBufB)
+                .bufferAfterMin(effBufA)
+                .ignoreEventId(ev.getId())
+                .build();
+
+        var availabilityResult = availabilityService.checkSpaceAvailability(params);
+        if (Boolean.FALSE.equals(availabilityResult.isAvailable())) {
+            throw AvailabilityConflictException.internalConflict(availabilityResult);
+        }
+
+        ev.setLastModifiedBy(currentUser);
+
         Event saved = eventRepository.save(ev);
 
         Instant now = Instant.now();
@@ -246,33 +306,10 @@ public class EventService {
                     .build());
         }
 
-        return toResponse(saved);
-    }
+        // agregar las otificaciones de si se movió agenda/espacio
+        List<EventCreateResult.ConflictDetail> conflicts = new ArrayList<>();
 
-    public EventResponse OLDupdate (Long id, EventRequest req){
-        Event ev = eventRepository.findById(id).orElseThrow(()
-                -> new RuntimeException("Event not found"));
-
-        if (!ev.getCreatedBy().getId().equals(req.userId())){
-            User user = userRepository.findById(req.userId()).orElseThrow(()
-                    -> new RuntimeException("User not found"));
-            ev.setCreatedBy(user);
-        }
-
-        ev.setDate(req.date());
-        ev.setTechnicalSchedule(req.technicalSchedule());
-        ev.setScheduleFrom(req.scheduleFrom());
-        ev.setScheduleTo(req.scheduleTo());
-        ev.setStatus(req.status() != null ? req.status() : ev.getStatus());
-        ev.setName(req.name());
-        ev.setRequestingArea(req.requestingArea());
-        ev.setRequirements(req.requirements());
-        ev.setCoverage(req.coverage());
-        ev.setObservations(req.observations());
-        ev.setPriority(req.priority() != null ? req.priority() : ev.getPriority());
-        Event saved = eventRepository.save(ev);
-
-        return toResponse(saved);
+        return toResponseEventUpdate(saved, !conflicts.isEmpty(), conflicts);
     }
 
     public void softDelete(Long id){
@@ -283,12 +320,11 @@ public class EventService {
         ev.setDeletedAt(Instant.now());
         eventRepository.save(ev);
     }
-
     /* ----------------- Queries ------------- */
     @Transactional(readOnly = true)
-    public List<EventResponse> listActive(){
+    public List<EventResponseDto> listActive(){
         return eventRepository.findByActiveTrue()
-                .stream().map(this::toResponse).toList();
+                .stream().map(EventMapper::toDto).toList();
 
         /* Por ejemplo si lo quiero hacer mas por filtro, y no con el metodo findByActiveTrue()
          return eventRepository.findAl().stream().filter(e -> e.isActive()).map(this::toResponse).toList();
@@ -297,62 +333,37 @@ public class EventService {
     }
 
     @Transactional(readOnly = true)
-    public EventResponse getById(Long id){
-        return eventRepository.findById(id).map(this::toResponse)
+    public EventResponseDto getById(Long id){
+        return eventRepository.findById(id).map(EventMapper::toDto)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Event not found"));
     }
 
     @Transactional(readOnly = true)
-    public List<EventResponse> findByDate(LocalDate date){
-        return eventRepository.findByDate(date).stream().map(this::toResponse).toList();
+    public List<EventResponseDto> findByDate(LocalDate date){
+        return eventRepository.findByDate(date).stream().map(EventMapper::toDto).toList();
     }
 
     @Transactional(readOnly = true)
-    public List<EventResponse> findByDateBetween(LocalDate start, LocalDate end) {
-        return eventRepository.findByDateBetween(start, end).stream().map(this::toResponse).toList();
+    public List<EventResponseDto> findByDateBetween(LocalDate start, LocalDate end) {
+        return eventRepository.findByDateBetween(start, end).stream().map(EventMapper::toDto).toList();
     }
 
     @Transactional(readOnly = true)
-    public List<EventResponse> findByPriority(Priority p) {
-        return eventRepository.findByPriority(p).stream().map(this::toResponse).toList();
+    public List<EventResponseDto> findByPriority(Priority p) {
+        return eventRepository.findByPriority(p).stream().map(EventMapper::toDto).toList();
     }
 
     @Transactional(readOnly = true)
-    public List<EventResponse> findByStatus(Status s) {
-        return eventRepository.findByStatus(s).stream().map(this::toResponse).toList();
+    public List<EventResponseDto> findByStatus(Status s) {
+        return eventRepository.findByStatus(s).stream().map(EventMapper::toDto).toList();
     }
 
     @Transactional(readOnly = true)
-    public List<EventResponse> findByUser(Long userId) {
-        return eventRepository.findByCreatedById(userId).stream().map(this::toResponse).toList();
+    public List<EventResponseDto> findByUser(Long userId) {
+        return eventRepository.findByCreatedById(userId).stream().map(EventMapper::toDto).toList();
     }
 
     /* -----Mapping----- */
-    private EventResponse toResponse(Event e) {
-        return new EventResponse(
-                e.getId(),
-                e.isActive(),
-                e.getCreatedAt(),
-                e.getUpdatedAt(),
-                e.getDeletedAt(),
-
-                e.getName(),
-                e.getRequestingArea(),
-                e.getRequirements(),
-                e.getCoverage(),
-                e.getObservations(),
-
-                e.getDate(),
-                e.getTechnicalSchedule(),
-                e.getScheduleFrom(),
-                e.getScheduleTo(),
-                e.getStatus(),
-                e.getPriority(),
-                e.getCreatedAt(),
-
-                e.getCreatedBy() != null ? e.getCreatedBy().getId() : null
-        );
-    }
 
     private User getCurrentUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -390,5 +401,34 @@ public class EventService {
             parts.add("Horario " + from.format(TIME_FORMATTER) + "–" + to.format(TIME_FORMATTER));
         }
         return String.join(" | ", parts);
+    }
+
+    private static void mustBeBetween(int v, int min, int max, String field) {
+        if (v < min || v > max) throw new DomainValidationException(
+                field + " must be between " + min + " and " + max);
+    }
+
+    private EventUpdateResult toResponseEventUpdate(
+            Event ev,
+            boolean conflict,
+            List<EventCreateResult.ConflictDetail> conflictDetails) {
+        // Normalizamos la lista para evitar nulls si alguien pasa null
+        List<EventCreateResult.ConflictDetail> details =
+                (conflict && conflictDetails != null) ? conflictDetails : List.of();
+
+        return new EventUpdateResult(
+                ev.getId(),
+                ev.getStatus(),
+                conflict,
+                details
+        );
+    }
+
+    private int resolveBuffer(Integer requested, Integer defaultValue, String fieldName) {
+        int value = requested != null ? requested : (defaultValue != null ? defaultValue : 0);
+        if (value < 0 || value > MAX_BUFFER_MINUTES) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, fieldName + " must be between 0 and " + MAX_BUFFER_MINUTES);
+        }
+        return value;
     }
 }
