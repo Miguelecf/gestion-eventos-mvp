@@ -1,5 +1,6 @@
 package com.mvp.backend.shared;
 
+import com.mvp.backend.feature.tech.exception.TechCapacityExceededException;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -44,6 +45,14 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, Object>> handleConflict(DataIntegrityViolationException ex) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("message", "Entity already exists");
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+    }
+
+    @ExceptionHandler(TechCapacityExceededException.class)
+    public ResponseEntity<Map<String, Object>> handleTechCapacity(TechCapacityExceededException ex) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("error", "TECH_CAPACITY_REACHED");
+        body.put("message", ex.getMessage());
         return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
     }
 }

@@ -2,6 +2,7 @@ package com.mvp.backend.feature.events.dto;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.mvp.backend.feature.events.model.Status;
+import com.mvp.backend.feature.events.model.TechSupportMode;
 import com.mvp.backend.shared.AudienceType;
 import com.mvp.backend.shared.Priority;
 
@@ -47,6 +48,10 @@ public record EventResponseDto(
         boolean ceremonialOk,
         boolean technicalOk,
         boolean requiresTech,
+
+        TechSupportMode techSupportMode,
+        boolean requiresRebooking,
+
         Integer bufferBeforeMin,
         Integer bufferAfterMin,
 

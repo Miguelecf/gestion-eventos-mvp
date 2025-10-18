@@ -92,6 +92,15 @@ public class Event extends BaseEntity {
     @Column(nullable = false)
     private boolean requiresTech = false;
 
+    @Builder.Default
+    @Column(name = "requires_rebooking", nullable = false)
+    private boolean requiresRebooking = false;
+
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(name = "tech_support_mode", length = 20)
+    private TechSupportMode techSupportMode = TechSupportMode.SETUP_ONLY;
+
     // buffers (pueden tomar defaults desde Space)
     @Builder.Default
     @Column(nullable = false)
