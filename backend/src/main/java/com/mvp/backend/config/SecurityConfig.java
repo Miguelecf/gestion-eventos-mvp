@@ -34,7 +34,9 @@ public class SecurityConfig {
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(HttpMethod.POST, "/event-requests").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/public/event-requests").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/public/availability/check").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/public/spaces/*/occupancy").permitAll()
                         .requestMatchers(HttpMethod.GET, "/public/track/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/catalogs/spaces/public").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/catalogs/**").hasAnyRole("ADMIN_FULL","ADMIN_CEREMONIAL","ADMIN_TECNICA")
@@ -44,6 +46,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/auth/change-password", "/auth/logout").authenticated()
                         .requestMatchers(HttpMethod.GET,"/auth/me").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/events/**").hasAnyRole("ADMIN_FULL","ADMIN_CEREMONIAL","ADMIN_TECNICA","USUARIO")
+                        .requestMatchers(HttpMethod.POST, "/api/availability/check").hasAnyRole("ADMIN_FULL","ADMIN_CEREMONIAL","ADMIN_TECNICA","USUARIO")
                         .requestMatchers("/api/events/**").hasRole("ADMIN_FULL")
                         .anyRequest().authenticated()
                 )

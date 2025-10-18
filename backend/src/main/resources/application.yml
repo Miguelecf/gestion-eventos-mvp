@@ -9,7 +9,7 @@ spring:
       roles: ADMIN
 
   datasource:
-    url: jdbc:mysql://localhost:3306/eventosbd?createDatabaseIfNotExist=true&useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=UTC
+    url: jdbc:mysql://localhost:3306/eventosbd?createDatabaseIfNotExist=true&useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=UTC&useTimezone=false
     username: root
     password: root
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -21,7 +21,6 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.MySQLDialect   # MySQLDialect (MySQL8Dialect está deprecated)
         format_sql: true
-        jdbc.time_zone: UTC
     show-sql: true
 
   jackson:

@@ -75,12 +75,10 @@ public record CreateEventRequestDto(
         @Pattern(regexp = "^[+\\d\\s-]+$", message = "contactPhone must contain only digits, spaces, plus signs or hyphens")
         String contactPhone,
 
-        @NotNull(message = "bufferBeforeMin is required")
         @Min(value = 0, message = "bufferBeforeMin must be at least 0")
         @Max(value = 240, message = "bufferBeforeMin must be at most 240")
         Integer bufferBeforeMin,
 
-        @NotNull(message = "bufferAfterMin is required")
         @Min(value = 0, message = "bufferAfterMin must be at least 0")
         @Max(value = 240, message = "bufferAfterMin must be at most 240")
         Integer bufferAfterMin
