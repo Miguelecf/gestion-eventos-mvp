@@ -8,9 +8,7 @@ import com.mvp.backend.feature.catalogs.repository.SpaceRepository;
 import com.mvp.backend.feature.events.model.Event;
 import com.mvp.backend.feature.events.model.TechSupportMode;
 import com.mvp.backend.feature.events.repository.EventRepository;
-import com.mvp.backend.feature.history.model.EventHistory;
-import com.mvp.backend.feature.history.model.HistoryType;
-import com.mvp.backend.feature.history.repository.EventHistoryRepository;
+import com.mvp.backend.feature.history.service.AuditService;
 import com.mvp.backend.feature.priority.dto.PriorityConflictDecisionRequest;
 import com.mvp.backend.feature.priority.event.PriorityConflictCreatedEvent;
 import com.mvp.backend.feature.priority.model.PriorityConflict;
@@ -27,7 +25,6 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
@@ -51,7 +48,7 @@ public class PriorityConflictService {
     private final EventRepository eventRepository;
     private final SpaceRepository spaceRepository;
     private final UserService userService;
-    private final EventHistoryRepository historyRepository;
+    private final AuditService auditService;
     private final AvailabilityService availabilityService;
     private final TechCapacityService techCapacityService;
     private final ApplicationEventPublisher eventPublisher;
@@ -199,13 +196,7 @@ public class PriorityConflictService {
 
         eventRepository.save(displaced);
 
-        String details = buildHistoryDetails(displaced);
-        historyRepository.save(EventHistory.builder()
-                .event(displaced)
-                .at(Instant.now())
-                .type(HistoryType.SCHEDULE_CHANGE)
-                .details(StringUtils.hasText(details) ? details : null)
-                .build());
+        auditService.recordScheduleChange(displaced, decider, displaced.getDate(), displaced.getScheduleFrom(), displaced.getScheduleTo());
     }
 
     private String buildCode(LocalDate date, long sequence) {
@@ -228,17 +219,6 @@ public class PriorityConflictService {
 
     private java.time.LocalTime resolveTo(Event highEvent, Event displacedEvent) {
         return Objects.requireNonNullElse(highEvent.getScheduleTo(), displacedEvent.getScheduleTo());
-    }
-
-    private String buildHistoryDetails(Event event) {
-        List<String> parts = new ArrayList<>();
-        if (event.getDate() != null) {
-            parts.add("Fecha " + event.getDate());
-        }
-        if (event.getScheduleFrom() != null && event.getScheduleTo() != null) {
-            parts.add("Horario " + event.getScheduleFrom() + "–" + event.getScheduleTo());
-        }
-        return String.join(" | ", parts);
     }
 
     private String trimToNull(String value) {

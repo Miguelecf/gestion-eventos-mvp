@@ -144,16 +144,16 @@ public class EventRequestService {
 
         Event event = request.getConvertedEvent();
         RequestStatus requestStatus = event != null ? RequestStatus.CONVERTED : request.getStatus();
-        TrackingResponse.RequestData requestData = new TrackingResponse.RequestData(requestStatus, request.getRequestDate());
+        RequestData requestData = new RequestData(requestStatus, request.getRequestDate());
 
-        TrackingResponse.EventData eventData = null;
-        TrackingResponse.ScheduleData scheduleData;
-        TrackingResponse.LocationData locationData;
-        TrackingResponse.DepartmentData departmentData;
+        EventData eventData = null;
+        ScheduleData scheduleData;
+        LocationData locationData;
+        DepartmentData departmentData;
 
         if (event != null) {
-            eventData = new TrackingResponse.EventData(event.getId(), event.getStatus(), event.isInternal());
-            scheduleData = new TrackingResponse.ScheduleData(
+            eventData = new EventData(event.getId(), event.getStatus(), event.isInternal());
+            scheduleData = new ScheduleData(
                     event.getDate(),
                     event.getScheduleFrom(),
                     event.getScheduleTo(),
@@ -166,7 +166,7 @@ public class EventRequestService {
                     ? new DepartmentData(event.getDepartment().getId(), event.getDepartment().getName())
                     : null;
         } else {
-            scheduleData = new TrackingResponse.ScheduleData(
+            scheduleData = new ScheduleData(
                     request.getDate(),
                     request.getScheduleFrom(),
                     request.getScheduleTo(),
@@ -176,11 +176,11 @@ public class EventRequestService {
             );
             locationData = toLocationData(request.getSpace(), request.getFreeLocation());
             departmentData = request.getRequestingDepartment() != null
-                    ? new TrackingResponse.DepartmentData(request.getRequestingDepartment().getId(), request.getRequestingDepartment().getName())
+                    ? new DepartmentData(request.getRequestingDepartment().getId(), request.getRequestingDepartment().getName())
                     : null;
         }
 
-        List<TrackingResponse.TimelineEntry> timeline = buildTimeline(request, event);
+        List<TimelineEntry> timeline = buildTimeline(request, event);
 
         return new TrackingResponse(
                 request.getTrackingUuid(),
@@ -213,8 +213,8 @@ public class EventRequestService {
         return space != null ? space.getDefaultBufferAfterMin() : 0;
     }
 
-    private List<TrackingResponse.TimelineEntry> buildTimeline(EventRequest request, Event event) {
-        List<TrackingResponse.TimelineEntry> entries = new ArrayList<>();
+    private List<TimelineEntry> buildTimeline(EventRequest request, Event event) {
+        List<TimelineEntry> entries = new ArrayList<>();
 
         List<EventRequestHistory> requestHistories = eventRequestHistoryRepository
                 .findByRequestIdOrderByAtAsc(request.getId());
@@ -259,6 +259,12 @@ public class EventRequestService {
         return switch (type) {
             case STATUS -> Type.STATUS;
             case SCHEDULE_CHANGE -> Type.SCHEDULE_CHANGE;
+            case FIELD_UPDATE -> Type.FIELD_UPDATE;
+            case REPROGRAM -> Type.REPROGRAM;
+            case TECH_CAPACITY_REJECT -> Type.TECH_CAPACITY_REJECT;
+            case SPACE_CONFLICT -> Type.SPACE_CONFLICT;
+            case PRIORITY_CONFLICT -> Type.PRIORITY_CONFLICT;
+            case COMMENT -> Type.COMMENT;
         };
     }
 

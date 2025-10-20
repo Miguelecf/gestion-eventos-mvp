@@ -44,7 +44,5 @@ public record UpdateEventDto(
 
         @Size(max = 120) String contactName,
         @Email @Size(max = 120) String contactEmail,
-        @Size(max = 30) String contactPhone,
-
-        com.mvp.backend.feature.events.model.Status status
+        @Size(max = 30) String contactPhone
 ) { }

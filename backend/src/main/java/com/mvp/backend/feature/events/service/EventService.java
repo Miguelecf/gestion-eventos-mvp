@@ -25,9 +25,7 @@ import com.mvp.backend.feature.catalogs.model.Department;
 import com.mvp.backend.feature.catalogs.model.Space;
 import com.mvp.backend.feature.catalogs.repository.DepartmentRepository;
 import com.mvp.backend.feature.catalogs.repository.SpaceRepository;
-import com.mvp.backend.feature.history.model.HistoryType;
-import com.mvp.backend.feature.history.model.EventHistory;
-import com.mvp.backend.feature.history.repository.EventHistoryRepository;
+import com.mvp.backend.feature.history.service.AuditService;
 import com.mvp.backend.feature.users.service.UserService;
 import com.mvp.backend.shared.DomainValidationException;
 import org.springframework.http.HttpStatus;
@@ -39,8 +37,6 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.time.LocalTime;
-import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
 import java.util.Objects;
 
 import static org.springframework.http.HttpStatus.NOT_FOUND;
@@ -51,13 +47,12 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 @Transactional
 public class EventService {
     private static final int MAX_BUFFER_MINUTES = 240;
-    private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
 
     private final EventRepository eventRepository;
     private final UserService userService;
     private final SpaceRepository spaceRepository;
     private final DepartmentRepository departmentRepository;
-    private final EventHistoryRepository eventHistoryRepository;
+    private final AuditService auditService;
     private final AvailabilityService availabilityService;
     private final PriorityPolicy priorityPolicy;
     private final TechCapacityService techCapacityService;
@@ -143,13 +138,7 @@ public class EventService {
 
         Event saved = eventRepository.save(event);
 
-        eventHistoryRepository.save(EventHistory.builder()
-                .event(saved)
-                .at(saved.getCreatedAt())
-                .type(HistoryType.STATUS)
-                .fromValue(null)
-                .toValue(saved.getStatus().name())
-                .build());
+        auditService.recordStatusChange(saved, currentUser, null, saved.getStatus(), null, null);
 
         List<PriorityConflictSummary> conflictSummaries = registerPriorityConflicts(saved, displacedEvents, currentUser);
         // TODO: enviar notificaciones aal correo del usuario creador
@@ -164,11 +153,11 @@ public class EventService {
         Event event  = eventRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Event not found"));
 
-        LocalDate previousDate = event .getDate();
-        LocalTime previousFrom = event .getScheduleFrom();
-        LocalTime previousTo = event .getScheduleTo();
-        Status previousStatus = event .getStatus();
-        Long previousSpaceId   = event .getSpace() != null ? event .getSpace().getId() : null;
+        LocalDate previousDate = event.getDate();
+        LocalTime previousFrom = event.getScheduleFrom();
+        LocalTime previousTo = event.getScheduleTo();
+        Status previousStatus = event.getStatus();
+        Long previousSpaceId = event.getSpace() != null ? event.getSpace().getId() : null;
 
         Space newSpace = resolveSpace(req.spaceId());
 
@@ -237,11 +226,16 @@ public class EventService {
         }
 
         // asignar los cambios
-        if (req.date() != null)                event .setDate(req.date());
-        if (req.technicalSchedule() != null)   event .setTechnicalSchedule(req.technicalSchedule());
-        if (req.scheduleFrom() != null)        event .setScheduleFrom(req.scheduleFrom());
-        if (req.scheduleTo() != null)          event .setScheduleTo(req.scheduleTo());
-        if (req.status() != null)              event .setStatus(req.status());
+        boolean agendaChanged = !Objects.equals(previousDate, effectiveDate)
+                || !Objects.equals(previousFrom, effectiveFrom)
+                || !Objects.equals(previousTo, effectiveTo)
+                || spaceChanged;
+        boolean requiresReprogram = agendaChanged && isBlockingStatus(previousStatus);
+
+        if (req.date() != null)                event.setDate(req.date());
+        if (req.technicalSchedule() != null)   event.setTechnicalSchedule(req.technicalSchedule());
+        if (req.scheduleFrom() != null)        event.setScheduleFrom(req.scheduleFrom());
+        if (req.scheduleTo() != null)          event.setScheduleTo(req.scheduleTo());
 
         event.setRequestingArea(effectiveRequestingArea);
         if (req.requestingArea() != null)      event .setRequestingArea(trimToNull(req.requestingArea()));
@@ -274,29 +268,19 @@ public class EventService {
         event.setBufferAfterMin(effectiveBufferAfter);
         event.setLastModifiedBy(currentUser);
 
-        Event saved = eventRepository.save(event);
-
-        Instant now = Instant.now();
-        if (req.status() != null && previousStatus != req.status()) {
-            eventHistoryRepository.save(EventHistory.builder()
-                    .event(saved)
-                    .at(now)
-                    .type(HistoryType.STATUS)
-                    .fromValue(previousStatus != null ? previousStatus.name() : null)
-                    .toValue(saved.getStatus().name())
-                    .build());
+        if (requiresReprogram) {
+            event.setStatus(Status.EN_REVISION);
         }
 
-        if (!Objects.equals(previousDate, saved.getDate())
-                || !Objects.equals(previousFrom, saved.getScheduleFrom())
-                || !Objects.equals(previousTo, saved.getScheduleTo())) {
-            String details = buildScheduleDetails(saved.getDate(), saved.getScheduleFrom(), saved.getScheduleTo());
-            eventHistoryRepository.save(EventHistory.builder()
-                    .event(saved)
-                    .at(now)
-                    .type(HistoryType.SCHEDULE_CHANGE)
-                    .details(StringUtils.hasText(details) ? details : null)
-                    .build());
+        Event saved = eventRepository.save(event);
+
+        if (requiresReprogram) {
+            auditService.recordStatusChange(saved, currentUser, previousStatus, Status.EN_REVISION, null, null);
+            auditService.recordReprogram(saved, currentUser, saved.getDate(), saved.getScheduleFrom(), saved.getScheduleTo(), null, null);
+        }
+
+        if (agendaChanged) {
+            auditService.recordScheduleChange(saved, currentUser, saved.getDate(), saved.getScheduleFrom(), saved.getScheduleTo());
         }
 
         // agregar las otificaciones de si se movió agenda/espacio
@@ -385,17 +369,6 @@ public class EventService {
         return value.trim();
     }
 
-    private String buildScheduleDetails(LocalDate date, LocalTime from, LocalTime to) {
-        List<String> parts = new ArrayList<>();
-        if (date != null) {
-            parts.add("Fecha " + date);
-        }
-        if (from != null && to != null) {
-            parts.add("Horario " + from.format(TIME_FORMATTER) + "–" + to.format(TIME_FORMATTER));
-        }
-        return String.join(" | ", parts);
-    }
-
     private int resolveBuffer(Integer requested, Integer defaultValue, String fieldName) {
         int value = requested != null ? requested : (defaultValue != null ? defaultValue : 0);
         if (value < 0 || value > MAX_BUFFER_MINUTES) {
@@ -418,6 +391,10 @@ public class EventService {
             return TechSupportMode.SETUP_ONLY;
         }
         return requested != null ? requested : TechSupportMode.SETUP_ONLY;
+    }
+
+    private boolean isBlockingStatus(Status status) {
+        return status == Status.RESERVADO || status == Status.APROBADO;
     }
 
     private TechCapacityExceededException techCapacityExceeded() {

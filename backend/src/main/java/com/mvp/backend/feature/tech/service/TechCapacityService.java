@@ -22,7 +22,7 @@ import java.util.*;
 @Transactional(readOnly = true)
 public class TechCapacityService {
 
-    private static final List<Status> BLOCKING_STATUSES = List.of(Status.EN_REVISION, Status.RESERVADO, Status.APROBADO);
+    private static final List<Status> BLOCKING_STATUSES = List.of(Status.RESERVADO, Status.APROBADO);
 
     private final TechCapacityConfigRepository configRepository;
     private final EventRepository eventRepository;
