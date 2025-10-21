@@ -68,6 +68,7 @@ public class AvailabilityService {
                         .date(event.getDate())
                         .from(existingWindow.formattedStart())
                         .to(existingWindow.formattedEnd())
+                        .internal(event.isInternal())
                         .bufferBeforeMin(event.getBufferBeforeMin())
                         .bufferAfterMin(event.getBufferAfterMin())
                         .build());
@@ -100,7 +101,7 @@ public class AvailabilityService {
                     return SpaceOccupancy.SpaceOccupancyBlock.builder()
                             .from(window.formattedStart())
                             .to(window.formattedEnd())
-                            .status(event.getStatus())
+                            .status(event.isInternal() ? null : event.getStatus())
                             .build();
                 })
                 .sorted(Comparator.comparing(SpaceOccupancy.SpaceOccupancyBlock::from))

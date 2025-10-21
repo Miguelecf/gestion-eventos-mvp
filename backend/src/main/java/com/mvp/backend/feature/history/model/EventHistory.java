@@ -50,6 +50,6 @@ public class EventHistory {
     @Column(name = "to_value", length = 256)
     private String toValue;
 
-    @Column(name = "details", length = 1024)
+    @Column(name = "details")
     private String details;
 }

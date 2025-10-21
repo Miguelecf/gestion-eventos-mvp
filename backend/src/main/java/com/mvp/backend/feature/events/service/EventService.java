@@ -157,6 +157,7 @@ public class EventService {
         LocalTime previousFrom = event.getScheduleFrom();
         LocalTime previousTo = event.getScheduleTo();
         Status previousStatus = event.getStatus();
+        boolean previousInternal = event.isInternal();
         Long previousSpaceId = event.getSpace() != null ? event.getSpace().getId() : null;
 
         Space newSpace = resolveSpace(req.spaceId());
@@ -285,6 +286,10 @@ public class EventService {
 
         // agregar las otificaciones de si se movió agenda/espacio
         List<PriorityConflictSummary> conflictSummaries = registerPriorityConflicts(saved, displacedEvents, currentUser);
+
+        if (previousInternal != saved.isInternal()) {
+            auditService.recordInternalToggle(saved, currentUser, previousInternal, saved.isInternal());
+        }
 
         return new EventUpdateResult(saved.getId(), saved.getPriority(), saved.getStatus(), conflictSummaries);
     }

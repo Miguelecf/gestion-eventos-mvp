@@ -264,7 +264,8 @@ public class EventRequestService {
             case TECH_CAPACITY_REJECT -> Type.TECH_CAPACITY_REJECT;
             case SPACE_CONFLICT -> Type.SPACE_CONFLICT;
             case PRIORITY_CONFLICT -> Type.PRIORITY_CONFLICT;
-            case COMMENT -> Type.COMMENT;
+            case COMMENT_CREATED, COMMENT_UPDATED, COMMENT_DELETED -> Type.COMMENT;
+            case INTERNAL_TOGGLED -> Type.FIELD_UPDATE;
         };
     }
 

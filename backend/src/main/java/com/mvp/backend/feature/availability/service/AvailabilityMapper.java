@@ -56,7 +56,7 @@ public class AvailabilityMapper {
 
     private PublicConflictItemDto toPublicConflict(ConflictItem conflict) {
         return new PublicConflictItemDto(
-                conflict.status(),
+                conflict.internal() ? null : conflict.status(),
                 conflict.from(),
                 conflict.to()
         );
@@ -71,6 +71,7 @@ public class AvailabilityMapper {
                 conflict.date(),
                 conflict.from(),
                 conflict.to(),
+                conflict.internal(),
                 conflict.bufferBeforeMin(),
                 conflict.bufferAfterMin()
         );
