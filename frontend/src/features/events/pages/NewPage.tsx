@@ -1,4 +1,6 @@
+import InternalEventForm from './InternalEventForm';
+
 export function NewPage() {
-  return <div>Create event</div>;
+  return <InternalEventForm />;
 }
 

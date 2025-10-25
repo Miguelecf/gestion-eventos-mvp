@@ -6,6 +6,7 @@ import {
     BreadcrumbList,
     BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
+import { Fragment } from "react";
 
 export function AppBreadcrumbs() {
     const { pathname } = useLocation();
@@ -36,7 +37,6 @@ export function AppBreadcrumbs() {
     );
 }
 
-import { Fragment } from "react";
 function format(seg: string) {
     // /events/:id -> "Events", ids no se muestran como :id
     if (!isNaN(Number(seg))) return `#${seg}`;
