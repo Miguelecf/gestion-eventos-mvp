@@ -49,4 +49,16 @@ public interface EventRepository extends JpaRepository<Event, Long> {
                                       @Param("spaceId") Long spaceId,
                                       @Param("statuses") List<Status> statuses,
                                       @Param("ignoreEventId") Long ignoreEventId);
+
+    @Query("""
+            select e from Event e
+            where e.active = true
+              and e.date = :date
+              and e.requiresTech = true
+              and e.status in :statuses
+              and (:ignoreEventId is null or e.id <> :ignoreEventId)
+            """)
+    List<Event> findTechEventsForDate(@Param("date") LocalDate date,
+                                      @Param("statuses") List<Status> statuses,
+                                      @Param("ignoreEventId") Long ignoreEventId);
 }

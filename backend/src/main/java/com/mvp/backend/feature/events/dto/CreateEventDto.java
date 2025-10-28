@@ -1,6 +1,7 @@
 package com.mvp.backend.feature.events.dto;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.mvp.backend.feature.events.model.TechSupportMode;
 import com.mvp.backend.feature.requests.validation.TimeRange;
 import com.mvp.backend.feature.requests.validation.XorLocation;
 import com.mvp.backend.shared.AudienceType;
@@ -62,6 +63,8 @@ public record CreateEventDto(
         Boolean internal,
 
         Boolean requiresTech,
+
+        TechSupportMode techSupportMode,
 
         @Min(value = 0, message = "bufferBeforeMin must be at least 0")
         @Max(value = 240, message = "bufferBeforeMin must be at most 240")

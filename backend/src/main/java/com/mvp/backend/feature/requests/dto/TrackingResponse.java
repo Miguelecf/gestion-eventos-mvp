@@ -47,6 +47,8 @@ public record TrackingResponse(
             String details
     ) {
         public enum Scope { REQUEST, EVENT }
-        public enum Type { STATUS, SCHEDULE_CHANGE }
+        public enum Type { STATUS, SCHEDULE_CHANGE, FIELD_UPDATE, REPROGRAM, TECH_CAPACITY_REJECT,
+            SPACE_CONFLICT, PRIORITY_CONFLICT, COMMENT
+        }
     }
 }

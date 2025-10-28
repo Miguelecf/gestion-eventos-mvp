@@ -14,6 +14,7 @@ public record ConflictItem(
         LocalDate date,
         String from,
         String to,
+        boolean internal,
         Integer bufferBeforeMin,
         Integer bufferAfterMin
 ) {

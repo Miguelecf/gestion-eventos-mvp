@@ -2,11 +2,19 @@ package com.mvp.backend.feature.events.service;
 
 import com.mvp.backend.feature.availability.exception.AvailabilityConflictException;
 import com.mvp.backend.feature.availability.model.AvailabilityParams;
+import com.mvp.backend.feature.availability.model.AvailabilityResult;
+import com.mvp.backend.feature.availability.model.ConflictItem;
 import com.mvp.backend.feature.availability.service.AvailabilityService;
 import com.mvp.backend.feature.events.dto.*;
 import com.mvp.backend.feature.events.model.Event;
 import com.mvp.backend.feature.events.model.Status;
+import com.mvp.backend.feature.events.model.TechSupportMode;
 import com.mvp.backend.feature.events.repository.EventRepository;
+import com.mvp.backend.feature.priority.PriorityPolicy;
+import com.mvp.backend.feature.priority.model.PriorityConflict;
+import com.mvp.backend.feature.priority.service.PriorityConflictService;
+import com.mvp.backend.feature.tech.exception.TechCapacityExceededException;
+import com.mvp.backend.feature.tech.service.TechCapacityService;
 import com.mvp.backend.feature.users.model.User;
 import com.mvp.backend.shared.Priority;
 import lombok.RequiredArgsConstructor;
@@ -17,9 +25,7 @@ import com.mvp.backend.feature.catalogs.model.Department;
 import com.mvp.backend.feature.catalogs.model.Space;
 import com.mvp.backend.feature.catalogs.repository.DepartmentRepository;
 import com.mvp.backend.feature.catalogs.repository.SpaceRepository;
-import com.mvp.backend.feature.history.model.HistoryType;
-import com.mvp.backend.feature.history.model.EventHistory;
-import com.mvp.backend.feature.history.repository.EventHistoryRepository;
+import com.mvp.backend.feature.history.service.AuditService;
 import com.mvp.backend.feature.users.service.UserService;
 import com.mvp.backend.shared.DomainValidationException;
 import org.springframework.http.HttpStatus;
@@ -31,8 +37,6 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.time.LocalTime;
-import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
 import java.util.Objects;
 
 import static org.springframework.http.HttpStatus.NOT_FOUND;
@@ -43,25 +47,22 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 @Transactional
 public class EventService {
     private static final int MAX_BUFFER_MINUTES = 240;
-    private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
 
     private final EventRepository eventRepository;
     private final UserService userService;
     private final SpaceRepository spaceRepository;
     private final DepartmentRepository departmentRepository;
-    private final EventHistoryRepository eventHistoryRepository;
+    private final AuditService auditService;
     private final AvailabilityService availabilityService;
+    private final PriorityPolicy priorityPolicy;
+    private final TechCapacityService techCapacityService;
+    private final PriorityConflictService priorityConflictService;
 
     /* ---------- Commands ---------- */
     public EventCreateResult create(CreateEventDto dto) {
         User currentUser = getCurrentUser();
 
-        Space space = null;
-        if (dto.spaceId() != null) {
-            space = spaceRepository.findById(dto.spaceId())
-                    .filter(Space::isActive)
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Space not found"));
-        }
+        Space space = resolveSpace(dto.spaceId());
 
         Department department = departmentRepository.findById(dto.departmentId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Department not found"));
@@ -71,26 +72,15 @@ public class EventService {
             throw new DomainValidationException("Either spaceId or freeLocation must be provided");
         }
 
-        Integer bufferBefore = resolveBuffer(dto.bufferBeforeMin(), space != null ? space.getDefaultBufferBeforeMin() : 0, "bufferBeforeMin");
-        Integer bufferAfter = resolveBuffer(dto.bufferAfterMin(), space != null ? space.getDefaultBufferAfterMin() : 0, "bufferAfterMin");
-        if (space != null) {
-            if (bufferBefore == null) {
-                bufferBefore = space.getDefaultBufferBeforeMin();
-            }
-            if (bufferAfter == null) {
-                bufferAfter = space.getDefaultBufferAfterMin();
-            }
-        } else {
-            if (bufferBefore == null) {
-                bufferBefore = 0;
-            }
-            if (bufferAfter == null) {
-                bufferAfter = 0;
-            }
-        }
+        int bufferBefore = resolveBuffer(dto.bufferBeforeMin(), space != null ? space.getDefaultBufferBeforeMin() : 0, "bufferBeforeMin");
+        int bufferAfter = resolveBuffer(dto.bufferAfterMin(), space != null ? space.getDefaultBufferAfterMin() : 0, "bufferAfterMin");
+        String normalizedRequestingArea = trimToNull(dto.requestingArea());
+        Priority derivedPriority = priorityPolicy.derivePriority(normalizedRequestingArea, dto.priority());
+        boolean requiresTech = Boolean.TRUE.equals(dto.requiresTech());
+        TechSupportMode techMode = resolveTechSupportMode(requiresTech, dto.techSupportMode());
 
-        if (bufferBefore < 0 || bufferAfter < 0) {
-            throw new DomainValidationException("Buffers must be greater or equal than 0");
+        if (requiresTech && !techCapacityService.hasCapacity(dto.date(), dto.scheduleFrom(), dto.scheduleTo(), bufferBefore, bufferAfter, techMode, null)) {
+            throw techCapacityExceeded();
         }
 
         //chequeo de disponibilidad al crear un evento
@@ -105,20 +95,18 @@ public class EventService {
                 .build();
 
         var availabilityResult = availabilityService.checkSpaceAvailability(params);
+        List<Event> displacedEvents = List.of();
+
         if (Boolean.FALSE.equals(availabilityResult.isAvailable())) {
-            throw AvailabilityConflictException.internalConflict(availabilityResult);
+            if (space == null || derivedPriority != Priority.HIGH) {
+                throw AvailabilityConflictException.internalConflict(availabilityResult);
+            }
+            displacedEvents = resolvePriorityConflicts(availabilityResult, derivedPriority, null);
         }
 
-        String contactName = trimToNull(dto.contactName());
-        String contactEmail = trimToNull(dto.contactEmail());
+        String contactName = resolveContactName(dto.contactName(), currentUser);
+        String contactEmail = resolveContactEmail(dto.contactEmail(), currentUser);
         String contactPhone = trimToNull(dto.contactPhone());
-
-        if (!StringUtils.hasText(contactName)) {
-            contactName = (currentUser.getName() + " " + currentUser.getLastName()).trim();
-        }
-        if (!StringUtils.hasText(contactEmail)) {
-            contactEmail = currentUser.getEmail();
-        }
 
         Event event = Event.builder()
                 .date(dto.date())
@@ -127,17 +115,19 @@ public class EventService {
                 .scheduleTo(dto.scheduleTo())
                 .status(Status.EN_REVISION)
                 .name(dto.name().trim())
-                .requestingArea(trimToNull(dto.requestingArea()))
+                .requestingArea(normalizedRequestingArea)
                 .requirements(trimToNull(dto.requirements()))
                 .coverage(trimToNull(dto.coverage()))
                 .observations(trimToNull(dto.observations()))
-                .priority(dto.priority())
+                .priority(derivedPriority)
                 .audienceType(dto.audienceType())
                 .space(space)
                 .freeLocation(freeLocation)
                 .department(department)
                 .internal(Boolean.TRUE.equals(dto.internal()))
-                .requiresTech(Boolean.TRUE.equals(dto.requiresTech()))
+                .requiresTech(requiresTech)
+                .techSupportMode(techMode)
+                .requiresRebooking(false)
                 .bufferBeforeMin(bufferBefore)
                 .bufferAfterMin(bufferAfter)
                 .contactName(contactName)
@@ -148,168 +138,160 @@ public class EventService {
 
         Event saved = eventRepository.save(event);
 
-        eventHistoryRepository.save(EventHistory.builder()
-                .event(saved)
-                .at(saved.getCreatedAt())
-                .type(HistoryType.STATUS)
-                .fromValue(null)
-                .toValue(saved.getStatus().name())
-                .build());
+        auditService.recordStatusChange(saved, currentUser, null, saved.getStatus(), null, null);
 
-        List<EventCreateResult.ConflictDetail> conflicts = new ArrayList<>();
-
+        List<PriorityConflictSummary> conflictSummaries = registerPriorityConflicts(saved, displacedEvents, currentUser);
         // TODO: enviar notificaciones aal correo del usuario creador
 
-        return new EventCreateResult(saved.getId(), saved.getStatus(), !conflicts.isEmpty(), conflicts);
+        return new EventCreateResult(saved.getId(), saved.getPriority(), saved.getStatus(), conflictSummaries);
     }
 
     public EventUpdateResult  update(Long id, UpdateEventDto req) {
 
         User currentUser = getCurrentUser();
 
-        Event ev = eventRepository.findById(id)
+        Event event  = eventRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Event not found"));
 
-        LocalDate previousDate = ev.getDate();
-        LocalTime previousFrom = ev.getScheduleFrom();
-        LocalTime previousTo = ev.getScheduleTo();
-        Status previousStatus = ev.getStatus();
-        Long previousSpaceId   = ev.getSpace() != null ? ev.getSpace().getId() : null;
-        Integer previousBufferBefore = ev.getBufferBeforeMin();
-        Integer previousBufferAfter  = ev.getBufferAfterMin();
+        LocalDate previousDate = event.getDate();
+        LocalTime previousFrom = event.getScheduleFrom();
+        LocalTime previousTo = event.getScheduleTo();
+        Status previousStatus = event.getStatus();
+        boolean previousInternal = event.isInternal();
+        Long previousSpaceId = event.getSpace() != null ? event.getSpace().getId() : null;
 
-        Space newSpace = null;
-        if (req.spaceId() != null) {
-            newSpace = spaceRepository.findById(req.spaceId())
-                    .filter(Space::isActive)
-                    .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Space not found"));
-        }
+        Space newSpace = resolveSpace(req.spaceId());
+
         Department newDept = null;
         if (req.departmentId() != null) {
             newDept = departmentRepository.findById(req.departmentId())
                     .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Department not found"));
         }
 
-        LocalDate effDate  = req.date() != null ? req.date() : ev.getDate();
-        LocalTime effFrom  = req.scheduleFrom() != null ? req.scheduleFrom() : ev.getScheduleFrom();
-        LocalTime effTo    = req.scheduleTo() != null ? req.scheduleTo() : ev.getScheduleTo();
-        Space   effSpace   = req.spaceId() != null ? newSpace : ev.getSpace();
-        String  effFreeLoc = req.freeLocation() != null ? trimToNull(req.freeLocation()) : ev.getFreeLocation();
+        Space effectiveSpace = req.spaceId() != null ? newSpace : event.getSpace();
+        String effectiveFreeLocation = req.freeLocation() != null ? trimToNull(req.freeLocation()) : event.getFreeLocation();
+        boolean hasSpace = effectiveSpace != null;
+        boolean hasFreeLocation = StringUtils.hasText(effectiveFreeLocation);
 
-        boolean hasSpace = effSpace != null;
-        boolean hasFree  = effFreeLoc != null && !effFreeLoc.isBlank();
-        if (hasSpace == hasFree) {
+        if (hasSpace == hasFreeLocation) {
             throw new DomainValidationException("Debe indicarse un espacio o una ubicación libre, pero no ambos.");
         }
 
-        if (effFrom != null && effTo != null && !effTo.isAfter(effFrom)) {
+        LocalDate effectiveDate = req.date() != null ? req.date() : event.getDate();
+        LocalTime effectiveFrom = req.scheduleFrom() != null ? req.scheduleFrom() : event.getScheduleFrom();
+        LocalTime effectiveTo = req.scheduleTo() != null ? req.scheduleTo() : event.getScheduleTo();
+
+        if (effectiveFrom != null && effectiveTo != null && !effectiveTo.isAfter(effectiveFrom)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "scheduleTo must be after scheduleFrom");
         }
 
-        // asignar los cambios
-        if (req.date() != null)                ev.setDate(req.date());
-        if (req.technicalSchedule() != null)   ev.setTechnicalSchedule(req.technicalSchedule());
-        if (req.scheduleFrom() != null)        ev.setScheduleFrom(req.scheduleFrom());
-        if (req.scheduleTo() != null)          ev.setScheduleTo(req.scheduleTo());
-        if (req.status() != null)              ev.setStatus(req.status());
+        Long effectiveSpaceId = hasSpace ? effectiveSpace.getId() : null;
+        boolean spaceChanged = !Objects.equals(previousSpaceId, effectiveSpaceId);
 
-        if (req.name() != null)                ev.setName(req.name().trim());
-        if (req.requestingArea() != null)      ev.setRequestingArea(trimToNull(req.requestingArea()));
-        if (req.requirements() != null)        ev.setRequirements(trimToNull(req.requirements()));
-        if (req.coverage() != null)            ev.setCoverage(trimToNull(req.coverage()));
-        if (req.observations() != null)        ev.setObservations(trimToNull(req.observations()));
+        int effectiveBufferBefore = req.bufferBeforeMin() != null
+                ? resolveBuffer(req.bufferBeforeMin(), event.getBufferBeforeMin(), "bufferBeforeMin")
+                : (spaceChanged ? resolveBuffer(null, hasSpace ? effectiveSpace.getDefaultBufferBeforeMin() : 0, "bufferBeforeMin") : event.getBufferBeforeMin());
+        int effectiveBufferAfter = req.bufferAfterMin() != null
+                ? resolveBuffer(req.bufferAfterMin(), event.getBufferAfterMin(), "bufferAfterMin")
+                : (spaceChanged ? resolveBuffer(null, hasSpace ? effectiveSpace.getDefaultBufferAfterMin() : 0, "bufferAfterMin") : event.getBufferAfterMin());
 
-        if (req.priority() != null)            ev.setPriority(req.priority());
-        if (req.audienceType() != null)        ev.setAudienceType(req.audienceType());
-        if (req.internal() != null)            ev.setInternal(req.internal());
-        if (req.requiresTech() != null)        ev.setRequiresTech(req.requiresTech());
+        String effectiveRequestingArea = req.requestingArea() != null ? trimToNull(req.requestingArea()) : event.getRequestingArea();
+        Priority requestedPriority = req.priority() != null ? req.priority() : event.getPriority();
+        Priority derivedPriority = priorityPolicy.derivePriority(effectiveRequestingArea, requestedPriority);
+        boolean requiresTech = req.requiresTech() != null ? req.requiresTech() : event.isRequiresTech();
+        TechSupportMode techMode = resolveTechSupportMode(requiresTech,
+                req.techSupportMode() != null ? req.techSupportMode() : event.getTechSupportMode());
 
-        if (req.contactName() != null)         ev.setContactName(trimToNull(req.contactName()));
-        if (req.contactEmail() != null)        ev.setContactEmail(trimToNull(req.contactEmail()));
-        if (req.contactPhone() != null)        ev.setContactPhone(trimToNull(req.contactPhone()));
-
-        if (newDept != null)                   ev.setDepartment(newDept);
-
-        if (req.spaceId() != null) {           // Cambia a espacio
-            ev.setSpace(newSpace);
-            ev.setFreeLocation(null);
-        } else if (req.freeLocation() != null) { // Cambia a free location
-            ev.setSpace(null);
-            ev.setFreeLocation(effFreeLoc);
+        if (requiresTech && !techCapacityService.hasCapacity(effectiveDate, effectiveFrom, effectiveTo, effectiveBufferBefore, effectiveBufferAfter, techMode, event.getId())) {
+            throw techCapacityExceeded();
         }
 
-        hasSpace = ev.getSpace() != null;
-
-        // buffers
-        Long currentSpaceId  = hasSpace ? ev.getSpace().getId() : null;
-        boolean spaceChanged = !Objects.equals(previousSpaceId, currentSpaceId);
-
-        if (req.bufferBeforeMin() != null) {
-            mustBeBetween(req.bufferBeforeMin(), 0, 240, "bufferBeforeMin");
-            ev.setBufferBeforeMin(req.bufferBeforeMin());
-        } else if (spaceChanged) {
-            ev.setBufferBeforeMin(hasSpace ? ev.getSpace().getDefaultBufferBeforeMin() : 0);
-        }
-
-        if (req.bufferAfterMin() != null) {
-            mustBeBetween(req.bufferAfterMin(), 0, 240, "bufferAfterMin");
-            ev.setBufferAfterMin(req.bufferAfterMin());
-        } else if (spaceChanged) {
-            ev.setBufferAfterMin(hasSpace ? ev.getSpace().getDefaultBufferAfterMin() : 0);
-        }
-
-        // chequeo de disponibilidad usando valores efectivos finales
-        Integer effBufB = ev.getBufferBeforeMin();
-        Integer effBufA = ev.getBufferAfterMin();
-
-        // chequeo de disponibilidad
         AvailabilityParams params = AvailabilityParams.builder()
-                .date(effDate)
-                .spaceId(hasSpace ? ev.getSpace().getId() : null)
-                .freeLocation(!hasSpace ? ev.getFreeLocation() : null)
-                .scheduleFrom(effFrom)
-                .scheduleTo(effTo)
-                .bufferBeforeMin(effBufB)
-                .bufferAfterMin(effBufA)
-                .ignoreEventId(ev.getId())
+                .date(effectiveDate)
+                .spaceId(effectiveSpaceId)
+                .freeLocation(!hasSpace ? effectiveFreeLocation : null)
+                .scheduleFrom(effectiveFrom)
+                .scheduleTo(effectiveTo)
+                .bufferBeforeMin(effectiveBufferBefore)
+                .bufferAfterMin(effectiveBufferAfter)
+                .ignoreEventId(event.getId())
                 .build();
 
         var availabilityResult = availabilityService.checkSpaceAvailability(params);
+        List<Event> displacedEvents = List.of();
         if (Boolean.FALSE.equals(availabilityResult.isAvailable())) {
-            throw AvailabilityConflictException.internalConflict(availabilityResult);
+            if (!hasSpace || derivedPriority != Priority.HIGH) {
+                throw AvailabilityConflictException.internalConflict(availabilityResult);
+            }
+            displacedEvents = resolvePriorityConflicts(availabilityResult, derivedPriority, event.getId());
         }
 
-        ev.setLastModifiedBy(currentUser);
+        // asignar los cambios
+        boolean agendaChanged = !Objects.equals(previousDate, effectiveDate)
+                || !Objects.equals(previousFrom, effectiveFrom)
+                || !Objects.equals(previousTo, effectiveTo)
+                || spaceChanged;
+        boolean requiresReprogram = agendaChanged && isBlockingStatus(previousStatus);
 
-        Event saved = eventRepository.save(ev);
+        if (req.date() != null)                event.setDate(req.date());
+        if (req.technicalSchedule() != null)   event.setTechnicalSchedule(req.technicalSchedule());
+        if (req.scheduleFrom() != null)        event.setScheduleFrom(req.scheduleFrom());
+        if (req.scheduleTo() != null)          event.setScheduleTo(req.scheduleTo());
 
-        Instant now = Instant.now();
-        if (req.status() != null && previousStatus != req.status()) {
-            eventHistoryRepository.save(EventHistory.builder()
-                    .event(saved)
-                    .at(now)
-                    .type(HistoryType.STATUS)
-                    .fromValue(previousStatus != null ? previousStatus.name() : null)
-                    .toValue(saved.getStatus().name())
-                    .build());
+        event.setRequestingArea(effectiveRequestingArea);
+        if (req.requestingArea() != null)      event .setRequestingArea(trimToNull(req.requestingArea()));
+        if (req.requirements() != null)        event .setRequirements(trimToNull(req.requirements()));
+        if (req.coverage() != null)            event .setCoverage(trimToNull(req.coverage()));
+        if (req.observations() != null)        event .setObservations(trimToNull(req.observations()));
+
+        event.setPriority(derivedPriority);
+        if (req.audienceType() != null)        event .setAudienceType(req.audienceType());
+        if (req.internal() != null)            event .setInternal(req.internal());
+
+        event.setRequiresTech(requiresTech);
+        event.setTechSupportMode(techMode);
+
+        if (req.contactName() != null)         event .setContactName(trimToNull(req.contactName()));
+        if (req.contactEmail() != null)        event .setContactEmail(trimToNull(req.contactEmail()));
+        if (req.contactPhone() != null)        event .setContactPhone(trimToNull(req.contactPhone()));
+
+        if (newDept != null)                   event .setDepartment(newDept);
+
+        if (req.spaceId() != null) {           // Cambia a espacio
+            event .setSpace(newSpace);
+            event .setFreeLocation(null);
+        } else if (req.freeLocation() != null) { // Cambia a free location
+            event .setSpace(null);
+            event.setFreeLocation(effectiveFreeLocation);
         }
 
-        if (!Objects.equals(previousDate, saved.getDate())
-                || !Objects.equals(previousFrom, saved.getScheduleFrom())
-                || !Objects.equals(previousTo, saved.getScheduleTo())) {
-            String details = buildScheduleDetails(saved.getDate(), saved.getScheduleFrom(), saved.getScheduleTo());
-            eventHistoryRepository.save(EventHistory.builder()
-                    .event(saved)
-                    .at(now)
-                    .type(HistoryType.SCHEDULE_CHANGE)
-                    .details(StringUtils.hasText(details) ? details : null)
-                    .build());
+        event.setBufferBeforeMin(effectiveBufferBefore);
+        event.setBufferAfterMin(effectiveBufferAfter);
+        event.setLastModifiedBy(currentUser);
+
+        if (requiresReprogram) {
+            event.setStatus(Status.EN_REVISION);
+        }
+
+        Event saved = eventRepository.save(event);
+
+        if (requiresReprogram) {
+            auditService.recordStatusChange(saved, currentUser, previousStatus, Status.EN_REVISION, null, null);
+            auditService.recordReprogram(saved, currentUser, saved.getDate(), saved.getScheduleFrom(), saved.getScheduleTo(), null, null);
+        }
+
+        if (agendaChanged) {
+            auditService.recordScheduleChange(saved, currentUser, saved.getDate(), saved.getScheduleFrom(), saved.getScheduleTo());
         }
 
         // agregar las otificaciones de si se movió agenda/espacio
-        List<EventCreateResult.ConflictDetail> conflicts = new ArrayList<>();
+        List<PriorityConflictSummary> conflictSummaries = registerPriorityConflicts(saved, displacedEvents, currentUser);
 
-        return toResponseEventUpdate(saved, !conflicts.isEmpty(), conflicts);
+        if (previousInternal != saved.isInternal()) {
+            auditService.recordInternalToggle(saved, currentUser, previousInternal, saved.isInternal());
+        }
+
+        return new EventUpdateResult(saved.getId(), saved.getPriority(), saved.getStatus(), conflictSummaries);
     }
 
     public void softDelete(Long id){
@@ -392,43 +374,102 @@ public class EventService {
         return value.trim();
     }
 
-    private String buildScheduleDetails(LocalDate date, LocalTime from, LocalTime to) {
-        List<String> parts = new ArrayList<>();
-        if (date != null) {
-            parts.add("Fecha " + date);
-        }
-        if (from != null && to != null) {
-            parts.add("Horario " + from.format(TIME_FORMATTER) + "–" + to.format(TIME_FORMATTER));
-        }
-        return String.join(" | ", parts);
-    }
-
-    private static void mustBeBetween(int v, int min, int max, String field) {
-        if (v < min || v > max) throw new DomainValidationException(
-                field + " must be between " + min + " and " + max);
-    }
-
-    private EventUpdateResult toResponseEventUpdate(
-            Event ev,
-            boolean conflict,
-            List<EventCreateResult.ConflictDetail> conflictDetails) {
-        // Normalizamos la lista para evitar nulls si alguien pasa null
-        List<EventCreateResult.ConflictDetail> details =
-                (conflict && conflictDetails != null) ? conflictDetails : List.of();
-
-        return new EventUpdateResult(
-                ev.getId(),
-                ev.getStatus(),
-                conflict,
-                details
-        );
-    }
-
     private int resolveBuffer(Integer requested, Integer defaultValue, String fieldName) {
         int value = requested != null ? requested : (defaultValue != null ? defaultValue : 0);
         if (value < 0 || value > MAX_BUFFER_MINUTES) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, fieldName + " must be between 0 and " + MAX_BUFFER_MINUTES);
         }
         return value;
+    }
+
+    private Space resolveSpace(Long spaceId) {
+        if (spaceId == null) {
+            return null;
+        }
+        return spaceRepository.findById(spaceId)
+                .filter(Space::isActive)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Space not found"));
+    }
+
+    private TechSupportMode resolveTechSupportMode(boolean requiresTech, TechSupportMode requested) {
+        if (!requiresTech) {
+            return TechSupportMode.SETUP_ONLY;
+        }
+        return requested != null ? requested : TechSupportMode.SETUP_ONLY;
+    }
+
+    private boolean isBlockingStatus(Status status) {
+        return status == Status.RESERVADO || status == Status.APROBADO;
+    }
+
+    private TechCapacityExceededException techCapacityExceeded() {
+        return new TechCapacityExceededException("No hay capacidad técnica disponible para el rango solicitado.");
+    }
+
+    private List<Event> resolvePriorityConflicts(AvailabilityResult availabilityResult,
+                                                 Priority desiredPriority,
+                                                 Long ignoreEventId) {
+        if (availabilityResult == null || availabilityResult.conflicts() == null) {
+            return List.of();
+        }
+        List<Long> conflictIds = availabilityResult.conflicts().stream()
+                .map(ConflictItem::eventId)
+                .filter(Objects::nonNull)
+                .filter(id -> ignoreEventId == null || !ignoreEventId.equals(id))
+                .toList();
+
+        if (conflictIds.isEmpty()) {
+            return List.of();
+        }
+
+        List<Event> conflictingEvents = eventRepository.findAllById(conflictIds);
+        boolean hasTie = conflictingEvents.stream().anyMatch(event -> event.getPriority() == Priority.HIGH);
+        if (hasTie) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "PRIORITY_TIE");
+        }
+
+        return conflictingEvents.stream()
+                .filter(event -> priorityPolicy.isHigher(desiredPriority, event.getPriority()))
+                .toList();
+    }
+
+    private String resolveContactName(String provided, User fallback) {
+        String normalized = trimToNull(provided);
+        if (StringUtils.hasText(normalized)) {
+            return normalized;
+        }
+        return (fallback.getName() + " " + fallback.getLastName()).trim();
+    }
+
+    private String resolveContactEmail(String provided, User fallback) {
+        String normalized = trimToNull(provided);
+        return StringUtils.hasText(normalized) ? normalized : fallback.getEmail();
+    }
+
+    private List<PriorityConflictSummary> registerPriorityConflicts(Event highPriorityEvent,
+                                                                    List<Event> displacedEvents,
+                                                                    User triggeredBy) {
+        if (displacedEvents == null || displacedEvents.isEmpty()) {
+            if (highPriorityEvent.getPriority() != Priority.HIGH) {
+                return List.of();
+            }
+            return priorityConflictService.getOpenConflicts(highPriorityEvent.getId()).stream()
+                    .map(this::toSummary)
+                    .toList();
+        }
+        return priorityConflictService.registerConflicts(highPriorityEvent, displacedEvents, triggeredBy).stream()
+                .map(this::toSummary)
+                .toList();
+    }
+
+    private PriorityConflictSummary toSummary(PriorityConflict conflict) {
+        return new PriorityConflictSummary(
+                conflict.getConflictCode(),
+                conflict.getDisplacedEvent().getId(),
+                conflict.getSpaceId(),
+                conflict.getFromTime(),
+                conflict.getToTime(),
+                conflict.getDisplacedEvent().isRequiresRebooking()
+        );
     }
 }

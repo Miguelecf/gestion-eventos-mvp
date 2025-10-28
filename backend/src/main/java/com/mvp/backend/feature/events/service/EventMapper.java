@@ -34,6 +34,8 @@ public class EventMapper {
                 e.isCeremonialOk(),
                 e.isTechnicalOk(),
                 e.isRequiresTech(),
+                e.getTechSupportMode(),
+                e.isRequiresRebooking(),
                 e.getBufferBeforeMin(),
                 e.getBufferAfterMin(),
 

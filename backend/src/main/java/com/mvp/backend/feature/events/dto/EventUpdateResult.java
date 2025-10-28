@@ -1,11 +1,18 @@
 package com.mvp.backend.feature.events.dto;
 
 import com.mvp.backend.feature.events.model.Status;
+import com.mvp.backend.shared.Priority;
+
 import java.util.List;
 
 public record EventUpdateResult(
-        Long id,
+        Long eventId,
+        Priority priority,
         Status status,
-        boolean conflict,
-        List<EventCreateResult.ConflictDetail> conflictDetails
-) {}
+        List<PriorityConflictSummary> priorityConflicts
+) {
+    public boolean hasConflicts() {
+        return priorityConflicts != null && !priorityConflicts.isEmpty();
+    }
+}
+
