@@ -12,82 +12,86 @@ import type {
   BackendEventDTO, 
   BackendCreateEventDTO, 
   BackendUpdateEventDTO,
-  Priority 
+  Priority,
+  AudienceType
 } from '../types/backend.types';
 
 // ==================== MAPEO DE ENUMS ====================
 
-/**
- * Mapeo de prioridades: Backend → Frontend
- * Backend: LOW, MEDIUM, HIGH
- * Frontend: BAJA, MEDIA, ALTA, CRITICA
- */
-const PRIORITY_BACKEND_TO_FRONTEND: Record<Priority, EventPriority> = {
-  LOW: 'BAJA',
-  MEDIUM: 'MEDIA',
-  HIGH: 'ALTA'
-} as const;
-
-/**
- * Mapeo de prioridades: Frontend → Backend
- */
-const PRIORITY_FRONTEND_TO_BACKEND: Record<EventPriority, Priority> = {
-  LOW: 'LOW',
-  MEDIUM: 'MEDIUM',
-  HIGH: 'HIGH',
-} as const;
+// Nota: Los mapeos de prioridades legacy (BAJA/MEDIA/ALTA → LOW/MEDIUM/HIGH) 
+// fueron removidos ya que ahora usamos directamente los tipos del backend.
+// Si se necesita soporte para prioridades legacy, restaurar desde el historial.
 
 // ==================== ADAPTADORES PRINCIPALES ====================
 
 /**
  * Adapta BackendEventDTO (del backend) a Event (modelo frontend)
+ * Mantiene la estructura del backend pero agrega campos de conveniencia
  * 
  * @param backendEvent - DTO recibido del backend
  * @returns Event - Modelo normalizado del frontend
- * 
- * @example
- * const backendEvent = await fetch('/api/events/123');
- * const event = adaptEventFromBackend(backendEvent);
- * // event.priority === 'ALTA'
- * // event.date === Date object
  */
 export function adaptEventFromBackend(backendEvent: BackendEventDTO): Event {
   return {
-    // IDs básicos
+    // Copiar todos los campos directamente desde el backend
     id: backendEvent.id,
+    date: backendEvent.date,
+    technicalSchedule: backendEvent.technicalSchedule,
+    scheduleFrom: backendEvent.scheduleFrom,
+    scheduleTo: backendEvent.scheduleTo,
+    status: backendEvent.status,
     name: backendEvent.name,
-    description: backendEvent.observations || undefined,
-
-    // Fechas (conversión de strings a objetos Date/string ISO)
-    date: backendEvent.date, // yyyy-MM-dd (mantener como string)
-    scheduleFrom: backendEvent.scheduleFrom, // HH:mm (mantener como string)
-    scheduleTo: backendEvent.scheduleTo, // HH:mm (mantener como string)
-    createdOn: backendEvent.createdAt, // ISO 8601 timestamp
-
-    // Relaciones (IDs extraídos de objetos anidados)
-    spaceId: backendEvent.space?.id,
-    departmentId: backendEvent.department?.id,
-    createdBy: backendEvent.createdBy?.id.toString() || 'unknown',
-
-    // Estados (mapeo directo - mismo enum)
-    status: backendEvent.status as EventStatus,
-    priority: PRIORITY_BACKEND_TO_FRONTEND[backendEvent.priority],
-
-    // Flags booleanos
-    requiresTech: backendEvent.requiresTech,
-    internal: backendEvent.internal,
-    technicalOk: backendEvent.technicalOk || null,
-    ceremonialOk: backendEvent.ceremonialOk || null,
-
-    // Metadata (objetos anidados)
+    requestingArea: backendEvent.requestingArea,
     space: backendEvent.space ? {
       id: backendEvent.space.id,
-      name: backendEvent.space.name
-    } : undefined,
+      name: backendEvent.space.name,
+      capacity: backendEvent.space.capacity,
+      colorHex: backendEvent.space.colorHex || undefined
+    } : null,
+    freeLocation: backendEvent.freeLocation,
     department: backendEvent.department ? {
       id: backendEvent.department.id,
-      name: backendEvent.department.name
-    } : undefined
+      name: backendEvent.department.name,
+      colorHex: backendEvent.department.colorHex || undefined
+    } : null,
+    requirements: backendEvent.requirements,
+    coverage: backendEvent.coverage,
+    observations: backendEvent.observations,
+    priority: backendEvent.priority,
+    audienceType: backendEvent.audienceType,
+    internal: backendEvent.internal,
+    ceremonialOk: backendEvent.ceremonialOk,
+    technicalOk: backendEvent.technicalOk,
+    requiresTech: backendEvent.requiresTech,
+    techSupportMode: backendEvent.techSupportMode,
+    requiresRebooking: backendEvent.requiresRebooking,
+    bufferBeforeMin: backendEvent.bufferBeforeMin,
+    bufferAfterMin: backendEvent.bufferAfterMin,
+    contactName: backendEvent.contactName,
+    contactEmail: backendEvent.contactEmail,
+    contactPhone: backendEvent.contactPhone,
+    createdAt: backendEvent.createdAt,
+    updatedAt: backendEvent.updatedAt,
+    createdBy: backendEvent.createdBy ? {
+      id: backendEvent.createdBy.id,
+      username: backendEvent.createdBy.username,
+      name: backendEvent.createdBy.name,
+      lastName: backendEvent.createdBy.lastName,
+      email: backendEvent.createdBy.email
+    } : null,
+    lastModifiedBy: backendEvent.lastModifiedBy ? {
+      id: backendEvent.lastModifiedBy.id,
+      username: backendEvent.lastModifiedBy.username,
+      name: backendEvent.lastModifiedBy.name,
+      lastName: backendEvent.lastModifiedBy.lastName,
+      email: backendEvent.lastModifiedBy.email
+    } : null,
+
+    // Campos adicionales de conveniencia para el frontend
+    spaceId: backendEvent.space?.id,
+    departmentId: backendEvent.department?.id,
+    description: backendEvent.observations || undefined,
+    createdOn: backendEvent.createdAt
   };
 }
 
@@ -130,8 +134,8 @@ export function adaptEventForCreate(
     date: string;
     scheduleFrom: string;
     scheduleTo: string;
-    priority: EventPriority;
-    audienceType: 'ESTUDIANTES' | 'COMUNIDAD' | 'MIXTO';
+    priority: Priority;
+    audienceType: AudienceType;
     internal: boolean;
     requiresTech: boolean;
     contactName: string;
@@ -160,8 +164,8 @@ export function adaptEventForCreate(
     coverage: null, // TODO: implementar en formulario
     observations: eventData.description || null,
 
-    // Enums
-    priority: PRIORITY_FRONTEND_TO_BACKEND[eventData.priority],
+    // Enums (ya vienen en formato del backend)
+    priority: eventData.priority,
     audienceType: eventData.audienceType,
     internal: eventData.internal,
 
@@ -196,9 +200,7 @@ export function adaptEventForCreate(
  * await httpClient.patch(`/api/events/${id}`, dto);
  */
 export function adaptEventForUpdate(
-  eventData: Partial<Event> & {
-    audienceType?: 'ESTUDIANTES' | 'COMUNIDAD' | 'MIXTO';
-  }
+  eventData: Partial<Event>
 ): BackendUpdateEventDTO {
   const updateDTO: BackendUpdateEventDTO = {};
 
@@ -233,7 +235,7 @@ export function adaptEventForUpdate(
   }
 
   if (eventData.priority !== undefined) {
-    updateDTO.priority = PRIORITY_FRONTEND_TO_BACKEND[eventData.priority];
+    updateDTO.priority = eventData.priority;
   }
 
   if (eventData.audienceType !== undefined) {

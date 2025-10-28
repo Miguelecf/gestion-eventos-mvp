@@ -217,7 +217,7 @@ export async function createEvent(
     scheduleFrom: string;
     scheduleTo: string;
     priority: Event['priority'];
-    audienceType: 'ESTUDIANTES' | 'COMUNIDAD' | 'MIXTO';
+    audienceType: Event['audienceType'];
     internal: boolean;
     requiresTech: boolean;
     contactName: string;
@@ -377,7 +377,7 @@ export async function getCalendarEvents(
   endDate: string
 ): Promise<Event[]> {
   const backendEvents = await httpClient.get<BackendEventDTO[]>(
-    `/api/events/calendar?startDate=${startDate}&endDate=${endDate}`
+    `/api/events/range?start=${startDate}&end=${endDate}`
   );
 
   return adaptEventsFromBackend(backendEvents);

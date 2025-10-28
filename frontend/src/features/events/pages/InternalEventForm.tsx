@@ -83,10 +83,9 @@ export default function InternalEventForm() {
   // ============================================================
   // FEI-10: SUBMIT HANDLER
   // ============================================================
+  // FEI-10: SUBMIT HANDLER
+  // ============================================================
   const onSubmit = async (data: InternalEventFormData) => {
-     console.log('🔍 1. DATA DEL FORMULARIO:', data);
-     console.log('🔍 2. data.priority:', data.priority);
-
     setIsSubmitting(true);
 
     try {
