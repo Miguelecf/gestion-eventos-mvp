@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import AppSidebar from "@/components/app-sidebar";
 import { AppBreadcrumbs } from "@/components/breadcrumbs";
+import LogoutButton from "@/features/auth/components/LogoutButton";
 
 export default function AppHeader() {
   const [isDark, setIsDark] = useState(false);
@@ -122,7 +123,7 @@ export default function AppHeader() {
                 <button type="button">Preferencias</button>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <button type="button">Cerrar sesión</button>
+                <LogoutButton />
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
