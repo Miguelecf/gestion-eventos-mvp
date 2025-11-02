@@ -1,43 +1,52 @@
 export type RegisterRequest = {
-email: string;
-password: string;
-name?: string;
+    email: string;
+    password: string;
+    name?: string;
 };
 
 
 export type RegisterResponse = {
-id: string;
-email: string;
+    id: string;
+    email: string;
 };
 
 
 export type LoginRequest = {
-email: string;
-password: string;
+    username: string;
+    password: string;
 };
 
 
 export type LoginResponse = {
-accessToken: string;
-refreshToken: string;
-expiresAt?: string;
+    accessToken: string;
+    refreshToken: string;
+    tokenType: string;
+    expiresIn: number;
+    user: {
+        id: number;
+        username: string;
+        role: string;
+    };
 };
 
 
 export type ChangePasswordRequest = {
-oldPassword: string;
-newPassword: string;
+    oldPassword: string;
+    newPassword: string;
 };
 
 
 export type RefreshRequest = {
-refreshToken: string;
+    refreshToken: string;
 };
 
 
 export type UserSummary = {
-id: string;
-email: string;
-name?: string;
-roles?: string[];
+    id: number;
+    username: string;
+    role:string;
+    // otros campos si es necesario
+    email?:string;
+    name?:string;
+    roles?:string[];
 };

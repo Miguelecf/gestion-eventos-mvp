@@ -12,7 +12,7 @@ const TOKENS_KEY = "auth.tokens";
 export type Tokens = {
 	accessToken: string;
 	refreshToken: string;
-	expiresAt?: string; // ISO opcional
+	expiresIn: number;
 };
 
 export function getStoredTokens(): Tokens | null {

@@ -2,6 +2,8 @@ import React from "react";
 import { useAuth } from "../AuthProvider";
 
 export default function LogoutButton(){
+    const auth = useAuth();
+    console.log("Auth context:", auth);
     const {logout,loading} = useAuth(); 
 
     const handleLogout = async() => {
