@@ -19,14 +19,14 @@ export function LoginPage() {
 
   const from = (location.state as any)?.from?.pathname || '/dashboard';
 
-  // Manejo de cambios en los inputs
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
       [name]: value
     }));
-    // Limpiar error cuando el usuario empiece a escribir
+
     if (error) setError(null);
   };
 
