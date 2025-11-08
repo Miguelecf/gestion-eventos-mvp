@@ -4,7 +4,6 @@ import {
   ChevronDown,
   Menu,
   Moon,
-  Search,
   Sun,
 } from "lucide-react";
 
@@ -17,7 +16,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import AppSidebar from "@/components/app-sidebar";
 import { AppBreadcrumbs } from "@/components/breadcrumbs";
@@ -60,16 +58,7 @@ export default function AppHeader() {
           <AppBreadcrumbs />
         </div>
 
-        <div className="flex flex-1 items-center justify-end gap-3">
-          <div className="relative hidden w-full max-w-sm md:block">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <Input
-              type="search"
-              placeholder="Buscar en el panel..."
-              className="w-full rounded-full border-slate-200 bg-white pl-9 pr-4 text-sm text-slate-600 placeholder:text-slate-400"
-            />
-          </div>
-
+        <div className="ml-auto flex items-center gap-3">
           <Button
             variant="ghost"
             size="icon"
