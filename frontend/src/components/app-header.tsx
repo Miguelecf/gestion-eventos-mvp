@@ -32,7 +32,7 @@ export default function AppHeader() {
               <Button
                 variant="ghost"
                 size="icon"
-                className="rounded-full border border-slate-200 bg-white/70 dark:border-slate-700 dark:bg-slate-800/70"
+                className="rounded-full border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800"
                 aria-label="Abrir menú de navegación"
               >
                 <Menu className="h-5 w-5 text-slate-600 dark:text-slate-300" />
@@ -50,7 +50,7 @@ export default function AppHeader() {
           <Button
             variant="ghost"
             size="icon"
-            className="hidden rounded-full border border-slate-200 bg-white/80 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800/80 dark:hover:bg-slate-700 md:inline-flex"
+            className="hidden rounded-full border border-slate-200 bg-white transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 md:inline-flex"
             onClick={toggleTheme}
             aria-label="Alternar modo de color"
           >
@@ -64,7 +64,7 @@ export default function AppHeader() {
           <Button
             variant="ghost"
             size="icon"
-            className="relative rounded-full border border-slate-200 bg-white/80 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800/80 dark:hover:bg-slate-700"
+            className="relative rounded-full border border-slate-200 bg-white transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700"
             aria-label="Ver notificaciones"
           >
             <Bell className="h-5 w-5 text-slate-600 dark:text-slate-300" />
@@ -78,7 +78,7 @@ export default function AppHeader() {
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="flex items-center gap-3 rounded-full border border-transparent bg-white/0 px-2 py-1 text-left transition hover:border-slate-200 dark:hover:border-slate-700">
+              <button className="flex items-center gap-3 rounded-full border border-transparent bg-transparent px-2 py-1 text-left transition hover:border-slate-200 hover:bg-white dark:hover:border-slate-700 dark:hover:bg-slate-800">
                 <Avatar className="h-9 w-9 border border-slate-200 dark:border-slate-700">
                   <AvatarFallback>UN</AvatarFallback>
                 </Avatar>

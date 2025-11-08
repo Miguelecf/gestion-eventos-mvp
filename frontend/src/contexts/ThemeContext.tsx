@@ -25,15 +25,12 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     // 1. Intentar leer del localStorage
     const stored = localStorage.getItem("theme") as Theme | null;
     if (stored === "light" || stored === "dark") {
+      console.log("🎨 Tema cargado desde localStorage:", stored);
       return stored;
     }
 
-    // 2. Detectar preferencia del sistema
-    if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
-      return "dark";
-    }
-
-    // 3. Por defecto usar light
+    // 2. Por defecto usar light (sin detectar preferencia del sistema)
+    console.log("🎨 Usando tema por defecto: light");
     return "light";
   });
 
@@ -43,8 +40,10 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     // Aplicar o remover la clase 'dark' del elemento <html>
     if (theme === "dark") {
       root.classList.add("dark");
+      console.log("🌙 Modo oscuro activado");
     } else {
       root.classList.remove("dark");
+      console.log("☀️ Modo claro activado");
     }
 
     // Persistir en localStorage
