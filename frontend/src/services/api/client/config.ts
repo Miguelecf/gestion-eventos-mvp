@@ -33,7 +33,7 @@ export const API_CONFIG = {
  * Para desactivar: dejar string vacío ''
  * ===================================================================
  */
-export const DEV_AUTH_TOKEN = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwidXNlcm5hbWUiOiJhZG1pbi5mdWxsIiwicm9sZSI6IkFETUlOX0ZVTEwiLCJzY29wZXMiOltdLCJpYXQiOjE3NjE2MjYwNzUsImV4cCI6MTc2MTYyNjk3NX0.iQ5ocl_Ib4SwfuxxePAAXlma4tYAxa-KWtFNplWdYlQ';
+export const DEV_AUTH_TOKEN = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwidXNlcm5hbWUiOiJhZG1pbi5mdWxsIiwicm9sZSI6IkFETUlOX0ZVTEwiLCJzY29wZXMiOltdLCJpYXQiOjE3NjI5MTk2OTQsImV4cCI6MTc2MjkyMDU5NH0.P_n0MOLC00mVmmEOOCGNUxjcbPVip-PJi2fBiR4l33U';
 
 /**
  * Verifica si el token de desarrollo está configurado

@@ -62,12 +62,17 @@ export {
   validateCommentBody
 } from './comment.adapter';
 
-// Re-export types from comment adapter
-export type {
-  Comment,
-  CreateCommentInput,
-  UpdateCommentInput
-} from './comment.adapter';
+// Event Status adapters
+export {
+  mapStatusFromBackend,
+  mapStatusesFromBackend,
+  adaptEventStatusFromBackend,
+  adaptChangeStatusForBackend,
+  adaptChangeStatusFromBackend,
+  isTransitionAllowed,
+  requiresReason,
+  getTransitionMessage
+} from './event-status.adapter';
 
 // Audit adapters (FASE 2)
 export {

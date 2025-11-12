@@ -119,6 +119,9 @@ export type {
   QuickReaction
 } from './comments.api';
 
+// SDK de Estados de Eventos
+export { eventStatusApi } from './event-status.api';
+
 // SDK de Auditoría
 export { auditApi } from './audit.api';
 export type {

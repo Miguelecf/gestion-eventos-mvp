@@ -212,14 +212,36 @@ export type BackendUpdateEventDTO = Partial<Omit<BackendCreateEventDTO, 'contact
 };
 
 /**
+ * DTO de respuesta GET /api/events/{id}/status
+ * IMPORTANTE: El backend devuelve 'current' y 'allowed' (no 'currentStatus' y 'allowedTransitions')
+ */
+export interface BackendEventStatusResponse {
+  eventId: number;
+  current: string;              // ✅ Campo real del backend
+  allowed: string[];            // ✅ Campo real del backend
+  currentStatus?: string;       // Deprecated: mantener por compatibilidad
+  allowedTransitions?: string[]; // Deprecated: mantener por compatibilidad
+}
+
+/**
+ * DTO de request POST /api/events/{id}/status
+ */
+export interface BackendChangeStatusRequest {
+  to: string;
+  reason?: string | null;
+  note?: string | null;
+}
+
+/**
  * DTO de respuesta de cambio de estado
  * Endpoint: POST /api/events/{id}/status
  */
 export interface BackendStatusChangeResponse {
   eventId: number;
   newStatus: EventStatus;
-  approvalPending: boolean;
-  missingApprovals: string[];
+  approvalPending?: boolean;
+  missingApprovals?: string[];
+  missing?: string[]; // Variante alternativa del backend
 }
 
 /**
