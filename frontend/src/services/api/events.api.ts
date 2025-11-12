@@ -132,6 +132,9 @@ export interface AvailabilityResponse {
  * });
  */
 export async function getEvents(params: EventsQueryParams = {}): Promise<PageResponse<Event>> {
+  // ✅ DEBUG: Log para rastrear llamadas
+  console.trace('🔍 [eventsApi.getEvents] Llamado con params:', params);
+  
   // 1. Construir query params de paginación
   const paginationQuery = buildPaginationQuery(params);
 
@@ -180,10 +183,14 @@ export async function getEvents(params: EventsQueryParams = {}): Promise<PageRes
  * console.log(event.name); // "Conferencia 2025"
  */
 export async function getEventById(eventId: number): Promise<Event> {
+  // ✅ DEBUG: Log para confirmar la llamada por ID
+  console.log('🎯 [eventsApi.getEventById] Llamando a GET /api/events/' + eventId);
+  
   const backendEvent = await httpClient.get<BackendEventDTO>(
-    ENDPOINTS.EVENTS.replace(':id', eventId.toString())
+    ENDPOINTS.EVENT_BY_ID(eventId)
   );
 
+  console.log('✅ [eventsApi.getEventById] Evento recibido:', backendEvent.id);
   return adaptEventFromBackend(backendEvent);
 }
 
@@ -263,7 +270,7 @@ export async function updateEvent(
 
   // 2. Enviar al backend
   const updatedEvent = await httpClient.patch<BackendEventDTO>(
-    ENDPOINTS.EVENTS.replace(':id', eventId.toString()),
+    ENDPOINTS.EVENT_BY_ID(eventId),
     updateDTO
   );
 
@@ -282,7 +289,7 @@ export async function updateEvent(
  * await eventsApi.deleteEvent(123);
  */
 export async function deleteEvent(eventId: number): Promise<void> {
-  await httpClient.delete(ENDPOINTS.EVENTS.replace(':id', eventId.toString()));
+  await httpClient.delete(ENDPOINTS.EVENT_BY_ID(eventId));
 }
 
 /**
@@ -309,7 +316,7 @@ export async function changeEventStatus(
   params: ChangeStatusInput
 ): Promise<BackendStatusChangeResponse> {
   return await httpClient.post<BackendStatusChangeResponse>(
-    ENDPOINTS.EVENTS.replace(':id', eventId.toString()) + '/status',
+    ENDPOINTS.EVENT_STATUS(eventId),
     params
   );
 }

@@ -529,8 +529,8 @@ const createEventsStore: StateCreator<EventsStore> = (set, get) => ({
       pagination: { ...state.pagination, page: 1 },
     }));
     
-    // Auto-fetch con nuevos filtros
-    get().fetchEvents(true);
+    // ✅ REMOVED: Auto-fetch eliminado - componentes deben llamar fetchEvents() manualmente
+    // get().fetchEvents(true);
   },
   
   clearFilters: () => {
@@ -539,7 +539,8 @@ const createEventsStore: StateCreator<EventsStore> = (set, get) => ({
       pagination: { ...get().pagination, page: 1 },
     });
     
-    get().fetchEvents(true);
+    // ✅ REMOVED: Auto-fetch eliminado
+    // get().fetchEvents(true);
   },
   
   resetFilters: () => {
@@ -551,12 +552,14 @@ const createEventsStore: StateCreator<EventsStore> = (set, get) => ({
       pagination: { ...get().pagination, page: 1 },
     });
     
-    get().fetchEvents(true);
+    // ✅ REMOVED: Auto-fetch eliminado
+    // get().fetchEvents(true);
   },
   
   setSort: (sorts) => {
     set({ sort: sorts });
-    get().fetchEvents(true);
+    // ✅ REMOVED: Auto-fetch eliminado
+    // get().fetchEvents(true);
   },
   
   addSort: (field, order) => {
@@ -567,7 +570,8 @@ const createEventsStore: StateCreator<EventsStore> = (set, get) => ({
       };
     });
     
-    get().fetchEvents(true);
+    // ✅ REMOVED: Auto-fetch eliminado
+    // get().fetchEvents(true);
   },
   
   removeSort: (field) => {
@@ -575,7 +579,8 @@ const createEventsStore: StateCreator<EventsStore> = (set, get) => ({
       sort: state.sort.filter(s => s.field !== field),
     }));
     
-    get().fetchEvents(true);
+    // ✅ REMOVED: Auto-fetch eliminado
+    // get().fetchEvents(true);
   },
   
   setPage: (page) => {
@@ -586,7 +591,8 @@ const createEventsStore: StateCreator<EventsStore> = (set, get) => ({
         pagination: { ...state.pagination, page },
       }));
       
-      get().fetchEvents(true);
+      // ✅ REMOVED: Auto-fetch eliminado
+      // get().fetchEvents(true);
     }
   },
   
@@ -595,7 +601,8 @@ const createEventsStore: StateCreator<EventsStore> = (set, get) => ({
       pagination: { ...state.pagination, pageSize, page: 1 },
     }));
     
-    get().fetchEvents(true);
+    // ✅ REMOVED: Auto-fetch eliminado
+    // get().fetchEvents(true);
   },
   
   nextPage: () => {
@@ -624,7 +631,8 @@ const createEventsStore: StateCreator<EventsStore> = (set, get) => ({
       activePreset: preset,
     });
     
-    get().fetchEvents(true);
+    // ✅ REMOVED: Auto-fetch eliminado
+    // get().fetchEvents(true);
   },
   
   syncFromURL: (params) => {
@@ -646,7 +654,8 @@ const createEventsStore: StateCreator<EventsStore> = (set, get) => ({
     
     if (Object.keys(updates).length > 0) {
       set(updates);
-      get().fetchEvents(true);
+      // ✅ REMOVED: Auto-fetch eliminado - componente debe llamar fetchEvents() después de syncFromURL()
+      // get().fetchEvents(true);
     }
   },
   
