@@ -9,6 +9,7 @@
 
 import { httpClient } from './client';
 import { ENDPOINTS } from './client/config';
+import { adaptSpringPage, buildPaginationQuery } from './adapters';
 import type { 
   BackendPriorityConflictsResponse,
   BackendPriorityDecisionDTO,
@@ -22,6 +23,7 @@ import type {
   ConflictDecision,
   BackendPageResponse
 } from './types/backend.types';
+import type { PageResponse, SpringPageResponse } from './types/pagination.types';
 
 // ==================== TIPOS ESPECÍFICOS DEL SDK ====================
 
@@ -96,6 +98,36 @@ export interface Space {
   label: string; // "Nombre - Ubicación (Cap: X)"
   isAvailable: boolean; // alias de active
 }
+
+/**
+ * Filtros para listar espacios con paginación
+ */
+export interface SpaceFilters {
+  q?: string;           // Búsqueda por nombre o ubicación
+  active?: boolean;     // true=activos, false=inactivos, undefined=todos
+  page?: number;        // Número de página (base 0)
+  size?: number;        // Tamaño de página
+  sort?: string;        // Ordenamiento (ej: 'name,ASC')
+}
+
+/**
+ * Input para crear espacio
+ */
+export type CreateSpaceInput = {
+  name: string;
+  capacity: number;
+  location: string;
+  description?: string;
+  colorHex?: string;
+  defaultBufferBeforeMin: number;
+  defaultBufferAfterMin: number;
+  active?: boolean; // default true
+};
+
+/**
+ * Input para actualizar espacio (campos parciales)
+ */
+export type UpdateSpaceInput = Partial<CreateSpaceInput>;
 
 /**
  * Departamento (catálogo) adaptado
@@ -315,7 +347,59 @@ export async function resolveMultipleConflicts(
 // ==================== FUNCIONES DE CATÁLOGOS ====================
 
 /**
- * Obtiene todos los espacios disponibles
+ * Lista espacios con filtros y paginación (versión avanzada)
+ * 
+ * @param filters - Filtros de búsqueda y paginación
+ * @returns Página de espacios
+ * 
+ * @example
+ * const page = await catalogsApi.listSpaces({
+ *   q: 'aula',
+ *   active: true,
+ *   page: 0,
+ *   size: 20
+ * });
+ */
+export async function listSpaces(
+  filters: SpaceFilters = {}
+): Promise<PageResponse<Space>> {
+  const query = buildPaginationQuery({
+    page: filters.page,
+    size: filters.size
+  });
+  
+  // Agregar filtros específicos
+  if (filters.q) {
+    query.append('q', filters.q);
+  }
+  if (filters.active !== undefined) {
+    query.append('active', String(filters.active));
+  }
+  if (filters.sort) {
+    query.append('sort', filters.sort);
+  }
+  
+  const response = await httpClient.get<SpringPageResponse<BackendSpaceDTO>>(
+    `${ENDPOINTS.CATALOG_SPACES}?${query.toString()}`
+  );
+  
+  return adaptSpringPage(response, (dto) => ({
+    id: dto.id,
+    name: dto.name,
+    capacity: dto.capacity,
+    location: dto.location,
+    description: dto.description,
+    colorHex: dto.colorHex,
+    defaultBufferBeforeMin: dto.defaultBufferBeforeMin,
+    defaultBufferAfterMin: dto.defaultBufferAfterMin,
+    active: dto.active,
+    label: `${dto.name} - ${dto.location} (Cap: ${dto.capacity})`,
+    isAvailable: dto.active
+  }));
+}
+
+/**
+ * Obtiene todos los espacios disponibles (versión simple, sin paginación)
  * 
  * @param includeInactive - Incluir espacios inactivos (default: false)
  * @returns Array de espacios
@@ -410,6 +494,91 @@ export async function getSpaceById(id: number): Promise<Space> {
     active: backendSpace.active,
     label: `${backendSpace.name} - ${backendSpace.location} (Cap: ${backendSpace.capacity})`,
     isAvailable: backendSpace.active
+  };
+}
+
+/**
+ * Crea un nuevo espacio
+ * 
+ * @param input - Datos del espacio
+ * @returns Espacio creado
+ * 
+ * @example
+ * const space = await catalogsApi.createSpace({
+ *   name: 'Aula Magna',
+ *   capacity: 200,
+ *   location: 'Edificio A',
+ *   colorHex: '#3498db',
+ *   defaultBufferBeforeMin: 30,
+ *   defaultBufferAfterMin: 30
+ * });
+ */
+export async function createSpace(input: CreateSpaceInput): Promise<Space> {
+  const body = {
+    name: input.name,
+    capacity: input.capacity,
+    location: input.location,
+    description: input.description || '',
+    colorHex: input.colorHex || '#6B7280',
+    defaultBufferBeforeMin: input.defaultBufferBeforeMin,
+    defaultBufferAfterMin: input.defaultBufferAfterMin,
+    active: input.active ?? true
+  };
+  
+  const dto = await httpClient.post<BackendSpaceDTO>(
+    ENDPOINTS.CATALOG_SPACES,
+    body
+  );
+  
+  return {
+    id: dto.id,
+    name: dto.name,
+    capacity: dto.capacity,
+    location: dto.location,
+    description: dto.description,
+    colorHex: dto.colorHex,
+    defaultBufferBeforeMin: dto.defaultBufferBeforeMin,
+    defaultBufferAfterMin: dto.defaultBufferAfterMin,
+    active: dto.active,
+    label: `${dto.name} - ${dto.location} (Cap: ${dto.capacity})`,
+    isAvailable: dto.active
+  };
+}
+
+/**
+ * Actualiza un espacio existente
+ * 
+ * @param id - ID del espacio
+ * @param input - Campos a actualizar (parcial)
+ * @returns Espacio actualizado
+ * 
+ * @example
+ * const updated = await catalogsApi.updateSpace(5, {
+ *   capacity: 250,
+ *   active: false
+ * });
+ */
+export async function updateSpace(
+  id: number,
+  input: UpdateSpaceInput
+): Promise<Space> {
+  const dto = await httpClient.patch<BackendSpaceDTO>(
+    ENDPOINTS.CATALOG_SPACE_BY_ID(id),
+    input
+  );
+  
+  return {
+    id: dto.id,
+    name: dto.name,
+    capacity: dto.capacity,
+    location: dto.location,
+    description: dto.description,
+    colorHex: dto.colorHex,
+    defaultBufferBeforeMin: dto.defaultBufferBeforeMin,
+    defaultBufferAfterMin: dto.defaultBufferAfterMin,
+    active: dto.active,
+    label: `${dto.name} - ${dto.location} (Cap: ${dto.capacity})`,
+    isAvailable: dto.active
   };
 }
 
@@ -659,9 +828,12 @@ export const catalogsApi = {
   resolveMultipleConflicts,
   
   // Catálogos de espacios
-  getSpaces,
+  listSpaces,        // ✅ NUEVO - Con paginación y filtros
+  getSpaces,         // ✅ Mantener para compatibilidad
   getPublicSpaces,
   getSpaceById,
+  createSpace,       // ✅ NUEVO
+  updateSpace,       // ✅ NUEVO
   getSpacesByCapacity,
   findBestSpace,
   
