@@ -163,6 +163,14 @@ export type {
   PublicTrackingResult
 } from './catalogs.api';
 
+// Tipos de modelos de dominio
+export type {
+  Department as DepartmentModel,
+  CreateDepartmentInput,
+  UpdateDepartmentInput,
+  DepartmentFilters
+} from '../../models/department';
+
 // ==================== FASE 4: UTILIDADES ====================
 
 // Query Builder

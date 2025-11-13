@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useCatalogsStore } from '@/store';
@@ -59,6 +59,7 @@ export function SpaceFormDialog({ open, onOpenChange, mode, space }: SpaceFormDi
     reset,
     watch,
     setValue,
+    control,
   } = useForm<SpaceFormData>({
     resolver: zodResolver(spaceSchema),
     defaultValues: {
@@ -74,6 +75,7 @@ export function SpaceFormDialog({ open, onOpenChange, mode, space }: SpaceFormDi
   });
 
   const activeValue = watch('active');
+  const colorValue = watch('colorHex');
 
   // Prellenar formulario en modo edición
   useEffect(() => {
@@ -227,15 +229,26 @@ export function SpaceFormDialog({ open, onOpenChange, mode, space }: SpaceFormDi
             <div className="space-y-2">
               <Label htmlFor="colorHex">Color Identificador</Label>
               <div className="flex items-center gap-2">
-                <input
-                  type="color"
-                  {...register('colorHex')}
-                  className="w-12 h-10 rounded border cursor-pointer"
+                <Controller
+                  name="colorHex"
+                  control={control}
+                  render={({ field }) => (
+                    <input
+                      type="color"
+                      value={field.value || '#6B7280'}
+                      onChange={(e) => {
+                        field.onChange(e.target.value);
+                        setValue('colorHex', e.target.value, { shouldDirty: true });
+                      }}
+                      className="w-12 h-10 rounded border cursor-pointer"
+                    />
+                  )}
                 />
                 <Input
                   id="colorHex"
-                  {...register('colorHex')}
                   placeholder="#6B7280"
+                  value={colorValue || ''}
+                  onChange={(e) => setValue('colorHex', e.target.value, { shouldDirty: true })}
                   className="flex-1"
                   aria-invalid={!!formErrors.colorHex}
                 />

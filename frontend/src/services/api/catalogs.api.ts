@@ -135,7 +135,6 @@ export type UpdateSpaceInput = Partial<CreateSpaceInput>;
 export interface Department {
   id: number;
   name: string;
-  description: string;
   colorHex: string;
   active: boolean;
   // Helpers
@@ -608,7 +607,6 @@ export async function getDepartments(
   const departments: Department[] = backendDepartments.map(dept => ({
     id: dept.id,
     name: dept.name,
-    description: '', // Backend no devuelve description
     colorHex: dept.colorHex || '#6B7280', // Color por defecto si es null
     active: dept.active,
     isAvailable: dept.active
@@ -635,10 +633,115 @@ export async function getDepartmentById(id: number): Promise<Department> {
   return {
     id: backendDept.id,
     name: backendDept.name,
-    description: '', // Backend no devuelve description,
     colorHex: backendDept.colorHex,
     active: backendDept.active,
     isAvailable: backendDept.active
+  };
+}
+
+/**
+ * Lista departamentos con filtros y paginación
+ * 
+ * @param filters - Filtros de búsqueda y paginación
+ * @returns Página de departamentos
+ * 
+ * @example
+ * const page = await catalogsApi.listDepartments({
+ *   q: 'Investigación',
+ *   active: true,
+ *   page: 0,
+ *   size: 20
+ * });
+ */
+export async function listDepartments(
+  filters: import('../../../models/department').DepartmentFilters = {}
+): Promise<PageResponse<Department>> {
+  const query = buildPaginationQuery({
+    page: filters.page,
+    size: filters.size
+  });
+  
+  if (filters.q) query.append('q', filters.q);
+  if (filters.active !== undefined) query.append('active', String(filters.active));
+  if (filters.sort) query.append('sort', filters.sort);
+  
+  const response = await httpClient.get<SpringPageResponse<BackendDepartmentDTO>>(
+    `${ENDPOINTS.CATALOG_DEPARTMENTS}?${query.toString()}`
+  );
+  
+  return adaptSpringPage(response, (dto) => ({
+    id: dto.id,
+    name: dto.name,
+    colorHex: dto.colorHex || '#6B7280',
+    active: dto.active,
+    isAvailable: dto.active
+  }));
+}
+
+/**
+ * Crea un nuevo departamento
+ * 
+ * @param input - Datos del departamento a crear
+ * @returns Departamento creado
+ * 
+ * @example
+ * const newDept = await catalogsApi.createDepartment({
+ *   name: 'Investigación y Desarrollo',
+ *   colorHex: '#1abc9c',
+ *   active: true
+ * });
+ */
+export async function createDepartment(
+  input: import('../../../models/department').CreateDepartmentInput
+): Promise<Department> {
+  const body = {
+    name: input.name,
+    colorHex: input.colorHex || '#6B7280',
+    active: input.active ?? true
+  };
+  
+  const dto = await httpClient.post<BackendDepartmentDTO>(
+    ENDPOINTS.CATALOG_DEPARTMENTS,
+    body
+  );
+  
+  return {
+    id: dto.id,
+    name: dto.name,
+    colorHex: dto.colorHex || '#6B7280',
+    active: dto.active,
+    isAvailable: dto.active
+  };
+}
+
+/**
+ * Actualiza un departamento existente
+ * 
+ * @param id - ID del departamento
+ * @param input - Datos a actualizar (parciales)
+ * @returns Departamento actualizado
+ * 
+ * @example
+ * const updated = await catalogsApi.updateDepartment(10, {
+ *   colorHex: '#3498db',
+ *   active: false
+ * });
+ */
+export async function updateDepartment(
+  id: number,
+  input: import('../../../models/department').UpdateDepartmentInput
+): Promise<Department> {
+  const dto = await httpClient.patch<BackendDepartmentDTO>(
+    ENDPOINTS.CATALOG_DEPARTMENT_BY_ID(id),
+    input
+  );
+  
+  return {
+    id: dto.id,
+    name: dto.name,
+    colorHex: dto.colorHex || '#6B7280',
+    active: dto.active,
+    isAvailable: dto.active
   };
 }
 
@@ -828,18 +931,21 @@ export const catalogsApi = {
   resolveMultipleConflicts,
   
   // Catálogos de espacios
-  listSpaces,        // ✅ NUEVO - Con paginación y filtros
+  listSpaces,        // ✅ Con paginación y filtros
   getSpaces,         // ✅ Mantener para compatibilidad
   getPublicSpaces,
   getSpaceById,
-  createSpace,       // ✅ NUEVO
-  updateSpace,       // ✅ NUEVO
+  createSpace,       // ✅ CRUD
+  updateSpace,       // ✅ CRUD
   getSpacesByCapacity,
   findBestSpace,
   
   // Catálogos de departamentos
   getDepartments,
   getDepartmentById,
+  listDepartments,   // ✅ NUEVO - Con paginación y filtros
+  createDepartment,  // ✅ NUEVO - CRUD
+  updateDepartment,  // ✅ NUEVO - CRUD
   
   // Solicitudes públicas
   submitPublicRequest,

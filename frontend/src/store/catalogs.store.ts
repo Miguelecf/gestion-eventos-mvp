@@ -20,6 +20,9 @@ import {
   type SpaceFilters,
   type CreateSpaceInput,
   type UpdateSpaceInput,
+  type DepartmentFilters,
+  type CreateDepartmentInput,
+  type UpdateDepartmentInput,
   handleApiError,
   logError
 } from '@/services/api';
@@ -40,8 +43,20 @@ export interface CatalogsStore {
     totalPages: number;
   };
   
+  departmentsPagination: {
+    page: number;
+    size: number;
+    totalElements: number;
+    totalPages: number;
+  };
+  
   // ============ FILTROS ============
   spacesFilters: {
+    q: string;
+    active?: boolean;
+  };
+  
+  departmentsFilters: {
     q: string;
     active?: boolean;
   };
@@ -55,6 +70,8 @@ export interface CatalogsStore {
     publicRequest: boolean;
     createSpace: boolean;
     updateSpace: boolean;
+    createDepartment: boolean;
+    updateDepartment: boolean;
   };
   
   errors: {
@@ -65,25 +82,43 @@ export interface CatalogsStore {
     publicRequest: string | null;
     createSpace: string | null;
     updateSpace: string | null;
+    createDepartment: string | null;
+    updateDepartment: string | null;
   };
   
   // ============ ACCIONES ============
   
-  // Listar con filtros y paginación
+  // Espacios - Listar con filtros y paginación
   listSpaces: (filters?: SpaceFilters) => Promise<void>;
   
-  // CRUD
+  // Espacios - CRUD
   createSpace: (input: CreateSpaceInput) => Promise<Space | null>;
   updateSpace: (id: number, input: UpdateSpaceInput) => Promise<Space | null>;
   toggleActive: (id: number) => Promise<boolean>;
   
-  // Filtros
+  // Espacios - Filtros
   setSpacesFilters: (filters: Partial<CatalogsStore['spacesFilters']>) => void;
   clearSpacesFilters: () => void;
   
-  // Paginación
+  // Espacios - Paginación
   setSpacesPage: (page: number) => void;
   setSpacesSize: (size: number) => void;
+  
+  // Departamentos - Listar con filtros y paginación
+  listDepartments: (filters?: DepartmentFilters) => Promise<void>;
+  
+  // Departamentos - CRUD
+  createDepartment: (input: CreateDepartmentInput) => Promise<Department | null>;
+  updateDepartment: (id: number, input: UpdateDepartmentInput) => Promise<Department | null>;
+  toggleActiveDepartment: (id: number) => Promise<boolean>;
+  
+  // Departamentos - Filtros
+  setDepartmentsFilters: (filters: Partial<CatalogsStore['departmentsFilters']>) => void;
+  clearDepartmentsFilters: () => void;
+  
+  // Departamentos - Paginación
+  setDepartmentsPage: (page: number) => void;
+  setDepartmentsSize: (size: number) => void;
   
   // Existentes
   fetchSpaces: () => Promise<void>;
@@ -105,7 +140,17 @@ const initialState = {
     totalElements: 0,
     totalPages: 0,
   },
+  departmentsPagination: {
+    page: 0,
+    size: 20,
+    totalElements: 0,
+    totalPages: 0,
+  },
   spacesFilters: {
+    q: '',
+    active: undefined,
+  },
+  departmentsFilters: {
     q: '',
     active: undefined,
   },
@@ -117,6 +162,8 @@ const initialState = {
     publicRequest: false,
     createSpace: false,
     updateSpace: false,
+    createDepartment: false,
+    updateDepartment: false,
   },
   errors: {
     spaces: null,
@@ -126,6 +173,8 @@ const initialState = {
     publicRequest: null,
     createSpace: null,
     updateSpace: null,
+    createDepartment: null,
+    updateDepartment: null,
   },
 };
 
@@ -315,6 +364,144 @@ const createCatalogsStore: StateCreator<CatalogsStore> = (set, get) => ({
     }
   },
   
+  // ============ LISTAR DEPARTAMENTOS CON PAGINACIÓN ============
+  listDepartments: async (filters) => {
+    const currentFilters = get().departmentsFilters;
+    const currentPagination = get().departmentsPagination;
+    
+    const queryFilters: DepartmentFilters = {
+      q: filters?.q ?? currentFilters.q,
+      active: filters?.active ?? currentFilters.active,
+      page: filters?.page ?? currentPagination.page,
+      size: filters?.size ?? currentPagination.size,
+    };
+    
+    set((state) => ({
+      loading: { ...state.loading, departments: true },
+      errors: { ...state.errors, departments: null },
+      departmentsFilters: {
+        q: queryFilters.q || '',
+        active: queryFilters.active,
+      },
+    }));
+    
+    try {
+      const page = await catalogsApi.listDepartments(queryFilters);
+      
+      set({
+        departments: page.content,
+        departmentsPagination: {
+          page: page.page.number,
+          size: page.page.size,
+          totalElements: page.page.totalElements,
+          totalPages: page.page.totalPages,
+        },
+        loading: { ...get().loading, departments: false },
+      });
+    } catch (error) {
+      logError(error, 'CatalogsStore.listDepartments');
+      const apiError = handleApiError(error);
+      set({
+        loading: { ...get().loading, departments: false },
+        errors: { ...get().errors, departments: apiError.message },
+      });
+    }
+  },
+  
+  // ============ CREAR DEPARTAMENTO ============
+  createDepartment: async (input) => {
+    set((state) => ({
+      loading: { ...state.loading, createDepartment: true },
+      errors: { ...state.errors, createDepartment: null },
+    }));
+    
+    try {
+      const newDepartment = await catalogsApi.createDepartment(input);
+      
+      // Refrescar lista manteniendo filtros
+      await get().listDepartments();
+      
+      set({
+        loading: { ...get().loading, createDepartment: false },
+      });
+      
+      return newDepartment;
+    } catch (error) {
+      logError(error, 'CatalogsStore.createDepartment');
+      const apiError = handleApiError(error);
+      set({
+        loading: { ...get().loading, createDepartment: false },
+        errors: { ...get().errors, createDepartment: apiError.message },
+      });
+      return null;
+    }
+  },
+  
+  // ============ ACTUALIZAR DEPARTAMENTO ============
+  updateDepartment: async (id, input) => {
+    set((state) => ({
+      loading: { ...state.loading, updateDepartment: true },
+      errors: { ...state.errors, updateDepartment: null },
+    }));
+    
+    try {
+      const updatedDepartment = await catalogsApi.updateDepartment(id, input);
+      
+      // Actualización optimista en la lista
+      set((state) => ({
+        departments: state.departments.map(dept =>
+          dept.id === id ? updatedDepartment : dept
+        ),
+        loading: { ...state.loading, updateDepartment: false },
+      }));
+      
+      return updatedDepartment;
+    } catch (error) {
+      logError(error, 'CatalogsStore.updateDepartment');
+      const apiError = handleApiError(error);
+      set({
+        loading: { ...get().loading, updateDepartment: false },
+        errors: { ...get().errors, updateDepartment: apiError.message },
+      });
+      return null;
+    }
+  },
+  
+  // ============ TOGGLE ACTIVO DEPARTAMENTO ============
+  toggleActiveDepartment: async (id) => {
+    const department = get().departments.find(d => d.id === id);
+    if (!department) return false;
+    
+    const result = await get().updateDepartment(id, { active: !department.active });
+    return result !== null;
+  },
+  
+  // ============ FILTROS DEPARTAMENTOS ============
+  setDepartmentsFilters: (filters) => {
+    set((state) => ({
+      departmentsFilters: { ...state.departmentsFilters, ...filters },
+    }));
+    
+    // Auto-fetch con nuevos filtros (página 0)
+    get().listDepartments({ page: 0 });
+  },
+  
+  clearDepartmentsFilters: () => {
+    set({
+      departmentsFilters: { q: '', active: undefined },
+    });
+    get().listDepartments({ page: 0 });
+  },
+  
+  // ============ PAGINACIÓN DEPARTAMENTOS ============
+  setDepartmentsPage: (page) => {
+    get().listDepartments({ page });
+  },
+  
+  setDepartmentsSize: (size) => {
+    get().listDepartments({ page: 0, size });
+  },
+  
   fetchConflicts: async (eventId: number) => {
     set((state) => ({
       loading: { ...state.loading, conflicts: true },
@@ -393,6 +580,8 @@ const createCatalogsStore: StateCreator<CatalogsStore> = (set, get) => ({
         publicRequest: null,
         createSpace: null,
         updateSpace: null,
+        createDepartment: null,
+        updateDepartment: null,
       },
     });
   },
