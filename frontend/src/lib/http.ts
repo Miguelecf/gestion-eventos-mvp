@@ -1,56 +1,73 @@
 import axios, { type AxiosRequestConfig} from "axios";
 
-// Configuración base de axios
+// Configuración base de axios con URL correcta del backend
 const api = axios.create({
-    baseURL: import.meta.env.VITE_API_URL,
-    withCredentials: false, // usa true si manejas cookies httpOnly en el backend
+    baseURL: import.meta.env.VITE_API_URL || "http://localhost:9090",
+    withCredentials: false,
+    timeout: 30000,
 });
 
-// Persistencia simple en localStorage
+// Persistencia simple en localStorage (con cache en memoria para tolerancia a clear())
 const TOKENS_KEY = "auth.tokens";
 
 export type Tokens = {
-    accessToken: string;
-    refreshToken: string;
-    expiresIn: number;
-    expiresAt?: string // ISO opcional
+  accessToken: string;
+  refreshToken?: string;
+  expiresIn?: number;
+  expiresAt?: string; // ISO opcional
 };
 
+// Cache en memoria para evitar estados inconsistentes si localStorage se manipula
+let currentTokens: Tokens | null = null;
+
 export function getStoredTokens(): Tokens | null {
-    try {
-        const raw = localStorage.getItem(TOKENS_KEY);
-        return raw ? JSON.parse(raw) : null;
-    } catch {
-        return null;
-    }
+  // primero intenta cache en memoria
+  if (currentTokens) return currentTokens;
+  try {
+    const raw = localStorage.getItem(TOKENS_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    currentTokens = parsed;
+    return parsed;
+  } catch {
+    return null;
+  }
 }
 
 export function setStoredTokens(tokens: Tokens | null) {
-    try {
-        if (!tokens) {
-            localStorage.removeItem(TOKENS_KEY);
-        } else {
-            localStorage.setItem(TOKENS_KEY, JSON.stringify(tokens));
-        }
-    } catch (error) {
-        // Puedes loguear el error para diagnóstico, pero no interrumpas el flujo
-        if (import.meta.env.MODE === "development") {
-            console.error("Error al guardar tokens en localStorage:", error);
-        }
+  try {
+    currentTokens = tokens;
+    if (!tokens) {
+      localStorage.removeItem(TOKENS_KEY);
+    } else {
+      localStorage.setItem(TOKENS_KEY, JSON.stringify(tokens));
     }
+  } catch (error) {
+    // Puedes loguear el error para diagnóstico, pero no interrumpas el flujo
+    if (import.meta.env.MODE === "development") {
+      console.error("Error al guardar tokens en localStorage:", error);
+    }
+  }
+}
+
+export function clearStoredTokens() {
+  setStoredTokens(null);
+}
+
+export function getAccessToken(): string | null {
+  return getStoredTokens()?.accessToken ?? null;
 }
 
 //Normalizando la respuesta del backend a Tokens (Añadiendo expiresAt)
 export function normalizeTokensFromResponse(resp: any): Tokens {
-    const expiresIn = typeof resp?.expiresIn === "number" ? resp.expiresIn : 0; 
-    const expiresAt = expiresIn ? new Date (Date.now() + expiresIn * 1000000).toISOString() : undefined; 
+  const expiresIn = typeof resp?.expiresIn === "number" ? resp.expiresIn : undefined;
+  const expiresAt = typeof expiresIn === "number" ? new Date(Date.now() + expiresIn * 1000).toISOString() : undefined;
 
-    return { 
-        accessToken: resp.accessToken, 
-        refreshToken: resp.refreshToken, 
-        expiresIn,
-        expiresAt,
-    };
+  return {
+    accessToken: resp.accessToken,
+    refreshToken: resp.refreshToken,
+    expiresIn,
+    expiresAt,
+  };
 }
 
 
@@ -75,7 +92,8 @@ function processQueue(newAccess: string | null) {
 
 async function doRefresh(currentRefresh: string): Promise<Tokens> {
   // usa axios crudo para no caer en el interceptor de esta misma instancia
-  const { data } = await axios.post(`${import.meta.env.VITE_API_URL}/auth/refresh`, {
+  const baseURL = import.meta.env.VITE_API_URL || "http://localhost:9090";
+  const { data } = await axios.post(`${baseURL}/auth/refresh`, {
     refreshToken: currentRefresh,
   }, { withCredentials: false });
   return normalizeTokensFromResponse(data);

@@ -1,114 +1,161 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { AuthApi } from "./api";
-import { getStoredTokens, setStoredTokens, type Tokens } from "../../lib/http";
+import { getStoredTokens, setStoredTokens, clearStoredTokens, type Tokens } from "../../lib/http";
 import type { LoginRequest, RegisterRequest, UserSummary } from "./types";
-
+import { useAppStore } from "@/store";
 
 export type AuthContextType = {
-user: UserSummary | null;
-tokens: Tokens | null;
-loading: boolean;
-login: (data: LoginRequest) => Promise<void>;
-register: (data: RegisterRequest) => Promise<void>;
-logout: () => Promise<void>;
-refresh: () => Promise<void>;
-me: () => Promise<void>;
+  user: UserSummary | null;
+  tokens: Tokens | null;
+  loading: boolean;
+  login: (payload: LoginRequest) => Promise<void>;
+  register: (payload: RegisterRequest) => Promise<void>;
+  logout: () => Promise<void>;
+  refresh: () => Promise<void>;
+  me: () => Promise<void>;
 };
-
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-	const [user, setUser] = useState<UserSummary | null>(null);
-	const [tokens, setTokens] = useState<Tokens | null>(getStoredTokens());
-	const [loading, setLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState<UserSummary | null>(null);
+  const [authTokens, setAuthTokens] = useState<Tokens | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
 
-	useEffect(() => {
-		(async () => {
-			try {
-				if (tokens?.accessToken) {
-					const u = await AuthApi.me();
-					setUser(u);
-				}
-			} catch {
-				setStoredTokens(null);
-				setTokens(null);
-				setUser(null);
-			} finally {
-				setLoading(false);
-			}
-		})();
-		// If you want to run only once, leave dependency array empty.
-	}, []);
+  // Conectar con el store global
+  const setAuth = useAppStore((state) => state.setAuth);
+  const clearAuth = useAppStore((state) => state.clearAuth);
 
-	const login = async (data: LoginRequest) => {
-		const res = await AuthApi.login(data);
-		const t: Tokens = {
-			accessToken: res.accessToken,
-			refreshToken: res.refreshToken,
-			expiresIn: res.expiresIn,
-		};
-		setStoredTokens(t);
-		setTokens(t);
-		setUser(res.user);
-	};
-
-	const register = async (data: RegisterRequest) => {
-		await AuthApi.register(data);
-		// El backend solo devuelve el usuario, no tokens
-		setStoredTokens(null);
-		setTokens(null);
-		setUser(null);
-	};
-
-	const logout = async () => {
-		await AuthApi.logout(tokens?.refreshToken);
-		setStoredTokens(null);
-		setTokens(null);
-		setUser(null);
-	};
-
-	const refresh = async () => {
-		if (!tokens?.refreshToken) return;
-		const res = await AuthApi.refresh({ refreshToken: tokens.refreshToken });
-		const t: Tokens = {
-			accessToken: res.accessToken,
-			refreshToken: res.refreshToken,
-			expiresIn: res.expiresIn,
-		};
-		setStoredTokens(t);
-		setTokens(t);
-		const u = await AuthApi.me();
-		setUser(u);
-	};
-
-	const me = async () => {
-		if (!tokens?.accessToken) return;
-		const u = await AuthApi.me();
-		setUser(u);
-	};
-
-	const value = useMemo(() => ({
-		user,
-		tokens,
-		loading,
-		login,
-		register,
-		logout,
-		refresh,
-		me,
-	}), [user, tokens, loading]);
-
-	return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-	}
-
-    export function useAuth() {
-        const context = useContext(AuthContext);
-        if (!context) {
-            throw new Error("useAuth must be used within an AuthProvider");
+  useEffect(() => {
+    // Al iniciar la app: intenta restaurar sesión desde tokens guardados
+    (async () => {
+      try {
+        const stored = getStoredTokens();
+        if (stored?.accessToken) {
+          setAuthTokens(stored);
+          const user = await AuthApi.me();
+          setCurrentUser(user);
+          // ✅ Sincronizar con store global
+          setAuth(stored.accessToken, user.id.toString(), [`ROLE_${user.role}`]);
         }
-        return context;
-    }
+      } catch {
+        clearStoredTokens();
+        setAuthTokens(null);
+        clearAuth();
+      } finally {
+        setIsAuthLoading(false);
+      }
+    })();
 
-	export { AuthContext };
+    // Escucha cambios en localStorage desde otras pestañas (sincroniza sesión)
+    const handleStorageSync = (e: StorageEvent) => {
+      if (e.key === null || e.key === "auth.tokens") {
+        const stored = getStoredTokens();
+        if (!stored) {
+          setCurrentUser(null);
+          setAuthTokens(null);
+        } else {
+          setAuthTokens(stored);
+        }
+      }
+    };
+
+    window.addEventListener("storage", handleStorageSync);
+    return () => window.removeEventListener("storage", handleStorageSync);
+  }, [setAuth, clearAuth]);
+
+  const login = async (payload: LoginRequest) => {
+    const response = await AuthApi.login(payload);
+    const nextTokens: Tokens = {
+      accessToken: response.accessToken,
+      refreshToken: response.refreshToken,
+      expiresIn: response.expiresIn,
+    };
+    setStoredTokens(nextTokens);
+    setAuthTokens(nextTokens);
+
+    const fetchedUser = await AuthApi.me();
+    setCurrentUser(fetchedUser);
+
+    // ✅ Sincronizar con store global
+    setAuth(nextTokens.accessToken, fetchedUser.id.toString(), [`ROLE_${fetchedUser.role}`]);
+  };
+
+  const register = async (payload: RegisterRequest) => {
+    await AuthApi.register(payload);
+    setStoredTokens(null);
+    setAuthTokens(null);
+    setCurrentUser(null);
+  };
+
+  const logout = async () => {
+    setIsAuthLoading(true);
+    try {
+      if (authTokens?.refreshToken) {
+        try {
+          await AuthApi.logout(authTokens.refreshToken);
+        } catch (err) {
+          console.warn("Logout request failed (ignored):", err);
+        }
+      } else {
+        try {
+          await AuthApi.logout();
+        } catch {}
+      }
+    } finally {
+      // Limpia todo: tokens, usuario, localStorage
+      clearStoredTokens();
+      setAuthTokens(null);
+      setCurrentUser(null);
+      clearAuth(); // ✅ Limpiar store global
+      setIsAuthLoading(false);
+    }
+  };
+
+  const refresh = async () => {
+    if (!authTokens?.refreshToken) return;
+    const response = await AuthApi.refresh({ refreshToken: authTokens.refreshToken });
+    const nextTokens: Tokens = {
+      accessToken: response.accessToken,
+      refreshToken: response.refreshToken,
+      expiresIn: response.expiresIn,
+    };
+    setStoredTokens(nextTokens);
+    setAuthTokens(nextTokens);
+    const fetchedUser = await AuthApi.me();
+    setCurrentUser(fetchedUser);
+  };
+
+  const me = async () => {
+    if (!authTokens?.accessToken) return;
+    const fetchedUser = await AuthApi.me();
+    setCurrentUser(fetchedUser);
+  };
+
+  // Mantenemos las claves expuestas: user, tokens, loading
+  const value = useMemo(
+    () => ({
+      user: currentUser,
+      tokens: authTokens,
+      loading: isAuthLoading,
+      login,
+      register,
+      logout,
+      refresh,
+      me,
+    }),
+    [currentUser, authTokens, isAuthLoading]
+  );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error("useAuth must be used within an AuthProvider");
+  }
+  return context;
+}
+
+export { AuthContext };

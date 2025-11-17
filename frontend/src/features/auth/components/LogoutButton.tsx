@@ -2,19 +2,17 @@ import React from "react";
 import { useAuth } from "../AuthProvider";
 
 export default function LogoutButton(){
-    const auth = useAuth();
-    console.log("Auth context:", auth);
-    const {logout,loading} = useAuth(); 
+    const { logout, loading } = useAuth();
 
     const handleLogout = async() => {
         try{
-            await logout(); 
-
-            //Redirigir al login despues del logout
-            window.location.href = "/login";
+            await logout();
         } catch (err: any){
             console.error("Error al cerrar la sesión", err);
-            alert("Error al cerrar la sesión: " + (err.message || "Error desconocido"));
+        } finally {
+            // Asegurar redirección al login sea cual sea el resultado
+            try { localStorage.removeItem('auth.tokens'); } catch {};
+            window.location.href = "/login";
         }
     };
 

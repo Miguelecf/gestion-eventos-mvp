@@ -9,6 +9,7 @@ import { DashboardPage } from "@/features/dashboard/pages/DashboardPage";
 import { ListPage, CalendarPage, DetailPage, NewPage } from "@/features/events/pages";
 import { SpacesPage, DepartmentsPage } from "@/features/catalogs";
 import { UsersPage } from "@/features/admin/users/pages/UsersPage";
+import { ProfilePage } from "@/features/users/pages/ProfilePage";
 import {
   PublicCalendarPage,
   RequestFormPage,
@@ -45,6 +46,7 @@ export const router = createBrowserRouter([
         children: [
           { path: "/", element: <Navigate to="/dashboard" replace /> },
           { path: "/dashboard", element: <DashboardPage /> },
+          { path: "/profile", element: <ProfilePage /> },
 
           // Events (read)
           {

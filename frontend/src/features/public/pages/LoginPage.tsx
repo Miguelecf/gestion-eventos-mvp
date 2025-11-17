@@ -1,14 +1,18 @@
-import { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useLocation, useSearchParams, Navigate, Outlet } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { useAuth } from '@/features/auth/AuthProvider';
+// Update the import path to the correct location if the file exists
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AlertCircle, CheckCircle2 } from 'lucide-react';
 
 export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { login, loading } = useAuth();
+  const [searchParams] = useSearchParams();
+  const { login, loading, user } = useAuth();
   
   const [formData, setFormData] = useState({
     username: '',
@@ -18,6 +22,14 @@ export function LoginPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const from = (location.state as any)?.from?.pathname || '/dashboard';
+  const sessionExpired = searchParams.get('sessionExpired') === 'true';
+
+  // Si el usuario ya está autenticado, redirigir
+  useEffect(() => {
+    if (user && !loading) {
+      navigate(from, { replace: true });
+    }
+  }, [user, loading, navigate, from]);
 
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -84,88 +96,64 @@ export function LoginPage() {
   const isLoading = loading || isSubmitting;
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <img 
-            src="/unlalogo.jpg" 
-            alt="UNLA" 
-            className="h-16 w-16 mx-auto mb-4 object-contain" 
-          />
-          <CardTitle className="text-2xl">Iniciar Sesión</CardTitle>
-          <CardDescription>Gestión de Eventos - Universidad Nacional</CardDescription>
-        </CardHeader>
-        
-        <form onSubmit={handleLogin} noValidate>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <label htmlFor="username" className="text-sm font-medium">
-                Usuario
-              </label>
-              <Input
-                id="username"
-                name="username"
-                type="text"
-                value={formData.username}
-                onChange={handleInputChange}
-                placeholder="Ingresa tu usuario"
-                required
-                disabled={isLoading}
-                autoComplete="username"
-                className={error ? 'border-red-500' : ''}
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <label htmlFor="password" className="text-sm font-medium">
-                Contraseña
-              </label>
-              <Input
-                id="password"
-                name="password"
-                type="password"
-                value={formData.password}
-                onChange={handleInputChange}
-                placeholder="Ingresa tu contraseña"
-                required
-                disabled={isLoading}
-                autoComplete="current-password"
-                className={error ? 'border-red-500' : ''}
-              />
-            </div>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+      <Card className="w-full max-w-md p-8 shadow-xl">
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold text-gray-900">Gestión de Eventos</h1>
+          <p className="text-gray-600 mt-2">Inicia sesión en tu cuenta</p>
+        </div>
 
-            {error && (
-              <div 
-                role="alert" 
-                className="text-sm text-red-600 bg-red-50 p-3 rounded-md border border-red-200"
-              >
-                <strong>Error:</strong> {error}
-              </div>
-            )}
-            
-            <div className="text-xs text-muted-foreground space-y-1">
-              <p>Ingresa tus credenciales del sistema</p>
-            </div>
-          </CardContent>
-          
-          <CardFooter>
-            <Button 
-              type="submit" 
-              className="w-full" 
+        {error && (
+          <Alert variant="destructive" className="mb-6">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        <form onSubmit={handleLogin} className="space-y-6" noValidate>
+          <div>
+            <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-2">
+              Usuario
+            </label>
+            <Input
+              id="username"
+              name="username"
+              type="text"
+              value={formData.username}
+              onChange={handleInputChange}
+              placeholder="Ingresa tu usuario"
+              required
               disabled={isLoading}
-              size="lg"
-            >
-              {isLoading ? (
-                <>
-                  <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-transparent" />
-                  Ingresando...
-                </>
-              ) : (
-                'Ingresar'
-              )}
-            </Button>
-          </CardFooter>
+              autoComplete="username"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+              Contraseña
+            </label>
+            <Input
+              id="password"
+              name="password"
+              type="password"
+              value={formData.password}
+              onChange={handleInputChange}
+              placeholder="Ingresa tu contraseña"
+              required
+              disabled={isLoading}
+              autoComplete="current-password"
+            />
+          </div>
+
+          <Button
+            type="submit"
+            className="w-full"
+            disabled={isLoading}
+          >
+            {isLoading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
+          </Button>
         </form>
+
       </Card>
     </div>
   );
