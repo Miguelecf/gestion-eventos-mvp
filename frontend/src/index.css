@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "./styles/calendar.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -72,66 +73,53 @@ h1 {
   line-height: 1.1;
 }
 
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
-  cursor: pointer;
-  transition: border-color 0.25s;
-}
+/* Eliminado: estilos globales para <button> que forzaban fondo oscuro */
 
-button:hover {
-  border-color: #646cff;
-}
-
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
-}
-
-@theme inline {
+/* Tema base con @theme para Tailwind v4 */
+@theme {
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
+  
+  /* Colores del tema claro (por defecto) */
+  --color-background: oklch(0.985 0.015 240);
+  --color-foreground: oklch(0.34 0.02 240);
+  --color-card: oklch(0.99 0.01 240);
+  --color-card-foreground: oklch(0.32 0.02 240);
+  --color-popover: oklch(1 0 0);
+  --color-popover-foreground: oklch(0.32 0.02 240);
+  --color-primary: oklch(0.58 0.14 250);
+  --color-primary-foreground: oklch(0.98 0.01 240);
+  --color-secondary: oklch(0.95 0.02 240);
+  --color-secondary-foreground: oklch(0.4 0.02 240);
+  --color-muted: oklch(0.94 0.015 240);
+  --color-muted-foreground: oklch(0.55 0.02 240);
+  --color-accent: oklch(0.93 0.03 240);
+  --color-accent-foreground: oklch(0.32 0.02 240);
+  --color-destructive: oklch(0.6 0.25 25);
+  --color-destructive-foreground: oklch(0.98 0.01 240);
+  --color-border: oklch(0.91 0.01 240);
+  --color-input: oklch(0.93 0.01 240);
+  --color-ring: oklch(0.72 0.04 240);
+  --color-chart-1: oklch(0.65 0.2 250);
+  --color-chart-2: oklch(0.6 0.13 185);
+  --color-chart-3: oklch(0.4 0.07 227);
+  --color-chart-4: oklch(0.82 0.18 84);
+  --color-chart-5: oklch(0.77 0.19 70);
+  --color-sidebar: oklch(0.99 0.01 240);
+  --color-sidebar-foreground: oklch(0.3 0.02 240);
+  --color-sidebar-primary: oklch(0.58 0.14 250);
+  --color-sidebar-primary-foreground: oklch(0.98 0.01 240);
+  --color-sidebar-accent: oklch(0.95 0.02 240);
+  --color-sidebar-accent-foreground: oklch(0.32 0.02 240);
+  --color-sidebar-border: oklch(0.9 0.01 240);
+  --color-sidebar-ring: oklch(0.72 0.04 240);
 }
 
+/* Sobrescribir colores cuando la clase .dark está presente */
 .dark {
+  /* Actualizar las variables base primero */
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.205 0 0);
@@ -163,6 +151,40 @@ button:focus-visible {
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+  
+  /* Sobrescribir las variables --color-* que usa Tailwind v4 */
+  --color-background: oklch(0.145 0 0);
+  --color-foreground: oklch(0.985 0 0);
+  --color-card: oklch(0.205 0 0);
+  --color-card-foreground: oklch(0.985 0 0);
+  --color-popover: oklch(0.205 0 0);
+  --color-popover-foreground: oklch(0.985 0 0);
+  --color-primary: oklch(0.922 0 0);
+  --color-primary-foreground: oklch(0.205 0 0);
+  --color-secondary: oklch(0.269 0 0);
+  --color-secondary-foreground: oklch(0.985 0 0);
+  --color-muted: oklch(0.269 0 0);
+  --color-muted-foreground: oklch(0.708 0 0);
+  --color-accent: oklch(0.269 0 0);
+  --color-accent-foreground: oklch(0.985 0 0);
+  --color-destructive: oklch(0.704 0.191 22.216);
+  --color-destructive-foreground: oklch(0.985 0 0);
+  --color-border: oklch(1 0 0 / 10%);
+  --color-input: oklch(1 0 0 / 15%);
+  --color-ring: oklch(0.556 0 0);
+  --color-chart-1: oklch(0.488 0.243 264.376);
+  --color-chart-2: oklch(0.696 0.17 162.48);
+  --color-chart-3: oklch(0.769 0.188 70.08);
+  --color-chart-4: oklch(0.627 0.265 303.9);
+  --color-chart-5: oklch(0.645 0.246 16.439);
+  --color-sidebar: oklch(0.205 0 0);
+  --color-sidebar-foreground: oklch(0.985 0 0);
+  --color-sidebar-primary: oklch(0.488 0.243 264.376);
+  --color-sidebar-primary-foreground: oklch(0.985 0 0);
+  --color-sidebar-accent: oklch(0.269 0 0);
+  --color-sidebar-accent-foreground: oklch(0.985 0 0);
+  --color-sidebar-border: oklch(1 0 0 / 10%);
+  --color-sidebar-ring: oklch(0.556 0 0);
 }
 
 @layer base {
@@ -171,5 +193,23 @@ button:focus-visible {
   }
   body {
     @apply min-h-screen bg-background text-foreground;
+  }
+}
+
+/* Reset: evita que el CSS base fuerce botones negros y deja a Tailwind controlar el estilo */
+@layer base {
+  button {
+    background-color: transparent;
+    border: none;
+    padding: 0;
+    font: inherit;
+    color: inherit;
+  }
+
+  /* Los items del dropdown de Radix suelen ser <button> con roles */
+  [role="menuitem"],
+  [role="menuitemcheckbox"],
+  [role="menuitemradio"] {
+    background-color: transparent;
   }
 }

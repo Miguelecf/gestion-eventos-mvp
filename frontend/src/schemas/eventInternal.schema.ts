@@ -71,6 +71,8 @@ const argentinePhoneRegex = /^(\+?54)?[\s-]?9?[\s-]?\d{2,4}[\s-]?\d{6,8}$/;
  * Campos requeridos:
  * - name: Nombre del evento (3-200 chars)
  * - departmentId: ID del departamento organizador
+ * - priority: Prioridad del evento (LOW, MEDIUM, HIGH)
+ * - audienceType: Tipo de audiencia (ESTUDIANTES, COMUNIDAD, MIXTO, DOCENTES, AUTORIDADES)
  * - date: Fecha del evento (yyyy-MM-dd, hoy o futura)
  * - scheduleFrom: Hora de inicio (HH:mm)
  * - scheduleTo: Hora de fin (HH:mm, debe ser > scheduleFrom)
@@ -83,10 +85,6 @@ const argentinePhoneRegex = /^(\+?54)?[\s-]?9?[\s-]?\d{2,4}[\s-]?\d{6,8}$/;
  * - requirements: Requerimientos especiales
  * - coverage: Cobertura esperada
  * - observations: Observaciones adicionales
- * 
- * Campos con defaults (MVP):
- * - priority: 'MEDIUM'
- * - audienceType: 'ESTUDIANTES'
  */
 export const internalEventSchema = z.object({
   // ============ DATOS DEL EVENTO ============
@@ -106,9 +104,9 @@ export const internalEventSchema = z.object({
     .int('El ID del departamento debe ser un número entero')
     .positive('Debe seleccionar un departamento válido'),
   
-  priority: PrioritySchema.default('MEDIUM'), 
+  priority: PrioritySchema, 
   
-  audienceType: AudienceTypeSchema.default('ESTUDIANTES'),
+  audienceType: AudienceTypeSchema,
   
   // ============ HORARIOS ============
   
@@ -168,17 +166,14 @@ export const internalEventSchema = z.object({
   
   requirements: z.string()
     .max(1000, 'Los requerimientos no pueden superar los 1000 caracteres')
-    .optional()
     .default(''),
   
   coverage: z.string()
     .max(500, 'La cobertura no puede superar los 500 caracteres')
-    .optional()
     .default(''),
   
   observations: z.string()
     .max(2000, 'Las observaciones no pueden superar los 2000 caracteres')
-    .optional()
     .default(''),
   
 }).refine(
@@ -254,7 +249,6 @@ export const internalEventDefaults: Partial<InternalEventFormData> = {
 export function toInternalEventPayload(
   formData: InternalEventFormData
 ): InternalEventPayload {
-  console.log('🔍 formData.priority:', formData.priority);
   return {
     ...formData,
     // Campos fijos MVP (no editables en el formulario)
@@ -262,8 +256,7 @@ export function toInternalEventPayload(
     requiresTech: false,
     bufferBeforeMin: 0,
     bufferAfterMin: 0,
-    freeLocation: null,
-    priority: formData.priority
+    freeLocation: null
   };
 }
 

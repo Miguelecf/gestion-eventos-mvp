@@ -119,6 +119,9 @@ export type {
   QuickReaction
 } from './comments.api';
 
+// SDK de Estados de Eventos
+export { eventStatusApi } from './event-status.api';
+
 // SDK de Auditoría
 export { auditApi } from './audit.api';
 export type {
@@ -151,11 +154,22 @@ export type {
   MakeDecisionParams,
   DecisionResult,
   Space,
+  SpaceFilters,
+  CreateSpaceInput,
+  UpdateSpaceInput,
   Department,
   PublicEventRequestInput,
   PublicRequestResult,
   PublicTrackingResult
 } from './catalogs.api';
+
+// Tipos de modelos de dominio
+export type {
+  Department as DepartmentModel,
+  CreateDepartmentInput,
+  UpdateDepartmentInput,
+  DepartmentFilters
+} from '../../models/department';
 
 // ==================== FASE 4: UTILIDADES ====================
 

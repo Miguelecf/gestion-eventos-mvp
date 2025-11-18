@@ -10,7 +10,7 @@ const PRIORITIES = [
 export type Priority = typeof PRIORITIES[number]['value'];
 
 export interface PrioritySelectProps {
-  value: Priority;
+  value?: Priority;
   onChange: (value: Priority) => void;
   disabled?: boolean;
   className?: string;
@@ -18,7 +18,7 @@ export interface PrioritySelectProps {
 }
 
 const PrioritySelect = React.forwardRef<HTMLSelectElement, PrioritySelectProps>(
-  ({ value, onChange, disabled, className, ariaInvalid, ...rest }, ref) => {
+  ({ value = 'MEDIUM', onChange, disabled, className, ariaInvalid, ...rest }, ref) => {
     return (
       <select
         ref={ref}

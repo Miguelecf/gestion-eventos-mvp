@@ -88,8 +88,9 @@ export async function getComments(
     queryParams.append('visibility', visibility);
   }
 
+  // ✅ FIX: Usar ENDPOINTS.COMMENTS() que ya incluye el eventId
   const backendPage = await httpClient.get<BackendCommentsPage>(
-    `${ENDPOINTS.EVENTS.replace(':id', eventId.toString())}/comments?${queryParams.toString()}`
+    `${ENDPOINTS.COMMENTS(eventId)}?${queryParams.toString()}`
   );
 
   return adaptCommentsPageFromBackend(backendPage);
@@ -113,7 +114,7 @@ export async function getCommentById(
   commentId: number
 ): Promise<Comment> {
   const backendComment = await httpClient.get<BackendCommentDTO>(
-    `${ENDPOINTS.EVENTS.replace(':id', eventId.toString())}/comments/${commentId}`
+    ENDPOINTS.COMMENT_BY_ID(eventId, commentId)
   );
 
   return adaptCommentFromBackend(backendComment);
@@ -151,7 +152,7 @@ export async function createComment(
 
   // 3. Enviar al backend
   const createdComment = await httpClient.post<BackendCommentDTO>(
-    `${ENDPOINTS.EVENTS.replace(':id', eventId.toString())}/comments`,
+    ENDPOINTS.COMMENTS(eventId),
     createDTO
   );
 
@@ -192,7 +193,7 @@ export async function updateComment(
 
   // 3. Enviar al backend
   const updatedComment = await httpClient.patch<BackendCommentDTO>(
-    `${ENDPOINTS.EVENTS.replace(':id', eventId.toString())}/comments/${commentId}`,
+    ENDPOINTS.COMMENT_BY_ID(eventId, commentId),
     updateDTO
   );
 
@@ -216,7 +217,7 @@ export async function deleteComment(
   commentId: number
 ): Promise<void> {
   await httpClient.delete(
-    `${ENDPOINTS.EVENTS.replace(':id', eventId.toString())}/comments/${commentId}`
+    ENDPOINTS.COMMENT_BY_ID(eventId, commentId)
   );
 }
 
@@ -262,7 +263,7 @@ export async function getAllComments(
   }
 
   const backendPage = await httpClient.get<BackendCommentsPage>(
-    `${ENDPOINTS.EVENTS.replace(':id', eventId.toString())}/comments?${queryParams.toString()}`
+    `${ENDPOINTS.COMMENTS(eventId)}?${queryParams.toString()}`
   );
 
   const adaptedPage = adaptCommentsPageFromBackend(backendPage);
@@ -294,7 +295,7 @@ export async function getCommentsCount(
   }
 
   const backendPage = await httpClient.get<BackendCommentsPage>(
-    `${ENDPOINTS.EVENTS.replace(':id', eventId.toString())}/comments?${queryParams.toString()}`
+    `${ENDPOINTS.COMMENTS(eventId)}?${queryParams.toString()}`
   );
 
   return backendPage.page.totalElements;

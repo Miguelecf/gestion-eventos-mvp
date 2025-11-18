@@ -57,7 +57,7 @@ export default function AppSidebar({
   return (
     <aside
       className={cn(
-        "w-72 flex-col border-r border-slate-200 bg-white shadow-sm",
+        "w-72 flex-col border-r border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950",
         variant === "desktop" ? "hidden lg:flex" : "flex",
         className,
       )}
@@ -69,10 +69,10 @@ export default function AppSidebar({
           className="h-9 w-9 rounded-lg object-contain"
         />
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-slate-800">
+          <p className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">
             Gestión de Eventos
           </p>
-          <p className="text-[11px] font-medium uppercase tracking-[0.28em] text-slate-400">
+          <p className="text-[11px] font-medium uppercase tracking-[0.28em] text-slate-400 dark:text-slate-500">
             UNLa
           </p>
         </div>
@@ -86,7 +86,7 @@ export default function AppSidebar({
         </div>
       </ScrollArea>
 
-      <div className="border-t border-slate-200 px-6 py-5 text-xs text-slate-400">
+      <div className="border-t border-slate-200 dark:border-slate-800 px-6 py-5 text-xs text-slate-400 dark:text-slate-500">
         © {year} UNLa
       </div>
     </aside>
@@ -101,7 +101,7 @@ interface SidebarSectionProps {
 function SidebarSection({ title, items }: SidebarSectionProps) {
   return (
     <section>
-      <p className="px-2 text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">
+      <p className="px-2 text-xs font-semibold uppercase tracking-[0.28em] text-slate-400 dark:text-slate-500">
         {title}
       </p>
       <div className="mt-3 space-y-1">
@@ -111,8 +111,8 @@ function SidebarSection({ title, items }: SidebarSectionProps) {
             to={item.to}
             className={({ isActive }) =>
               cn(
-                "group flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-slate-500 transition-all hover:bg-slate-100 hover:text-slate-900",
-                isActive && "bg-slate-900/5 text-slate-900 shadow-sm",
+                "group flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-slate-500 transition-all hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-100",
+                isActive && "bg-slate-900/5 text-slate-900 shadow-sm dark:bg-slate-800 dark:text-slate-100",
               )
             }
           >

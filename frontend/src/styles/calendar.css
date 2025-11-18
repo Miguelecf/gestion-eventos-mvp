@@ -1,0 +1,224 @@
+/* ====================================
+   FULLCALENDAR CUSTOM STYLES
+   Basado en el estilo de TailAdmin
+   ==================================== */
+
+.calendar-wrapper {
+  @apply rounded-lg border border-slate-200 bg-white p-4;
+}
+
+/* Header del calendario */
+.fc .fc-toolbar {
+  @apply mb-4 flex-wrap gap-2;
+}
+
+.fc .fc-toolbar-title {
+  @apply text-xl font-semibold text-slate-900;
+}
+
+/* Botones de navegación y vista */
+.fc .fc-button {
+  @apply rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition-colors;
+  @apply hover:bg-slate-50 hover:border-slate-400;
+  @apply focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2;
+}
+
+.fc .fc-button-primary {
+  @apply bg-blue-600 border-blue-600 text-white;
+  @apply hover:bg-blue-700 hover:border-blue-700;
+}
+
+.fc .fc-button-active {
+  @apply bg-blue-600 border-blue-600 text-white;
+}
+
+.fc .fc-button:disabled {
+  @apply opacity-50 cursor-not-allowed;
+}
+
+/* Tabla del calendario */
+.fc-theme-standard td,
+.fc-theme-standard th {
+  @apply border-slate-200;
+}
+
+/* Encabezados de días */
+.fc .fc-col-header-cell {
+  @apply bg-slate-50 font-semibold text-slate-700 uppercase text-xs;
+  @apply py-3;
+}
+
+/* Celdas de días */
+.fc .fc-daygrid-day {
+  @apply hover:bg-slate-50 transition-colors;
+}
+
+.fc .fc-daygrid-day-number {
+  @apply text-slate-700 font-medium p-2;
+}
+
+/* Día actual */
+.fc .fc-day-today {
+  @apply bg-blue-50;
+}
+
+.fc .fc-day-today .fc-daygrid-day-number {
+  @apply text-blue-600 font-bold;
+}
+
+/* Días del mes anterior/siguiente */
+.fc .fc-day-other .fc-daygrid-day-number {
+  @apply text-slate-400;
+}
+
+/* Fines de semana */
+.fc .fc-day-sat,
+.fc .fc-day-sun {
+  @apply bg-slate-50/50;
+}
+
+/* ====================================
+   EVENTOS
+   ==================================== */
+
+/* Contenedor de eventos */
+.fc .fc-daygrid-event {
+  @apply rounded-md px-2 py-1 text-xs;
+  @apply cursor-pointer transition-all;
+  @apply hover:shadow-md hover:scale-105;
+}
+
+.fc .fc-event {
+  @apply border-l-4;
+}
+
+/* Contenido personalizado del evento */
+.fc-event-content-custom {
+  @apply flex flex-col gap-0.5;
+}
+
+.fc-event-time {
+  @apply text-xs font-semibold opacity-90;
+}
+
+.fc-event-title {
+  @apply text-xs truncate;
+}
+
+.fc-event-location {
+  @apply text-[10px] truncate opacity-75;
+}
+
+/* Evento seleccionado/hover */
+.fc .fc-event:hover {
+  @apply z-10;
+}
+
+/* "More" link cuando hay muchos eventos */
+.fc .fc-daygrid-more-link {
+  @apply text-blue-600 hover:text-blue-700 font-medium text-xs;
+  @apply hover:underline;
+}
+
+/* ====================================
+   VISTA SEMANAL/DIARIA
+   ==================================== */
+
+/* Horas */
+.fc .fc-timegrid-slot-label {
+  @apply text-xs text-slate-600;
+}
+
+/* Línea actual (now indicator) */
+.fc .fc-timegrid-now-indicator-line {
+  @apply border-red-500;
+}
+
+.fc .fc-timegrid-now-indicator-arrow {
+  @apply border-red-500;
+}
+
+/* Horas de negocio */
+.fc .fc-non-business {
+  @apply bg-slate-100/50;
+}
+
+/* Slots de tiempo */
+.fc .fc-timegrid-slot {
+  @apply hover:bg-slate-50;
+}
+
+/* Eventos en vista de tiempo */
+.fc .fc-timegrid-event {
+  @apply rounded-md border-l-4;
+  @apply shadow-sm;
+}
+
+.fc .fc-timegrid-event .fc-event-main {
+  @apply p-1;
+}
+
+/* ====================================
+   RESPONSIVE
+   ==================================== */
+
+@media (max-width: 768px) {
+  .fc .fc-toolbar {
+    @apply flex-col items-stretch;
+  }
+  
+  .fc .fc-toolbar-chunk {
+    @apply flex justify-center gap-2;
+  }
+  
+  .fc .fc-toolbar-title {
+    @apply text-center mb-2;
+  }
+  
+  .fc .fc-daygrid-day-number {
+    @apply text-sm;
+  }
+  
+  .fc .fc-event {
+    @apply text-[10px];
+  }
+}
+
+/* ====================================
+   DARK MODE (opcional)
+   ==================================== */
+
+.dark .calendar-wrapper {
+  @apply bg-slate-900 border-slate-700;
+}
+
+.dark .fc .fc-col-header-cell {
+  @apply bg-slate-800 text-slate-300;
+}
+
+.dark .fc .fc-daygrid-day-number,
+.dark .fc .fc-toolbar-title {
+  @apply text-slate-200;
+}
+
+.dark .fc .fc-button {
+  @apply bg-slate-800 border-slate-700 text-slate-300;
+  @apply hover:bg-slate-700;
+}
+
+.dark .fc .fc-day-today {
+  @apply bg-blue-900/30;
+}
+
+.dark .fc-theme-standard td,
+.dark .fc-theme-standard th {
+  @apply border-slate-700;
+}
+
+.dark .fc .fc-daygrid-day {
+  @apply hover:bg-slate-800;
+}
+
+.dark .fc .fc-timegrid-slot {
+  @apply hover:bg-slate-800;
+}

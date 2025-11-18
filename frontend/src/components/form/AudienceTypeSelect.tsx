@@ -12,7 +12,7 @@ const AUDIENCE_TYPES = [
 export type AudienceType = typeof AUDIENCE_TYPES[number]['value'];
 
 export interface AudienceTypeSelectProps {
-  value: AudienceType;
+  value?: AudienceType;
   onChange: (value: AudienceType) => void;
   disabled?: boolean;
   className?: string;
@@ -20,7 +20,7 @@ export interface AudienceTypeSelectProps {
 }
 
 const AudienceTypeSelect = React.forwardRef<HTMLSelectElement, AudienceTypeSelectProps>(
-  ({ value, onChange, disabled, className, ariaInvalid, ...rest }, ref) => {
+  ({ value = 'ESTUDIANTES', onChange, disabled, className, ariaInvalid, ...rest }, ref) => {
     return (
       <select
         ref={ref}
