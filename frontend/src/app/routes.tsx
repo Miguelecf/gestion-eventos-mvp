@@ -9,136 +9,80 @@ import { DashboardPage } from "@/features/dashboard/pages/DashboardPage";
 import { ListPage, CalendarPage, DetailPage, NewPage } from "@/features/events/pages";
 import { SpacesPage, DepartmentsPage } from "@/features/catalogs";
 import { UsersPage } from "@/features/admin/users/pages/UsersPage";
-import { 
-  PublicCalendarPage, 
-  RequestFormPage, 
-  TrackingPage, 
+import { ProfilePage } from "@/features/users/pages/ProfilePage";
+import {
+  PublicCalendarPage,
+  RequestFormPage,
+  TrackingPage,
   UnauthorizedPage,
-  LoginPage 
+  LoginPage,
 } from "@/features/public/pages";
 
 export const router = createBrowserRouter([
   // ========================
-  // RUTAS PÚBLICAS (sin auth)
+  // Public routes
   // ========================
-  {
-    path: "/login",
-    element: <LoginPage />,
-  },
-  
   {
     element: <PublicLayout />,
     children: [
-      {
-        path: "/public/calendar",
-        element: <PublicCalendarPage />,
-      },
-      {
-        path: "/solicitud",
-        element: <RequestFormPage />,
-      },
-      {
-        path: "/track/:uuid",
-        element: <TrackingPage />,
-      },
+      { path: "/login", element: <LoginPage /> },
+      { path: "/public/calendar", element: <PublicCalendarPage /> },
+      { path: "/solicitud", element: <RequestFormPage /> },
+      { path: "/track/:uuid", element: <TrackingPage /> },
     ],
   },
 
-  // ========================
-  // RUTAS PROTEGIDAS (requieren auth)
-  // ========================
-  {
-    path: "/unauthorized",
-    element: <UnauthorizedPage />,
-  },
+  // Unauthorized page
+  { path: "/unauthorized", element: <UnauthorizedPage /> },
 
+  // ========================
+  // Protected routes (require auth)
+  // ========================
   {
     element: <PrivateRoute />,
     children: [
       {
         element: <AppShell />,
         children: [
-          // Dashboard (todos con auth)
-          {
-            path: "/",
-            element: <Navigate to="/dashboard" replace />,
-          },
-          {
-            path: "/dashboard",
-            element: <DashboardPage />,
-          },
-          
-          // ========================
-          // EVENTOS (read:Event)
-          // ========================
+          { path: "/", element: <Navigate to="/dashboard" replace /> },
+          { path: "/dashboard", element: <DashboardPage /> },
+          { path: "/profile", element: <ProfilePage /> },
+
+          // Events (read)
           {
             element: <RoleRoute action="read" subject="Event" />,
             children: [
-              {
-                path: "/events",
-                element: <ListPage />,
-              },
-              {
-                path: "/events/:id",
-                element: <DetailPage />,
-              },
-              {
-                path: "/calendar",
-                element: <CalendarPage />,
-              },
+              { path: "/events", element: <ListPage /> },
+              { path: "/events/:id", element: <DetailPage /> },
+              { path: "/calendar", element: <CalendarPage /> },
             ],
           },
 
-          // Crear evento (create:Event - SOLO ADMINS)
+          // Create event (create)
           {
             element: <RoleRoute action="create" subject="Event" />,
-            children: [
-              {
-                path: "/events/new",
-                element: <NewPage />,
-              },
-            ],
+            children: [{ path: "/events/new", element: <NewPage /> }],
           },
 
-          // ========================
-          // CATÁLOGOS (manageCatalogs - SOLO ADMINS)
-          // ========================
+          // Catalogs (manageCatalogs)
           {
             element: <RoleRoute action="manageCatalogs" subject="Space" />,
             children: [
-              {
-                path: "/catalog/spaces",
-                element: <SpacesPage />,
-              },
-              {
-                path: "/catalog/departments",
-                element: <DepartmentsPage />,
-              },
+              { path: "/catalog/spaces", element: <SpacesPage /> },
+              { path: "/catalog/departments", element: <DepartmentsPage /> },
             ],
           },
 
-          // ========================
-          // ADMIN USERS (manage:all - SOLO ADMIN_FULL)
-          // ========================
+          // Admin users (manage all)
           {
             element: <RoleRoute action="manage" subject="all" />,
-            children: [
-              {
-                path: "/admin/users",
-                element: <UsersPage />,
-              },
-            ],
+            children: [{ path: "/admin/users", element: <UsersPage /> }],
           },
         ],
       },
     ],
   },
 
-  // ========================
-  // FALLBACK
-  // ========================
-  {
-    path: "*",
-    element: <Navigate to="/dashboard" replace />,
-  },
+  // Fallback
+  { path: "*", element: <Navigate to="/dashboard" replace /> },
 ]);

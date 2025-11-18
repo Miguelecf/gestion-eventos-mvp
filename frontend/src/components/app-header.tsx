@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   Bell,
   ChevronDown,
@@ -6,6 +7,7 @@ import {
   Moon,
   Search,
   Sun,
+  User,
 } from "lucide-react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -21,9 +23,12 @@ import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import AppSidebar from "@/components/app-sidebar";
 import { AppBreadcrumbs } from "@/components/breadcrumbs";
+import LogoutButton from "@/features/auth/components/LogoutButton";
+import { useAuth } from "@/features/auth/AuthProvider";
 
 export default function AppHeader() {
   const [isDark, setIsDark] = useState(false);
+  const { user } = useAuth();
 
   useEffect(() => {
     const root = document.documentElement;
@@ -103,26 +108,33 @@ export default function AppHeader() {
             <DropdownMenuTrigger asChild>
               <button className="flex items-center gap-3 rounded-full border border-transparent bg-white/0 px-2 py-1 text-left transition hover:border-slate-200">
                 <Avatar className="h-9 w-9 border border-slate-200">
-                  <AvatarFallback>UN</AvatarFallback>
+                  <AvatarFallback>
+                    {user?.username?.substring(0, 2).toUpperCase() || "UN"}
+                  </AvatarFallback>
                 </Avatar>
                 <div className="hidden text-left md:block">
                   <p className="text-sm font-semibold text-slate-900">
-                    Usuario UNLa
+                    {user?.username || "Usuario"}
                   </p>
-                  <p className="text-xs text-slate-500">Administrador</p>
+                  <p className="text-xs text-slate-500">
+                    {user?.role === "ADMIN_FULL" && "Administrador"}
+                    {user?.role === "ADMIN_CEREMONIAL" && "Admin Ceremonial"}
+                    {user?.role === "ADMIN_TECNICA" && "Admin Técnica"}
+                    {user?.role === "USUARIO" && "Usuario"}
+                  </p>
                 </div>
                 <ChevronDown className="hidden h-4 w-4 text-slate-400 lg:block" />
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-44">
+            <DropdownMenuContent align="end" className="w-48">
               <DropdownMenuItem asChild>
-                <a href="#">Mi perfil</a>
+                <Link to="/profile" className="flex items-center cursor-pointer">
+                  <User className="mr-2 h-4 w-4" />
+                  <span>Mi Perfil</span>
+                </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <button type="button">Preferencias</button>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <button type="button">Cerrar sesión</button>
+                <LogoutButton />
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
