@@ -4,12 +4,13 @@ import type { ApiError } from '../types/api.types';
 /**
  * Interceptor de autenticación
  * Agrega el token JWT a todas las requests autenticadas
+ * ✅ SINCRONIZADO: Lee 'accessToken' de localStorage
  */
 export const authInterceptor = (
   config: InternalAxiosRequestConfig
 ): InternalAxiosRequestConfig => {
-  // Obtener token del localStorage (o del store de Zustand)
-  const token = localStorage.getItem('auth_token');
+  // ✅ Leer 'accessToken' (key consistente)
+  const token = localStorage.getItem('accessToken');
   
   if (token && config.headers) {
     config.headers.Authorization = `Bearer ${token}`;
@@ -48,8 +49,9 @@ export const errorInterceptor = async (error: AxiosError): Promise<never> => {
 
   // Manejo especial de 401 (sesión expirada)
   if (status === 401) {
-    // Limpiar token y redirigir a login
-    localStorage.removeItem('auth_token');
+    // ✅ Limpiar 'accessToken' y 'refreshToken'
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
     
     // Evitar redirección si ya estamos en login o en ruta pública
     if (!window.location.pathname.includes('/login') && 

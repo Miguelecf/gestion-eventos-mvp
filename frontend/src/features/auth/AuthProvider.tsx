@@ -37,8 +37,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setCurrentUser(user);
           // ✅ Sincronizar con store global
           setAuth(stored.accessToken, user.id.toString(), [`ROLE_${user.role}`]);
+          
+          console.log('✅ Sesión restaurada:', {
+            user: user.username,
+            role: user.role
+          });
         }
-      } catch {
+      } catch (error) {
+        console.error('❌ Error al restaurar sesión:', error);
         clearStoredTokens();
         setAuthTokens(null);
         clearAuth();
@@ -49,11 +55,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Escucha cambios en localStorage desde otras pestañas (sincroniza sesión)
     const handleStorageSync = (e: StorageEvent) => {
-      if (e.key === null || e.key === "auth.tokens") {
+      // ✅ Escuchar cambios en 'accessToken' o 'refreshToken'
+      if (e.key === 'accessToken' || e.key === 'refreshToken' || e.key === null) {
         const stored = getStoredTokens();
         if (!stored) {
           setCurrentUser(null);
           setAuthTokens(null);
+          clearAuth();
         } else {
           setAuthTokens(stored);
         }
@@ -65,17 +73,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [setAuth, clearAuth]);
 
   const login = async (payload: LoginRequest) => {
+    console.log('🔐 Iniciando login...');
+    
     const response = await AuthApi.login(payload);
+    
+    console.log('✅ Login exitoso:', {
+      username: payload.username,
+      hasAccessToken: !!response.accessToken,
+      hasRefreshToken: !!response.refreshToken
+    });
+    
     const nextTokens: Tokens = {
       accessToken: response.accessToken,
       refreshToken: response.refreshToken,
       expiresIn: response.expiresIn,
     };
+    
+    // ✅ Guardar tokens
     setStoredTokens(nextTokens);
     setAuthTokens(nextTokens);
 
+    // ✅ Obtener datos del usuario
     const fetchedUser = await AuthApi.me();
     setCurrentUser(fetchedUser);
+
+    console.log('✅ Usuario cargado:', {
+      id: fetchedUser.id,
+      username: fetchedUser.username,
+      role: fetchedUser.role
+    });
 
     // ✅ Sincronizar con store global
     setAuth(nextTokens.accessToken, fetchedUser.id.toString(), [`ROLE_${fetchedUser.role}`]);
@@ -83,13 +109,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const register = async (payload: RegisterRequest) => {
     await AuthApi.register(payload);
+    // Después de registro, limpiar todo (debe hacer login)
     setStoredTokens(null);
     setAuthTokens(null);
     setCurrentUser(null);
+    clearAuth();
   };
 
   const logout = async () => {
+    console.log('🚪 Cerrando sesión...');
     setIsAuthLoading(true);
+    
     try {
       if (authTokens?.refreshToken) {
         try {
@@ -109,21 +139,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setCurrentUser(null);
       clearAuth(); // ✅ Limpiar store global
       setIsAuthLoading(false);
+      
+      console.log('✅ Sesión cerrada');
     }
   };
 
   const refresh = async () => {
     if (!authTokens?.refreshToken) return;
+    
+    console.log('🔄 Refrescando token...');
+    
     const response = await AuthApi.refresh({ refreshToken: authTokens.refreshToken });
     const nextTokens: Tokens = {
       accessToken: response.accessToken,
       refreshToken: response.refreshToken,
       expiresIn: response.expiresIn,
     };
+    
     setStoredTokens(nextTokens);
     setAuthTokens(nextTokens);
+    
     const fetchedUser = await AuthApi.me();
     setCurrentUser(fetchedUser);
+    
+    console.log('✅ Token refrescado');
   };
 
   const me = async () => {
@@ -132,7 +171,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setCurrentUser(fetchedUser);
   };
 
-  // Mantenemos las claves expuestas: user, tokens, loading
   const value = useMemo(
     () => ({
       user: currentUser,
