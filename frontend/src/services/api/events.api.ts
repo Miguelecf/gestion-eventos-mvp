@@ -132,8 +132,6 @@ export interface AvailabilityResponse {
  * });
  */
 export async function getEvents(params: EventsQueryParams = {}): Promise<PageResponse<Event>> {
-  // ✅ DEBUG: Log para rastrear llamadas
-  console.trace('🔍 [eventsApi.getEvents] Llamado con params:', params);
   
   // 1. Construir query params de paginación
   const paginationQuery = buildPaginationQuery(params);
@@ -476,6 +474,26 @@ export async function exportEvents(
   return await response.blob();
 }
 
+/**
+ * Obtiene lista simple de eventos activos (sin paginación)
+ * Este endpoint del backend devuelve directamente un array de eventos
+ * 
+ * @returns Array de eventos activos
+ * 
+ * @example
+ * ```ts
+ * const events = await eventsApi.listActive();
+ * console.log(`Total eventos activos: ${events.length}`);
+ * ```
+ */
+export async function listActive(): Promise<Event[]> {
+  // El backend devuelve directamente un array, no un Page
+  const backendEvents = await httpClient.get<BackendEventDTO[]>(ENDPOINTS.EVENTS);
+  
+  // Adaptar cada evento del formato backend al frontend
+  return backendEvents.map(adaptEventFromBackend);
+}
+
 // ==================== EXPORT DEFAULT ====================
 
 /**
@@ -492,7 +510,8 @@ export const eventsApi = {
   checkAvailability,
   getCalendarEvents,
   getEventStats,
-  exportEvents
+  exportEvents,
+  listActive
 };
 
 // Export individual de funciones para tree-shaking

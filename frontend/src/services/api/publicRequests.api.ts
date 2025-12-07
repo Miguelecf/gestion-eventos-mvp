@@ -1,24 +1,3 @@
-/**
- * ============================================================
- * SDK: PUBLIC EVENT REQUESTS API
- * ============================================================
- * 
- * API Service para gestión de solicitudes públicas de eventos.
- * Este SDK maneja ÚNICAMENTE endpoints públicos (sin autenticación).
- * 
- * ENDPOINTS IMPLEMENTADOS:
- * - POST   /public/event-requests        → Crear solicitud pública
- * - GET    /public/track/:uuid           → Consultar estado por UUID
- * - POST   /public/availability/check    → Verificar disponibilidad
- * - GET    /api/catalogs/spaces/public   → Listar espacios públicos
- * - GET    /public/spaces/:id/occupancy  → Ver ocupación por mes
- * 
- * @module publicRequests.api
- * @author Sistema de Gestión de Eventos - UNLA
- * @since 2025-01-30
- * ============================================================
- */
-
 import { httpClient } from './client';
 import type {
   PublicEventRequestPayload,

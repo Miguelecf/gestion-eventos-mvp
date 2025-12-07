@@ -18,6 +18,11 @@ export function adaptSpringPage<TBackend, TFrontend>(
   springPage: SpringPageResponse<TBackend>,
   itemAdapter: (item: TBackend) => TFrontend
 ): PageResponse<TFrontend> {
+  // Validación: Verificar que springPage y content existan
+  if (!springPage || !springPage.content) {
+    throw new Error('Invalid Spring page response: missing content');
+  }
+  
   return {
     content: springPage.content.map(itemAdapter),
     page: {
