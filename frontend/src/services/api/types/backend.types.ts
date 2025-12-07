@@ -523,3 +523,124 @@ export interface BackendPageResponse<T> {
     sorted: boolean;
   };
 }
+
+// ==================== DTOs PÚBLICOS (SIN AUTENTICACIÓN) ====================
+
+/**
+ * DTO para crear Solicitud de Evento Público
+ * Endpoint: POST /public/event-requests
+ */
+export interface PublicEventRequestPayload {
+  name: string;
+  audienceType: string;
+  date: string;                    // formato: yyyy-MM-dd
+  scheduleFrom: string;            // formato: HH:mm
+  scheduleTo: string;              // formato: HH:mm
+  technicalSchedule?: string | null; // formato: HH:mm
+  spaceId?: number | null;         // XOR con freeLocation
+  freeLocation?: string | null;    // XOR con spaceId
+  requestingDepartmentId?: number | null;
+  contactName: string;
+  contactEmail: string;
+  contactPhone: string;
+  bufferBeforeMin?: number;
+  bufferAfterMin?: number;
+  requirements?: string | null;
+  coverage?: string | null;
+  observations?: string | null;
+}
+
+/**
+ * DTO de respuesta al crear Solicitud Pública
+ * Endpoint: POST /public/event-requests
+ */
+export interface EventRequestCreatedResponse {
+  trackingUuid: string;            // UUID para tracking público
+  message: string;                 // ej: "Solicitud recibida exitosamente"
+  status: string;                  // ej: "SOLICITADO"
+  submittedAt: string;             // ISO 8601
+}
+
+/**
+ * DTO de respuesta de estado de Solicitud Pública
+ * Endpoint: GET /public/track/{uuid}
+ */
+export interface EventRequestStatusResponse {
+  trackingUuid: string;
+  currentStatus: string;           // ej: "SOLICITADO", "EN_REVISION", "APROBADO"
+  eventName: string;
+  date: string;                    // formato: yyyy-MM-dd
+  scheduleFrom: string;            // formato: HH:mm
+  scheduleTo: string;              // formato: HH:mm
+  submittedAt: string;             // ISO 8601
+  lastUpdatedAt: string;           // ISO 8601
+  comments?: string | null;        // Comentarios visibles al público
+  spaceName?: string | null;       // Nombre del espacio (si tiene spaceId)
+  location?: string | null;        // Ubicación libre o del espacio
+}
+
+/**
+ * DTO de request para verificar disponibilidad
+ * Endpoint: POST /public/availability/check
+ */
+export interface AvailabilityCheckRequest {
+  date: string;                    // formato: yyyy-MM-dd
+  scheduleFrom: string;            // formato: HH:mm
+  scheduleTo: string;              // formato: HH:mm
+  technicalSchedule?: string | null; // formato: HH:mm
+  spaceId?: number | null;         // XOR con freeLocation
+  freeLocation?: string | null;    // XOR con spaceId
+  bufferBeforeMin?: number;
+  bufferAfterMin?: number;
+}
+
+/**
+ * DTO de respuesta de disponibilidad
+ * Endpoint: POST /public/availability/check
+ */
+export interface AvailabilityCheckResponse {
+  available: boolean;
+  reason?: string | null;          // Razón si no está disponible
+  existingEvents?: Array<{
+    id: number;
+    name: string;
+    scheduleFrom: string;
+    scheduleTo: string;
+    status: string;
+  }> | null;
+}
+
+/**
+ * DTO de Espacio Público (lista simplificada)
+ * Endpoint: GET /api/catalogs/spaces/public
+ */
+export interface PublicSpaceListItem {
+  id: number;
+  name: string;
+  capacity?: number | null;
+  location?: string | null;
+  active: boolean;
+  publishable: boolean;
+}
+
+/**
+ * DTO de Ocupación Mensual de Espacio
+ * Endpoint: GET /public/spaces/{id}/occupancy
+ */
+export interface SpaceOccupancyResponse {
+  spaceId: number;
+  spaceName: string;
+  year: number;
+  month: number;                   // 1-12
+  events: Array<{
+    eventId: number;
+    eventName?: string | null;
+    date: string;                  // formato: yyyy-MM-dd
+    scheduleFrom: string;          // formato: HH:mm
+    scheduleTo: string;            // formato: HH:mm
+    technicalSchedule?: string | null;
+    status: string;
+    bufferBeforeMin?: number;
+    bufferAfterMin?: number;
+  }>;
+}

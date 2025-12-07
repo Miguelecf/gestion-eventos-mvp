@@ -14,6 +14,7 @@ import {
   PublicCalendarPage,
   RequestFormPage,
   TrackingPage,
+  RequestConfirmationPage,
   UnauthorizedPage,
   LoginPage,
 } from "@/features/public/pages";
@@ -28,6 +29,7 @@ export const router = createBrowserRouter([
       { path: "/login", element: <LoginPage /> },
       { path: "/public/calendar", element: <PublicCalendarPage /> },
       { path: "/solicitud", element: <RequestFormPage /> },
+      { path: "/solicitud/confirmacion/:trackingUuid", element: <RequestConfirmationPage /> },
       { path: "/track/:uuid", element: <TrackingPage /> },
     ],
   },

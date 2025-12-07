@@ -163,6 +163,21 @@ export type {
   PublicTrackingResult
 } from './catalogs.api';
 
+// SDK de Solicitudes Públicas
+export { publicRequestsApi } from './publicRequests.api';
+export type {
+  PublicSpacesFilters
+} from './publicRequests.api';
+export type {
+  PublicEventRequestPayload,
+  EventRequestCreatedResponse,
+  EventRequestStatusResponse,
+  AvailabilityCheckRequest,
+  AvailabilityCheckResponse,
+  PublicSpaceListItem,
+  SpaceOccupancyResponse
+} from './types/backend.types';
+
 // Tipos de modelos de dominio
 export type {
   Department as DepartmentModel,
