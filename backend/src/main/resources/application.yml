@@ -16,10 +16,10 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: validate      # Flyway controla el esquema
+      ddl-auto: validate # Flyway controla el esquema
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.MySQLDialect   # MySQLDialect (MySQL8Dialect está deprecated)
+        dialect: org.hibernate.dialect.MySQLDialect # MySQLDialect (MySQL8Dialect está deprecated)
         format_sql: true
     show-sql: true
 
@@ -66,3 +66,10 @@ jwt:
     expiration: ${JWT_ACCESS_TOKEN_EXPIRATION:900000} # 15 minutes by default
   refresh-token:
     expiration: ${JWT_REFRESH_TOKEN_EXPIRATION:604800000} # 7 days by default
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui
+    operations-sorter: method
+    tags-sorter: alpha

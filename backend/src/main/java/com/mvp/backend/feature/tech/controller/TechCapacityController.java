@@ -14,19 +14,21 @@ import java.time.LocalDate;
 import java.util.List;
 
 @RestController
-@RequestMapping("/internal/tech")
+@RequestMapping("/api/tech")
 @RequiredArgsConstructor
 public class TechCapacityController {
 
     private final TechCapacityService techCapacityService;
 
     @GetMapping("/capacity")
-    public TechCapacityResponse getCapacity(@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+    public TechCapacityResponse getCapacity(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
         return techCapacityService.getCapacity(date);
     }
 
     @GetMapping("/events")
-    public List<TechEventResponse> getEvents(@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+    public List<TechEventResponse> getEvents(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
         return techCapacityService.getEvents(date);
     }
 }
