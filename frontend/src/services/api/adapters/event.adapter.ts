@@ -135,47 +135,55 @@ export function adaptEventForCreate(
     scheduleFrom: string;
     scheduleTo: string;
     priority: Priority;
-    audienceType: AudienceType;
+    audienceType?: AudienceType;
     internal: boolean;
     requiresTech: boolean;
     contactName: string;
     contactEmail: string;
     contactPhone: string;
+    bufferBeforeMin?: number;
+    bufferAfterMin?: number;
+    spaceId?: number;
+    freeLocation?: string;
+    requestingArea?: string;
+    techSupportMode?: 'SETUP_ONLY' | 'ATTENDED';
+    technicalSchedule?: string;
+    requirements?: string;
+    coverage?: string;
+    observations?: string;
   }
 ): BackendCreateEventDTO {
   return {
     // Fechas y horarios (ya vienen en formato correcto: yyyy-MM-dd y HH:mm)
     date: eventData.date, // yyyy-MM-dd
-    technicalSchedule: eventData.requiresTech && eventData.scheduleFrom 
-      ? eventData.scheduleFrom // HH:mm
-      : null,
+    technicalSchedule: eventData.technicalSchedule || null,
     scheduleFrom: eventData.scheduleFrom, // HH:mm
     scheduleTo: eventData.scheduleTo, // HH:mm
 
     // Relaciones (IDs)
     spaceId: eventData.spaceId ?? null,
-    freeLocation: null, // TODO: implementar en formulario
+    freeLocation: eventData.freeLocation ?? null,
     departmentId: eventData.departmentId ?? null,
 
     // Datos básicos
     name: eventData.name,
-    requestingArea: null, // TODO: implementar en formulario
-    requirements: eventData.description || null,
-    coverage: null, // TODO: implementar en formulario
-    observations: eventData.description || null,
+    requestingArea: eventData.requestingArea ?? null,
+    requirements: eventData.requirements || eventData.description || null,
+    coverage: eventData.coverage || null,
+    observations: eventData.observations || eventData.description || null,
 
     // Enums (ya vienen en formato del backend)
     priority: eventData.priority,
-    audienceType: eventData.audienceType,
+    audienceType: eventData.audienceType ?? null,
     internal: eventData.internal,
 
     // Flags técnicos
     requiresTech: eventData.requiresTech,
-    techSupportMode: eventData.requiresTech ? 'SETUP_ONLY' : null,
+    techSupportMode: eventData.techSupportMode ?? null,
 
-    // Buffers (valores por defecto si no se especifican)
-    bufferBeforeMin: 15, // TODO: hacer configurable
-    bufferAfterMin: 15, // TODO: hacer configurable
+    // Buffers (usar valores del formulario o valores por defecto)
+    bufferBeforeMin: eventData.bufferBeforeMin ?? 15,
+    bufferAfterMin: eventData.bufferAfterMin ?? 15,
 
     // Contacto (requerido por backend)
     contactName: eventData.contactName,

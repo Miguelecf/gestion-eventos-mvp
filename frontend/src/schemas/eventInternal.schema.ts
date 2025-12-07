@@ -31,6 +31,12 @@ export const AudienceTypeSchema = z.enum([
 ]);
 export type AudienceTypeType = z.infer<typeof AudienceTypeSchema>;
 
+/**
+ * Enum de Modo de Soporte Técnico (reutiliza tipos del backend)
+ */
+export const TechSupportModeSchema = z.enum(['SETUP_ONLY', 'ATTENDED']);
+export type TechSupportModeType = z.infer<typeof TechSupportModeSchema>;
+
 // ==================== VALIDACIONES CUSTOM ====================
 
 /**
@@ -72,16 +78,22 @@ const argentinePhoneRegex = /^(\+?54)?[\s-]?9?[\s-]?\d{2,4}[\s-]?\d{6,8}$/;
  * - name: Nombre del evento (3-200 chars)
  * - departmentId: ID del departamento organizador
  * - priority: Prioridad del evento (LOW, MEDIUM, HIGH)
- * - audienceType: Tipo de audiencia (ESTUDIANTES, COMUNIDAD, MIXTO, DOCENTES, AUTORIDADES)
  * - date: Fecha del evento (yyyy-MM-dd, hoy o futura)
  * - scheduleFrom: Hora de inicio (HH:mm)
  * - scheduleTo: Hora de fin (HH:mm, debe ser > scheduleFrom)
- * - spaceId: ID del espacio físico
+ * - spaceId o freeLocation: Ubicación del evento (XOR)
  * - contactName: Nombre del contacto
  * - contactEmail: Email del contacto
  * - contactPhone: Teléfono del contacto
+ * - requiresTech: Si requiere soporte técnico
+ * - bufferBeforeMin: Buffer antes del evento (0-240)
+ * - bufferAfterMin: Buffer después del evento (0-240)
  * 
  * Campos opcionales:
+ * - audienceType: Tipo de audiencia
+ * - requestingArea: Área solicitante
+ * - technicalSchedule: Horario técnico (si requiresTech)
+ * - techSupportMode: Modo de soporte (si requiresTech)
  * - requirements: Requerimientos especiales
  * - coverage: Cobertura esperada
  * - observations: Observaciones adicionales
@@ -106,7 +118,14 @@ export const internalEventSchema = z.object({
   
   priority: PrioritySchema, 
   
-  audienceType: AudienceTypeSchema,
+  audienceType: AudienceTypeSchema.optional(),
+  
+  requestingArea: z.string({
+    invalid_type_error: 'El área solicitante debe ser texto'
+  })
+    .max(150, 'El área solicitante no puede superar los 150 caracteres')
+    .trim()
+    .optional(),
   
   // ============ HORARIOS ============
   
@@ -131,14 +150,57 @@ export const internalEventSchema = z.object({
   })
     .regex(timeFormatRegex, 'La hora debe estar en formato HH:mm (ej: 11:30)'),
   
-  // ============ UBICACIÓN ============
+  // ============ UBICACIÓN (XOR: spaceId O freeLocation) ============
   
   spaceId: z.number({
-    required_error: 'Debe seleccionar un espacio',
     invalid_type_error: 'Espacio inválido'
   })
     .int('El ID del espacio debe ser un número entero')
-    .positive('Debe seleccionar un espacio válido'),
+    .positive('Debe seleccionar un espacio válido')
+    .optional(),
+  
+  freeLocation: z.string({
+    invalid_type_error: 'La ubicación debe ser texto'
+  })
+    .max(200, 'La ubicación no puede superar los 200 caracteres')
+    .trim()
+    .optional(),
+  
+  // ============ BUFFERS ============
+  
+  bufferBeforeMin: z.number({
+    required_error: 'El buffer antes del evento es requerido',
+    invalid_type_error: 'El buffer debe ser un número'
+  })
+    .int('El buffer debe ser un número entero')
+    .min(0, 'El buffer mínimo es 0 minutos')
+    .max(240, 'El buffer máximo es 240 minutos (4 horas)')
+    .default(15),
+  
+  bufferAfterMin: z.number({
+    required_error: 'El buffer después del evento es requerido',
+    invalid_type_error: 'El buffer debe ser un número'
+  })
+    .int('El buffer debe ser un número entero')
+    .min(0, 'El buffer mínimo es 0 minutos')
+    .max(240, 'El buffer máximo es 240 minutos (4 horas)')
+    .default(15),
+  
+  // ============ SOPORTE TÉCNICO ============
+  
+  requiresTech: z.boolean({
+    required_error: 'Debe indicar si requiere soporte técnico',
+    invalid_type_error: 'El valor debe ser verdadero o falso'
+  })
+    .default(false),
+  
+  techSupportMode: TechSupportModeSchema.optional(),
+  
+  technicalSchedule: z.string({
+    invalid_type_error: 'El horario técnico debe ser texto'
+  })
+    .regex(timeFormatRegex, 'El horario técnico debe estar en formato HH:mm (ej: 09:30)')
+    .optional(),
   
   // ============ CONTACTO ============
   
@@ -176,6 +238,10 @@ export const internalEventSchema = z.object({
     .max(2000, 'Las observaciones no pueden superar los 2000 caracteres')
     .default(''),
   
+  // ============ FLAGS ============
+  
+  internal: z.boolean().default(true),
+  
 }).refine(
   // =============== VALIDACIÓN CROSS-FIELD: scheduleFrom < scheduleTo ===============
   (data) => {
@@ -192,6 +258,43 @@ export const internalEventSchema = z.object({
     message: 'La hora de inicio debe ser anterior a la hora de fin',
     path: ['scheduleTo'] // El error se muestra en el campo scheduleTo
   }
+).refine(
+  // =============== VALIDACIÓN XOR: spaceId O freeLocation ===============
+  (data) => {
+    const hasSpaceId = data.spaceId !== undefined && data.spaceId !== null;
+    const hasFreeLocation = data.freeLocation !== undefined && data.freeLocation !== null && data.freeLocation.trim() !== '';
+    
+    // Exactamente uno debe estar presente (XOR)
+    return (hasSpaceId && !hasFreeLocation) || (!hasSpaceId && hasFreeLocation);
+  },
+  {
+    message: 'Debe especificar un espacio físico O una ubicación libre, no ambos',
+    path: ['freeLocation']
+  }
+).refine(
+  // =============== VALIDACIÓN: Si requiresTech = true, techSupportMode es requerido ===============
+  (data) => {
+    if (data.requiresTech) {
+      return data.techSupportMode !== undefined && data.techSupportMode !== null;
+    }
+    return true;
+  },
+  {
+    message: 'Debe especificar el modo de soporte técnico',
+    path: ['techSupportMode']
+  }
+).refine(
+  // =============== VALIDACIÓN: technicalSchedule < scheduleFrom (si existe) ===============
+  (data) => {
+    if (data.technicalSchedule && data.requiresTech) {
+      return data.technicalSchedule < data.scheduleFrom;
+    }
+    return true;
+  },
+  {
+    message: 'El horario técnico debe ser anterior al inicio del evento',
+    path: ['technicalSchedule']
+  }
 );
 
 // ==================== TIPOS EXPORTADOS ====================
@@ -201,22 +304,6 @@ export const internalEventSchema = z.object({
  */
 export type InternalEventFormData = z.infer<typeof internalEventSchema>;
 
-/**
- * Tipo para el payload que se envía al backend (con campos fijos MVP)
- */
-export interface InternalEventPayload extends InternalEventFormData {
-  /** Evento interno (fijo para MVP) */
-  internal: true;
-  /** No requiere soporte técnico (fijo para MVP) */
-  requiresTech: false;
-  /** Buffer antes del evento en minutos (fijo para MVP) */
-  bufferBeforeMin: 0;
-  /** Buffer después del evento en minutos (fijo para MVP) */
-  bufferAfterMin: 0;
-  /** Ubicación libre (null cuando se usa spaceId) */
-  freeLocation: null;
-}
-
 // ==================== DEFAULTS ====================
 
 /**
@@ -224,17 +311,19 @@ export interface InternalEventPayload extends InternalEventFormData {
  */
 export const internalEventDefaults: Partial<InternalEventFormData> = {
   priority: 'MEDIUM',
-  audienceType: 'ESTUDIANTES',
   requirements: '',
   coverage: '',
-  observations: ''
+  observations: '',
+  bufferBeforeMin: 15,
+  bufferAfterMin: 15,
+  requiresTech: false,
+  internal: true
 };
 
 // ==================== HELPERS ====================
 
 /**
  * Convierte datos del formulario a payload del backend
- * Agrega los campos fijos del MVP que no están en el formulario
  * 
  * @param formData - Datos validados del formulario
  * @returns Payload listo para enviar a POST /api/events
@@ -248,16 +337,8 @@ export const internalEventDefaults: Partial<InternalEventFormData> = {
  */
 export function toInternalEventPayload(
   formData: InternalEventFormData
-): InternalEventPayload {
-  return {
-    ...formData,
-    // Campos fijos MVP (no editables en el formulario)
-    internal: true,
-    requiresTech: false,
-    bufferBeforeMin: 0,
-    bufferAfterMin: 0,
-    freeLocation: null
-  };
+): InternalEventFormData {
+  return formData;
 }
 
 /**
@@ -282,7 +363,7 @@ export function toInternalEventPayload(
  */
 export function validateAndPreparePayload(
   rawData: unknown
-): InternalEventPayload {
+): InternalEventFormData {
   const formData = internalEventSchema.parse(rawData);
   return toInternalEventPayload(formData);
 }

@@ -38,7 +38,7 @@ export type Priority = typeof Priority[keyof typeof Priority];
  */
 export const TechSupportMode = {
   SETUP_ONLY: 'SETUP_ONLY',
-  FULL_SUPPORT: 'FULL_SUPPORT'
+  ATTENDED: 'ATTENDED'
 } as const;
 export type TechSupportMode = typeof TechSupportMode[keyof typeof TechSupportMode];
 
@@ -190,7 +190,7 @@ export interface BackendCreateEventDTO {
   coverage?: string | null;
   observations?: string | null;
   priority: Priority;
-  audienceType: AudienceType;
+  audienceType?: AudienceType | null;
   internal: boolean;
   requiresTech: boolean;
   techSupportMode?: TechSupportMode | null;
