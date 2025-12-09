@@ -41,7 +41,6 @@ import java.util.Objects;
 
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 
-
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -72,18 +71,21 @@ public class EventService {
             throw new DomainValidationException("Either spaceId or freeLocation must be provided");
         }
 
-        int bufferBefore = resolveBuffer(dto.bufferBeforeMin(), space != null ? space.getDefaultBufferBeforeMin() : 0, "bufferBeforeMin");
-        int bufferAfter = resolveBuffer(dto.bufferAfterMin(), space != null ? space.getDefaultBufferAfterMin() : 0, "bufferAfterMin");
+        int bufferBefore = resolveBuffer(dto.bufferBeforeMin(), space != null ? space.getDefaultBufferBeforeMin() : 0,
+                "bufferBeforeMin");
+        int bufferAfter = resolveBuffer(dto.bufferAfterMin(), space != null ? space.getDefaultBufferAfterMin() : 0,
+                "bufferAfterMin");
         String normalizedRequestingArea = trimToNull(dto.requestingArea());
         Priority derivedPriority = priorityPolicy.derivePriority(normalizedRequestingArea, dto.priority());
         boolean requiresTech = Boolean.TRUE.equals(dto.requiresTech());
         TechSupportMode techMode = resolveTechSupportMode(requiresTech, dto.techSupportMode());
 
-        if (requiresTech && !techCapacityService.hasCapacity(dto.date(), dto.scheduleFrom(), dto.scheduleTo(), bufferBefore, bufferAfter, techMode, null)) {
+        if (requiresTech && !techCapacityService.hasCapacity(dto.date(), dto.scheduleFrom(), dto.scheduleTo(),
+                bufferBefore, bufferAfter, techMode, null)) {
             throw techCapacityExceeded();
         }
 
-        //chequeo de disponibilidad al crear un evento
+        // chequeo de disponibilidad al crear un evento
         AvailabilityParams params = AvailabilityParams.builder()
                 .date(dto.date())
                 .spaceId(dto.spaceId())
@@ -140,17 +142,18 @@ public class EventService {
 
         auditService.recordStatusChange(saved, currentUser, null, saved.getStatus(), null, null);
 
-        List<PriorityConflictSummary> conflictSummaries = registerPriorityConflicts(saved, displacedEvents, currentUser);
+        List<PriorityConflictSummary> conflictSummaries = registerPriorityConflicts(saved, displacedEvents,
+                currentUser);
         // TODO: enviar notificaciones aal correo del usuario creador
 
         return new EventCreateResult(saved.getId(), saved.getPriority(), saved.getStatus(), conflictSummaries);
     }
 
-    public EventUpdateResult  update(Long id, UpdateEventDto req) {
+    public EventUpdateResult update(Long id, UpdateEventDto req) {
 
         User currentUser = getCurrentUser();
 
-        Event event  = eventRepository.findById(id)
+        Event event = eventRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Event not found"));
 
         LocalDate previousDate = event.getDate();
@@ -169,7 +172,8 @@ public class EventService {
         }
 
         Space effectiveSpace = req.spaceId() != null ? newSpace : event.getSpace();
-        String effectiveFreeLocation = req.freeLocation() != null ? trimToNull(req.freeLocation()) : event.getFreeLocation();
+        String effectiveFreeLocation = req.freeLocation() != null ? trimToNull(req.freeLocation())
+                : event.getFreeLocation();
         boolean hasSpace = effectiveSpace != null;
         boolean hasFreeLocation = StringUtils.hasText(effectiveFreeLocation);
 
@@ -190,19 +194,27 @@ public class EventService {
 
         int effectiveBufferBefore = req.bufferBeforeMin() != null
                 ? resolveBuffer(req.bufferBeforeMin(), event.getBufferBeforeMin(), "bufferBeforeMin")
-                : (spaceChanged ? resolveBuffer(null, hasSpace ? effectiveSpace.getDefaultBufferBeforeMin() : 0, "bufferBeforeMin") : event.getBufferBeforeMin());
+                : (spaceChanged
+                        ? resolveBuffer(null, hasSpace ? effectiveSpace.getDefaultBufferBeforeMin() : 0,
+                                "bufferBeforeMin")
+                        : event.getBufferBeforeMin());
         int effectiveBufferAfter = req.bufferAfterMin() != null
                 ? resolveBuffer(req.bufferAfterMin(), event.getBufferAfterMin(), "bufferAfterMin")
-                : (spaceChanged ? resolveBuffer(null, hasSpace ? effectiveSpace.getDefaultBufferAfterMin() : 0, "bufferAfterMin") : event.getBufferAfterMin());
+                : (spaceChanged
+                        ? resolveBuffer(null, hasSpace ? effectiveSpace.getDefaultBufferAfterMin() : 0,
+                                "bufferAfterMin")
+                        : event.getBufferAfterMin());
 
-        String effectiveRequestingArea = req.requestingArea() != null ? trimToNull(req.requestingArea()) : event.getRequestingArea();
+        String effectiveRequestingArea = req.requestingArea() != null ? trimToNull(req.requestingArea())
+                : event.getRequestingArea();
         Priority requestedPriority = req.priority() != null ? req.priority() : event.getPriority();
         Priority derivedPriority = priorityPolicy.derivePriority(effectiveRequestingArea, requestedPriority);
         boolean requiresTech = req.requiresTech() != null ? req.requiresTech() : event.isRequiresTech();
         TechSupportMode techMode = resolveTechSupportMode(requiresTech,
                 req.techSupportMode() != null ? req.techSupportMode() : event.getTechSupportMode());
 
-        if (requiresTech && !techCapacityService.hasCapacity(effectiveDate, effectiveFrom, effectiveTo, effectiveBufferBefore, effectiveBufferAfter, techMode, event.getId())) {
+        if (requiresTech && !techCapacityService.hasCapacity(effectiveDate, effectiveFrom, effectiveTo,
+                effectiveBufferBefore, effectiveBufferAfter, techMode, event.getId())) {
             throw techCapacityExceeded();
         }
 
@@ -233,35 +245,49 @@ public class EventService {
                 || spaceChanged;
         boolean requiresReprogram = agendaChanged && isBlockingStatus(previousStatus);
 
-        if (req.date() != null)                event.setDate(req.date());
-        if (req.technicalSchedule() != null)   event.setTechnicalSchedule(req.technicalSchedule());
-        if (req.scheduleFrom() != null)        event.setScheduleFrom(req.scheduleFrom());
-        if (req.scheduleTo() != null)          event.setScheduleTo(req.scheduleTo());
+        if (req.date() != null)
+            event.setDate(req.date());
+        if (req.technicalSchedule() != null)
+            event.setTechnicalSchedule(req.technicalSchedule());
+        if (req.scheduleFrom() != null)
+            event.setScheduleFrom(req.scheduleFrom());
+        if (req.scheduleTo() != null)
+            event.setScheduleTo(req.scheduleTo());
 
         event.setRequestingArea(effectiveRequestingArea);
-        if (req.requestingArea() != null)      event .setRequestingArea(trimToNull(req.requestingArea()));
-        if (req.requirements() != null)        event .setRequirements(trimToNull(req.requirements()));
-        if (req.coverage() != null)            event .setCoverage(trimToNull(req.coverage()));
-        if (req.observations() != null)        event .setObservations(trimToNull(req.observations()));
+        if (req.requestingArea() != null)
+            event.setRequestingArea(trimToNull(req.requestingArea()));
+        if (req.requirements() != null)
+            event.setRequirements(trimToNull(req.requirements()));
+        if (req.coverage() != null)
+            event.setCoverage(trimToNull(req.coverage()));
+        if (req.observations() != null)
+            event.setObservations(trimToNull(req.observations()));
 
         event.setPriority(derivedPriority);
-        if (req.audienceType() != null)        event .setAudienceType(req.audienceType());
-        if (req.internal() != null)            event .setInternal(req.internal());
+        if (req.audienceType() != null)
+            event.setAudienceType(req.audienceType());
+        if (req.internal() != null)
+            event.setInternal(req.internal());
 
         event.setRequiresTech(requiresTech);
         event.setTechSupportMode(techMode);
 
-        if (req.contactName() != null)         event .setContactName(trimToNull(req.contactName()));
-        if (req.contactEmail() != null)        event .setContactEmail(trimToNull(req.contactEmail()));
-        if (req.contactPhone() != null)        event .setContactPhone(trimToNull(req.contactPhone()));
+        if (req.contactName() != null)
+            event.setContactName(trimToNull(req.contactName()));
+        if (req.contactEmail() != null)
+            event.setContactEmail(trimToNull(req.contactEmail()));
+        if (req.contactPhone() != null)
+            event.setContactPhone(trimToNull(req.contactPhone()));
 
-        if (newDept != null)                   event .setDepartment(newDept);
+        if (newDept != null)
+            event.setDepartment(newDept);
 
-        if (req.spaceId() != null) {           // Cambia a espacio
-            event .setSpace(newSpace);
-            event .setFreeLocation(null);
+        if (req.spaceId() != null) { // Cambia a espacio
+            event.setSpace(newSpace);
+            event.setFreeLocation(null);
         } else if (req.freeLocation() != null) { // Cambia a free location
-            event .setSpace(null);
+            event.setSpace(null);
             event.setFreeLocation(effectiveFreeLocation);
         }
 
@@ -277,15 +303,18 @@ public class EventService {
 
         if (requiresReprogram) {
             auditService.recordStatusChange(saved, currentUser, previousStatus, Status.EN_REVISION, null, null);
-            auditService.recordReprogram(saved, currentUser, saved.getDate(), saved.getScheduleFrom(), saved.getScheduleTo(), null, null);
+            auditService.recordReprogram(saved, currentUser, saved.getDate(), saved.getScheduleFrom(),
+                    saved.getScheduleTo(), null, null);
         }
 
         if (agendaChanged) {
-            auditService.recordScheduleChange(saved, currentUser, saved.getDate(), saved.getScheduleFrom(), saved.getScheduleTo());
+            auditService.recordScheduleChange(saved, currentUser, saved.getDate(), saved.getScheduleFrom(),
+                    saved.getScheduleTo());
         }
 
         // agregar las otificaciones de si se movió agenda/espacio
-        List<PriorityConflictSummary> conflictSummaries = registerPriorityConflicts(saved, displacedEvents, currentUser);
+        List<PriorityConflictSummary> conflictSummaries = registerPriorityConflicts(saved, displacedEvents,
+                currentUser);
 
         if (previousInternal != saved.isInternal()) {
             auditService.recordInternalToggle(saved, currentUser, previousInternal, saved.isInternal());
@@ -294,34 +323,39 @@ public class EventService {
         return new EventUpdateResult(saved.getId(), saved.getPriority(), saved.getStatus(), conflictSummaries);
     }
 
-    public void softDelete(Long id){
-        Event ev = eventRepository.findById(id).orElseThrow(()
-                -> new ResponseStatusException(NOT_FOUND,"Event not found"));
+    public void softDelete(Long id) {
+        Event ev = eventRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Event not found"));
 
         ev.setActive(false);
         ev.setDeletedAt(Instant.now());
         eventRepository.save(ev);
     }
+
     /* ----------------- Queries ------------- */
     @Transactional(readOnly = true)
-    public List<EventResponseDto> listActive(){
+    public List<EventResponseDto> listActive() {
         return eventRepository.findByActiveTrue()
                 .stream().map(EventMapper::toDto).toList();
-
-        /* Por ejemplo si lo quiero hacer mas por filtro, y no con el metodo findByActiveTrue()
-         return eventRepository.findAl().stream().filter(e -> e.isActive()).map(this::toResponse).toList();
-        */
 
     }
 
     @Transactional(readOnly = true)
-    public EventResponseDto getById(Long id){
+    public List<EventResponseDto> listPublicActive() {
+        return eventRepository.findByActiveTrueAndInternalFalseAndStatus(Status.APROBADO)
+                .stream()
+                .map(EventMapper::toDto)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public EventResponseDto getById(Long id) {
         return eventRepository.findById(id).map(EventMapper::toDto)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Event not found"));
     }
 
     @Transactional(readOnly = true)
-    public List<EventResponseDto> findByDate(LocalDate date){
+    public List<EventResponseDto> findByDate(LocalDate date) {
         return eventRepository.findByDate(date).stream().map(EventMapper::toDto).toList();
     }
 
@@ -377,7 +411,8 @@ public class EventService {
     private int resolveBuffer(Integer requested, Integer defaultValue, String fieldName) {
         int value = requested != null ? requested : (defaultValue != null ? defaultValue : 0);
         if (value < 0 || value > MAX_BUFFER_MINUTES) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, fieldName + " must be between 0 and " + MAX_BUFFER_MINUTES);
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    fieldName + " must be between 0 and " + MAX_BUFFER_MINUTES);
         }
         return value;
     }
@@ -407,8 +442,8 @@ public class EventService {
     }
 
     private List<Event> resolvePriorityConflicts(AvailabilityResult availabilityResult,
-                                                 Priority desiredPriority,
-                                                 Long ignoreEventId) {
+            Priority desiredPriority,
+            Long ignoreEventId) {
         if (availabilityResult == null || availabilityResult.conflicts() == null) {
             return List.of();
         }
@@ -447,8 +482,8 @@ public class EventService {
     }
 
     private List<PriorityConflictSummary> registerPriorityConflicts(Event highPriorityEvent,
-                                                                    List<Event> displacedEvents,
-                                                                    User triggeredBy) {
+            List<Event> displacedEvents,
+            User triggeredBy) {
         if (displacedEvents == null || displacedEvents.isEmpty()) {
             if (highPriorityEvent.getPriority() != Priority.HIGH) {
                 return List.of();
@@ -469,7 +504,6 @@ public class EventService {
                 conflict.getSpaceId(),
                 conflict.getFromTime(),
                 conflict.getToTime(),
-                conflict.getDisplacedEvent().isRequiresRebooking()
-        );
+                conflict.getDisplacedEvent().isRequiresRebooking());
     }
 }

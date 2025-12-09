@@ -49,6 +49,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/public/spaces/*/occupancy").permitAll()
                         .requestMatchers(HttpMethod.GET, "/public/track/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/public/catalogs/spaces").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/public/events").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/catalogs/**")
                         .hasAnyRole("ADMIN_FULL", "ADMIN_CEREMONIAL", "ADMIN_TECNICA")
                         .requestMatchers(HttpMethod.POST, "/api/catalogs/**")
