@@ -17,7 +17,7 @@
 import { useState, useEffect } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { toast } from 'sonner';
 
 // Schema y tipos
@@ -415,6 +415,71 @@ export default function PublicEventForm() {
               </AlertDescription>
             </Alert>
           )}
+
+          {/* Link al Calendario Público */}
+          <Alert className="mt-4">
+            <AlertDescription>
+              <div className="flex items-start gap-3">
+                <svg
+                  className="h-5 w-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-1">
+                    Revisá el calendario antes de enviar tu solicitud
+                  </p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                    Para evitar superposiciones de fecha y espacio, consultá los eventos ya programados.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    asChild
+                  >
+                    <Link to="/public/calendar" target="_blank" className="inline-flex items-center gap-2">
+                      <svg
+                        className="h-4 w-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                        />
+                      </svg>
+                      Ver Calendario Público
+                      <svg
+                        className="h-3 w-3"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                        />
+                      </svg>
+                    </Link>
+                  </Button>
+                </div>
+              </div>
+            </AlertDescription>
+          </Alert>
         </FormSectionCard>
 
         {/* ==================== SECCIÓN: UBICACIÓN ==================== */}

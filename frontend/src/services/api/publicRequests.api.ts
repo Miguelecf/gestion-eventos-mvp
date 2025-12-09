@@ -189,7 +189,7 @@ export const getPublicSpaces = async (
   }
 
   return await httpClient.get<PublicSpaceListItem[]>(
-    `/api/catalogs/spaces/public${params.toString() ? `?${params.toString()}` : ''}`
+    `/public/catalogs/spaces${params.toString() ? `?${params.toString()}` : ''}`
   );
 };
 

@@ -90,7 +90,7 @@ export const ENDPOINTS = {
 
   // ================ CATÁLOGOS ================
   CATALOG_SPACES: '/api/catalogs/spaces',
-  CATALOG_SPACES_PUBLIC: '/api/catalogs/spaces/public',
+  CATALOG_SPACES_PUBLIC: '/public/catalogs/spaces',
   CATALOG_SPACE_BY_ID: (id: number) => `/api/catalogs/spaces/${id}`,
   CATALOG_DEPARTMENTS: '/api/catalogs/departments',
   CATALOG_DEPARTMENT_BY_ID: (id: number) => `/api/catalogs/departments/${id}`,

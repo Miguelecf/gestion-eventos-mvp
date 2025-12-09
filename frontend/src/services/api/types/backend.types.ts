@@ -612,7 +612,7 @@ export interface AvailabilityCheckResponse {
 
 /**
  * DTO de Espacio Público (lista simplificada)
- * Endpoint: GET /api/catalogs/spaces/public
+ * Endpoint: GET /public/catalogs/spaces
  */
 export interface PublicSpaceListItem {
   id: number;
