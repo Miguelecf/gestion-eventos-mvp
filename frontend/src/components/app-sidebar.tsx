@@ -2,6 +2,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   Building2,
   Calendar,
+  ClipboardList,
   LayoutDashboard,
   ListChecks,
   MapPinned,
@@ -31,6 +32,11 @@ const primaryNavigation: NavigationItem[] = [
     to: "/events/new",
     icon: PlusCircle,
     badge: "NEW",
+  },
+  {
+    label: "Solicitudes",
+    to: "/solicitudes",
+    icon: ClipboardList,
   },
 ];
 

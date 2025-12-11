@@ -4,9 +4,9 @@ SET time_zone = '+00:00';
 -- ===========================
 -- Event Requests - Solicitudes públicas de eventos
 -- ===========================
--- Estados: RECEIVED, REVIEWING, CONVERTED, REJECTED
+-- Estados: RECIBIDO, EN_REVISION, CONVERTIDO, RECHAZADO
 -- Prioridades: LOW, MEDIUM, HIGH
--- AudienceType: ESTUDIANTES, COMUNIDAD, MIXTO, DOCENTES, AUTORIDADES
+-- AudienceType:     ESTUDIANTES, DOCENTES, AUTORIDADES, COMUNIDAD, TERCERA_EDAD
 -- ===========================
 
 -- Timestamp base
@@ -50,7 +50,7 @@ INSERT INTO event_requests (
  'LOW', 'ESTUDIANTES',
  'Carlos Martinez', 'carlos.martinez@estudiantes.unla.edu.ar', '+54 11 4567-8901',
  20, 20,
- 'RECEIVED', DATE_SUB(@now, INTERVAL 2 DAY),
+ 'RECIBIDO', DATE_SUB(@now, INTERVAL 2 DAY),
  NULL),
 
 -- 2) En revisión - Charla de salud mental
@@ -64,7 +64,7 @@ INSERT INTO event_requests (
  'MEDIUM', 'ESTUDIANTES',
  'Ana López', 'ana.lopez@unla.edu.ar', '+54 11 5678-9012',
  30, 30,
- 'REVIEWING', DATE_SUB(@now, INTERVAL 5 DAY),
+ 'EN_REVISION', DATE_SUB(@now, INTERVAL 5 DAY),
  NULL),
 
 -- 3) Solicitud recibida - Evento deportivo exterior
@@ -78,7 +78,7 @@ INSERT INTO event_requests (
  'HIGH', 'COMUNIDAD',
  'Roberto Fernández', 'roberto.fernandez@unla.edu.ar', '+54 11 6789-0123',
  60, 30,
- 'RECEIVED', DATE_SUB(@now, INTERVAL 1 DAY),
+ 'RECIBIDO', DATE_SUB(@now, INTERVAL 1 DAY),
  NULL),
 
 -- 4) En revisión - Proyección de documental
@@ -89,10 +89,10 @@ INSERT INTO event_requests (
  @space_cine, NULL,
  @dept_human,
  'Sistema de sonido 5.1, micrófono para panel', NULL, 'Invitados externos confirmados',
- 'LOW', 'MIXTO',
+ 'LOW', 'COMUNIDAD',
  'María Gonzalez', 'maria.gonzalez@unla.edu.ar', '+54 11 7890-1234',
  30, 20,
- 'REVIEWING', DATE_SUB(@now, INTERVAL 3 DAY),
+ 'EN_REVISION', DATE_SUB(@now, INTERVAL 3 DAY),
  NULL),
 
 -- 5) Solicitud recibida - Feria de ciencias
@@ -106,7 +106,7 @@ INSERT INTO event_requests (
  'MEDIUM', 'ESTUDIANTES',
  'Pedro Ramirez', 'pedro.ramirez@estudiantes.unla.edu.ar', '+54 11 8901-2345',
  30, 30,
- 'RECEIVED', DATE_SUB(@now, INTERVAL 4 DAY),
+ 'RECIBIDO', DATE_SUB(@now, INTERVAL 4 DAY),
  NULL),
 
 -- 6) Rechazada - Conflicto de horarios
@@ -120,7 +120,7 @@ INSERT INTO event_requests (
  'LOW', 'DOCENTES',
  'Laura Silva', 'laura.silva@unla.edu.ar', '+54 11 9012-3456',
  15, 15,
- 'REJECTED', DATE_SUB(@now, INTERVAL 6 DAY),
+ 'RECHAZADO', DATE_SUB(@now, INTERVAL 6 DAY),
  NULL),
 
 -- 7) En revisión - Taller artístico
@@ -134,7 +134,7 @@ INSERT INTO event_requests (
  'LOW', 'COMUNIDAD',
  'Sofía Torres', 'sofia.torres@unla.edu.ar', '+54 11 2345-6789',
  15, 15,
- 'REVIEWING', DATE_SUB(@now, INTERVAL 2 DAY),
+ 'EN_REVISION', DATE_SUB(@now, INTERVAL 2 DAY),
  NULL),
 
 -- 8) Solicitud recibida - Capacitación docente
@@ -148,7 +148,7 @@ INSERT INTO event_requests (
  'MEDIUM', 'DOCENTES',
  'Jorge Medina', 'jorge.medina@unla.edu.ar', '+54 11 3456-7890',
  30, 30,
- 'RECEIVED', @now,
+ 'RECIBIDO', @now,
  NULL),
 
 -- 9) En revisión - Jornada de salud comunitaria
@@ -162,7 +162,7 @@ INSERT INTO event_requests (
  'HIGH', 'COMUNIDAD',
  'Daniela Castro', 'daniela.castro@unla.edu.ar', '+54 11 4567-8902',
  60, 30,
- 'REVIEWING', DATE_SUB(@now, INTERVAL 7 DAY),
+ 'EN_REVISION', DATE_SUB(@now, INTERVAL 7 DAY),
  NULL),
 
 -- 10) Solicitud recibida - Conferencia académica
@@ -176,7 +176,7 @@ INSERT INTO event_requests (
  'HIGH', 'AUTORIDADES',
  'Miguel Vargas', 'miguel.vargas@unla.edu.ar', '+54 11 5678-9013',
  45, 30,
- 'RECEIVED', DATE_SUB(@now, INTERVAL 10 DAY),
+ 'RECIBIDO', DATE_SUB(@now, INTERVAL 10 DAY),
  NULL),
 
 -- 11) Rechazada - Espacio no disponible
@@ -190,7 +190,7 @@ INSERT INTO event_requests (
  'LOW', 'ESTUDIANTES',
  'Lucía Benítez', 'lucia.benitez@estudiantes.unla.edu.ar', '+54 11 6789-0124',
  30, 30,
- 'REJECTED', DATE_SUB(@now, INTERVAL 8 DAY),
+ 'RECHAZADO', DATE_SUB(@now, INTERVAL 8 DAY),
  NULL),
 
 -- 12) En revisión - Encuentro de extensión
@@ -201,10 +201,10 @@ INSERT INTO event_requests (
  @space_quincho, NULL,
  @dept_plan,
  'Mesas redondas, sillas, sistema de audio', 'Cobertura institucional', 'Catering para 80 personas',
- 'MEDIUM', 'MIXTO',
+ 'MEDIUM', 'ESTUDIANTES',
  'Fernando Paz', 'fernando.paz@unla.edu.ar', '+54 11 7890-1235',
  30, 30,
- 'REVIEWING', DATE_SUB(@now, INTERVAL 4 DAY),
+ 'EN_REVISION', DATE_SUB(@now, INTERVAL 4 DAY),
  NULL);
 
 -- ===========================
@@ -218,26 +218,26 @@ SET @req2 = (SELECT id FROM event_requests WHERE tracking_uuid = '550e8400-e29b-
 SET @req6 = (SELECT id FROM event_requests WHERE tracking_uuid = '550e8400-e29b-41d4-a716-446655440006');
 SET @req9 = (SELECT id FROM event_requests WHERE tracking_uuid = '550e8400-e29b-41d4-a716-446655440009');
 
--- Historial para solicitud #1 (RECEIVED)
+-- Historial para solicitud #1 (RECIBIDO)
 INSERT INTO event_request_history (request_id, at, type, from_value, to_value)
 VALUES
-  (@req1, DATE_SUB(@now, INTERVAL 2 DAY), 'STATUS', NULL, 'RECEIVED');
+  (@req1, DATE_SUB(@now, INTERVAL 2 DAY), 'STATUS', NULL, 'RECIBIDO');
 
--- Historial para solicitud #2 (RECEIVED → REVIEWING)
+-- Historial para solicitud #2 (RECIBIDO → EN_REVISION)
 INSERT INTO event_request_history (request_id, at, type, from_value, to_value)
 VALUES
-  (@req2, DATE_SUB(@now, INTERVAL 5 DAY), 'STATUS', NULL, 'RECEIVED'),
-  (@req2, DATE_SUB(@now, INTERVAL 3 DAY), 'STATUS', 'RECEIVED', 'REVIEWING');
+  (@req2, DATE_SUB(@now, INTERVAL 5 DAY), 'STATUS', NULL, 'RECIBIDO'),
+  (@req2, DATE_SUB(@now, INTERVAL 3 DAY), 'STATUS', 'RECIBIDO', 'EN_REVISION');
 
--- Historial para solicitud #6 (RECEIVED → REJECTED)
+-- Historial para solicitud #6 (RECIBIDO → RECHAZADO)
 INSERT INTO event_request_history (request_id, at, type, from_value, to_value)
 VALUES
-  (@req6, DATE_SUB(@now, INTERVAL 6 DAY), 'STATUS', NULL, 'RECEIVED'),
-  (@req6, DATE_SUB(@now, INTERVAL 4 DAY), 'STATUS', 'RECEIVED', 'REJECTED');
+  (@req6, DATE_SUB(@now, INTERVAL 6 DAY), 'STATUS', NULL, 'RECIBIDO'),
+  (@req6, DATE_SUB(@now, INTERVAL 4 DAY), 'STATUS', 'RECIBIDO', 'RECHAZADO');
 
--- Historial para solicitud #9 (RECEIVED → REVIEWING con varios cambios)
+-- Historial para solicitud #9 (RECIBIDO → EN_REVISION con varios cambios)
 INSERT INTO event_request_history (request_id, at, type, from_value, to_value)
 VALUES
-  (@req9, DATE_SUB(@now, INTERVAL 7 DAY), 'STATUS', NULL, 'RECEIVED'),
-  (@req9, DATE_SUB(@now, INTERVAL 5 DAY), 'STATUS', 'RECEIVED', 'REVIEWING'),
+  (@req9, DATE_SUB(@now, INTERVAL 7 DAY), 'STATUS', NULL, 'RECIBIDO'),
+  (@req9, DATE_SUB(@now, INTERVAL 5 DAY), 'STATUS', 'RECIBIDO', 'EN_REVISION'),
   (@req9, DATE_SUB(@now, INTERVAL 3 DAY), 'FIELD_UPDATE', 'Carpas', 'Carpas, mesas, sillas, electricidad');

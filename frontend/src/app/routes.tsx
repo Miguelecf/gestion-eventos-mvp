@@ -7,6 +7,7 @@ import { RoleRoute } from "./RoleRoute";
 // Pages
 import { DashboardPage } from "@/features/dashboard/pages/DashboardPage";
 import { ListPage, CalendarPage, DetailPage, NewPage } from "@/features/events/pages";
+import { PublicRequestsListPage } from "@/features/publicRequests/pages";
 import { SpacesPage, DepartmentsPage } from "@/features/catalogs";
 import { UsersPage } from "@/features/admin/users/pages/UsersPage";
 import { ProfilePage } from "@/features/users/pages/ProfilePage";
@@ -57,6 +58,14 @@ export const router = createBrowserRouter([
               { path: "/events", element: <ListPage /> },
               { path: "/events/:id", element: <DetailPage /> },
               { path: "/calendar", element: <CalendarPage /> },
+            ],
+          },
+
+          // Public Requests (read)
+          {
+            element: <RoleRoute action="read" subject="PublicRequest" />,
+            children: [
+              { path: "/solicitudes", element: <PublicRequestsListPage /> },
             ],
           },
 

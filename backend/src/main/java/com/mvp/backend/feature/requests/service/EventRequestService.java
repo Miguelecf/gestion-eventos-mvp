@@ -60,8 +60,8 @@ public class EventRequestService {
     private final AvailabilityService availabilityService;
 
     private static final Set<RequestStatus> PUBLIC_REQUEST_STATUSES = EnumSet.of(
-            RequestStatus.RECEIVED,
-            RequestStatus.REVIEWING);
+            RequestStatus.RECIBIDO,
+            RequestStatus.EN_REVISION);
 
     @Transactional
     public EventRequestCreatedDto create(CreateEventRequestDto dto) {

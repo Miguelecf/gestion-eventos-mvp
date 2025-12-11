@@ -8,6 +8,12 @@ import type {
   PublicSpaceListItem,
   SpaceOccupancyResponse,
 } from './types/backend.types';
+import type { SpringPageResponse, PageResponse } from './types/pagination.types';
+import { adaptSpringPage } from './adapters/pagination.adapter';
+import type {
+  PublicEventRequest,
+  PublicRequestsQueryParams,
+} from '@/models/public-request';
 
 // ============================================================
 // TIPO: FILTROS PARA ESPACIOS PÚBLICOS
@@ -17,8 +23,166 @@ export interface PublicSpacesFilters {
   publishableOnly?: boolean;
 }
 
+// ==================== TIPOS DEL BACKEND ====================
+
+/**
+ * DTO de respuesta del backend para solicitudes de eventos
+ */
+interface BackendEventRequestResponseDto {
+  id: number;
+  trackingUuid: string;
+  status: string;
+  
+  // Información del evento
+  name: string;
+  audienceType: string;
+  date: string;
+  scheduleFrom: string;
+  scheduleTo: string;
+  technicalSchedule: string | null;
+  
+  // Ubicación
+  space: {
+    id: number;
+    name: string;
+    capacity?: number;
+    colorHex?: string;
+  } | null;
+  freeLocation: string | null;
+  
+  // Departamento
+  requestingDepartment: {
+    id: number;
+    name: string;
+    colorHex?: string;
+  } | null;
+  
+  // Contacto
+  contactName: string;
+  contactEmail: string;
+  contactPhone: string;
+  
+  // Buffers
+  bufferBeforeMin: number;
+  bufferAfterMin: number;
+  
+  // Técnica
+  requiresTech: boolean;
+  techSupportMode: string | null;
+  
+  // Observaciones
+  requirements: string | null;
+  coverage: string | null;
+  observations: string | null;
+  
+  // Metadata
+  requestDate: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ==================== ADAPTADORES ====================
+
+/**
+ * Adapta una solicitud del backend al modelo del frontend
+ */
+function adaptRequestFromBackend(
+  dto: BackendEventRequestResponseDto
+): PublicEventRequest {
+  return {
+    id: dto.id,
+    trackingUuid: dto.trackingUuid,
+    status: dto.status as PublicEventRequest['status'],
+    name: dto.name,
+    audienceType: dto.audienceType as PublicEventRequest['audienceType'],
+    date: dto.date,
+    scheduleFrom: dto.scheduleFrom,
+    scheduleTo: dto.scheduleTo,
+    technicalSchedule: dto.technicalSchedule,
+    space: dto.space,
+    freeLocation: dto.freeLocation,
+    requestingDepartment: dto.requestingDepartment,
+    contactName: dto.contactName,
+    contactEmail: dto.contactEmail,
+    contactPhone: dto.contactPhone,
+    bufferBeforeMin: dto.bufferBeforeMin,
+    bufferAfterMin: dto.bufferAfterMin,
+    requiresTech: dto.requiresTech,
+    techSupportMode: dto.techSupportMode as PublicEventRequest['techSupportMode'],
+    requirements: dto.requirements,
+    coverage: dto.coverage,
+    observations: dto.observations,
+    requestDate: dto.requestDate,
+    createdAt: dto.createdAt,
+    updatedAt: dto.updatedAt,
+  };
+}
+
 // ============================================================
-// 1. CREAR SOLICITUD DE EVENTO PÚBLICO
+// 1. LISTAR SOLICITUDES DE EVENTOS (ADMIN)
+// ============================================================
+/**
+ * Obtiene solicitudes públicas paginadas (endpoint protegido para admin).
+ * 
+ * Características:
+ * - Requiere autenticación
+ * - Retorna solicitudes activas paginadas
+ * - Soporta ordenamiento por múltiples campos
+ * 
+ * @param params - Parámetros de paginación y ordenamiento
+ * @returns Página de solicitudes
+ * 
+ * @example
+ * ```ts
+ * const requests = await getPublicRequests({
+ *   page: 0,
+ *   size: 20,
+ *   sort: 'requestDate,desc'
+ * });
+ * ```
+ */
+export const getPublicRequests = async (
+  params?: PublicRequestsQueryParams
+): Promise<PageResponse<PublicEventRequest>> => {
+  const queryParams = new URLSearchParams();
+
+  // Siempre enviar parámetros de paginación para obtener respuesta Page
+  const page = params?.page !== undefined ? params.page : 0;
+  const size = params?.size !== undefined ? params.size : 20;
+  
+  queryParams.append('page', page.toString());
+  queryParams.append('size', size.toString());
+  
+  if (params?.sort) {
+    queryParams.append('sort', params.sort);
+  }
+
+  const url = `/public/event-requests?${queryParams.toString()}`;
+  
+  // httpClient.get() ya devuelve response.data directamente
+  const data = await httpClient.get<SpringPageResponse<BackendEventRequestResponseDto>>(url);
+  
+  return adaptSpringPage(data, adaptRequestFromBackend);
+};
+
+/**
+ * Obtiene una solicitud pública por ID.
+ * 
+ * @param id - ID de la solicitud
+ * @returns Solicitud completa
+ */
+export const getPublicRequestById = async (
+  id: number
+): Promise<PublicEventRequest> => {
+  const response = await httpClient.get<BackendEventRequestResponseDto>(
+    `/public/event-requests/${id}`
+  );
+  
+  return adaptRequestFromBackend(response.data);
+};
+
+// ============================================================
+// 2. CREAR SOLICITUD DE EVENTO PÚBLICO
 // ============================================================
 /**
  * Crea una nueva solicitud de evento público.
@@ -63,7 +227,7 @@ export const createPublicEventRequest = async (
 };
 
 // ============================================================
-// 2. CONSULTAR ESTADO DE SOLICITUD (TRACKING)
+// 3. CONSULTAR ESTADO DE SOLICITUD (TRACKING)
 // ============================================================
 /**
  * Consulta el estado actual de una solicitud mediante su UUID.
@@ -101,7 +265,7 @@ export const trackPublicEventRequest = async (
 };
 
 // ============================================================
-// 3. VERIFICAR DISPONIBILIDAD DE ESPACIO
+// 4. VERIFICAR DISPONIBILIDAD DE ESPACIO
 // ============================================================
 /**
  * Verifica si un espacio está disponible en fecha/hora específica.
@@ -153,7 +317,7 @@ export const checkPublicAvailability = async (
 };
 
 // ============================================================
-// 4. LISTAR ESPACIOS PÚBLICOS
+// 5. LISTAR ESPACIOS PÚBLICOS
 // ============================================================
 /**
  * Obtiene lista de espacios disponibles para solicitudes públicas.
@@ -194,7 +358,7 @@ export const getPublicSpaces = async (
 };
 
 // ============================================================
-// 5. CONSULTAR OCUPACIÓN MENSUAL DE ESPACIO
+// 6. CONSULTAR OCUPACIÓN MENSUAL DE ESPACIO
 // ============================================================
 /**
  * Obtiene la ocupación mensual de un espacio específico.
@@ -241,6 +405,8 @@ export const getSpaceMonthlyOccupancy = async (
 // EXPORTS
 // ============================================================
 export const publicRequestsApi = {
+  getPublicRequests,
+  getPublicRequestById,
   createPublicEventRequest,
   trackPublicEventRequest,
   checkPublicAvailability,
