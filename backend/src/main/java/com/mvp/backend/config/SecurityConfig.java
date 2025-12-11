@@ -44,6 +44,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/api-docs/**")
                         .permitAll()
+                        .requestMatchers(HttpMethod.GET, "/public/event-requests").permitAll()
                         .requestMatchers(HttpMethod.POST, "/public/event-requests").permitAll()
                         .requestMatchers(HttpMethod.POST, "/public/availability/check").permitAll()
                         .requestMatchers(HttpMethod.GET, "/public/spaces/*/occupancy").permitAll()
