@@ -38,6 +38,40 @@ export function adaptSpringPage<TBackend, TFrontend>(
 }
 
 /**
+ * Adapta un array simple a PageResponse normalizada
+ * Usado cuando el backend devuelve List<T> en lugar de Page<T>
+ * 
+ * @param items - Array de items del backend
+ * @param itemAdapter - Función para adaptar cada item individual
+ * @param page - Número de página (default 0)
+ * @param size - Tamaño de página (default 20)
+ * @returns PageResponse normalizada simulada
+ */
+export function adaptArrayToPage<TBackend, TFrontend>(
+  items: TBackend[],
+  itemAdapter: (item: TBackend) => TFrontend,
+  page: number = 0,
+  size: number = 20
+): PageResponse<TFrontend> {
+  const content = items.map(itemAdapter);
+  const totalElements = content.length;
+  const totalPages = Math.ceil(totalElements / size);
+  
+  return {
+    content,
+    page: {
+      number: page,
+      size: size,
+      totalElements,
+      totalPages: totalPages || 1
+    },
+    first: page === 0,
+    last: page >= totalPages - 1,
+    empty: content.length === 0
+  };
+}
+
+/**
  * Adapta CustomPageResponse (formato 2) a PageResponse normalizada
  * Usado por: /api/events/{id}/comments, /api/audit/{eventId}
  * 

@@ -18,6 +18,8 @@ import com.mvp.backend.feature.tech.service.TechCapacityService;
 import com.mvp.backend.feature.users.model.User;
 import com.mvp.backend.shared.Priority;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -338,6 +340,16 @@ public class EventService {
         return eventRepository.findByActiveTrue()
                 .stream().map(EventMapper::toDto).toList();
 
+    }
+
+    /**
+     * Lista eventos activos con paginación
+     * Usado por el listado de eventos en el frontend
+     */
+    @Transactional(readOnly = true)
+    public Page<EventResponseDto> listActivePaged(Pageable pageable) {
+        return eventRepository.findByActiveTrue(pageable)
+                .map(EventMapper::toDto);
     }
 
     @Transactional(readOnly = true)

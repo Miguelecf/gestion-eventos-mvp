@@ -3,6 +3,8 @@ package com.mvp.backend.feature.events.repository;
 import com.mvp.backend.feature.events.model.Event;
 import com.mvp.backend.feature.events.model.Status;
 import com.mvp.backend.shared.Priority;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -35,6 +37,8 @@ public interface EventRepository extends JpaRepository<Event, Long> {
   // Buscar activo
 
   List<Event> findByActiveTrue();
+
+  Page<Event> findByActiveTrue(Pageable pageable);
 
   List<Event> findByActiveFalse();
 

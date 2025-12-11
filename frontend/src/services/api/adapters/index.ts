@@ -22,6 +22,7 @@ export {
 // Pagination adapters
 export {
   adaptSpringPage,
+  adaptArrayToPage,
   adaptCustomPage,
   adaptAuditPage,
   adaptCommentsPage,
