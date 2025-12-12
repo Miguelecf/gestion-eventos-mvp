@@ -1,8 +1,7 @@
 import * as React from "react";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { catalogsApi } from "@/services/api";
-import { filterAndSortDepartments } from "@/utils/catalog-filters";
 import type { Department } from "@/services/api";
 
 export interface DepartmentSelectProps {
@@ -18,7 +17,6 @@ const DepartmentSelect = React.forwardRef<HTMLSelectElement, DepartmentSelectPro
   ({ value, onChange, disabled, className, ariaInvalid, placeholder = "Seleccionar departamento...", ...rest }, ref) => {
     const [departments, setDepartments] = useState<Department[]>([]);
     const [loading, setLoading] = useState(true);
-    const [searchQuery, setSearchQuery] = useState("");
 
     // Cargar departamentos al montar
     useEffect(() => {
@@ -28,30 +26,8 @@ const DepartmentSelect = React.forwardRef<HTMLSelectElement, DepartmentSelectPro
         .finally(() => setLoading(false));
     }, []);
 
-    // Filtrar y ordenar departamentos
-    const filteredDepartments = useMemo(() => {
-      return filterAndSortDepartments(departments, searchQuery);
-    }, [departments, searchQuery]);
-
     return (
-      <div className="space-y-2">
-        {/* Input de búsqueda */}
-        <input
-          type="text"
-          placeholder="Buscar departamento..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          disabled={disabled || loading}
-          className={cn(
-            "w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none",
-            "focus-visible:ring-4 focus-visible:ring-primary/20 focus-visible:border-primary",
-            "disabled:cursor-not-allowed disabled:opacity-60",
-            "border-input"
-          )}
-        />
-
-        {/* Select */}
-        <select
+      <select
           ref={ref}
           value={value ?? ""}
           onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
@@ -67,13 +43,12 @@ const DepartmentSelect = React.forwardRef<HTMLSelectElement, DepartmentSelectPro
           {...rest}
         >
           <option value="">{loading ? "Cargando..." : placeholder}</option>
-          {filteredDepartments.map((dept) => (
+          {departments.map((dept) => (
             <option key={dept.id} value={dept.id}>
               {dept.name}
             </option>
           ))}
         </select>
-      </div>
     );
   }
 );

@@ -17,7 +17,8 @@ export type Action =
 // Sujetos
 export type Subject = 
   | 'Event' 
-  | 'EventRequest' 
+  | 'EventRequest'
+  | 'PublicRequest'
   | 'Comment' 
   | 'Space' 
   | 'Department' 
@@ -68,7 +69,7 @@ export function defineAbilityFor(roles: string[], _userId: string): AppAbility {
     can('manageCatalogs', ['Space', 'Department']);
     can('audit:view', 'AuditLog');
     can('availability:check', 'Availability');
-    can('read', ['Space', 'Department']);
+    can('read', ['Space', 'Department', 'PublicRequest']);
     
     // Bloqueado
     cannot('viewTechCapacity', 'TechCapacity');
@@ -85,7 +86,7 @@ export function defineAbilityFor(roles: string[], _userId: string): AppAbility {
     can('manageCatalogs', ['Space', 'Department']);
     can('audit:view', 'AuditLog');
     can('availability:check', 'Availability');
-    can('read', ['Space', 'Department']);
+    can('read', ['Space', 'Department', 'PublicRequest']);
     
     // Bloqueado
     cannot('resolvePriority', 'Priority');
@@ -102,6 +103,7 @@ export function defineAbilityFor(roles: string[], _userId: string): AppAbility {
     
     // Solicitudes públicas
     can('request:create', 'EventRequest');
+    can('read', 'PublicRequest');
     
     // Comentarios
     can('comment:create', 'Comment');

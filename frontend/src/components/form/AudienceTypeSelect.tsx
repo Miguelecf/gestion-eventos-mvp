@@ -13,19 +13,20 @@ export type AudienceType = typeof AUDIENCE_TYPES[number]['value'];
 
 export interface AudienceTypeSelectProps {
   value?: AudienceType;
-  onChange: (value: AudienceType) => void;
+  onChange: (value?: AudienceType) => void;
   disabled?: boolean;
   className?: string;
   ariaInvalid?: boolean;
+  allowEmpty?: boolean;
 }
 
 const AudienceTypeSelect = React.forwardRef<HTMLSelectElement, AudienceTypeSelectProps>(
-  ({ value = 'ESTUDIANTES', onChange, disabled, className, ariaInvalid, ...rest }, ref) => {
+  ({ value, onChange, disabled, className, ariaInvalid, allowEmpty = false, ...rest }, ref) => {
     return (
       <select
         ref={ref}
-        value={value}
-        onChange={(e) => onChange(e.target.value as AudienceType)}
+        value={value || ''}
+        onChange={(e) => onChange(e.target.value ? e.target.value as AudienceType : undefined)}
         disabled={disabled}
         aria-invalid={ariaInvalid ? true : undefined}
         className={cn(
@@ -37,6 +38,7 @@ const AudienceTypeSelect = React.forwardRef<HTMLSelectElement, AudienceTypeSelec
         )}
         {...rest}
       >
+        {allowEmpty && <option value="">Seleccione tipo de audiencia...</option>}
         {AUDIENCE_TYPES.map(({ value, label }) => (
           <option key={value} value={value}>
             {label}

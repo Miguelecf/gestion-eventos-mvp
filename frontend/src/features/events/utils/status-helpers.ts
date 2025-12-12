@@ -28,16 +28,16 @@ import { EVENT_STATUS_METADATA } from '@/models/event-status';
  */
 export function getStatusBadgeVariant(
   status: EventStatus
-): 'default' | 'secondary' | 'destructive' | 'outline' {
-  const variants: Record<EventStatus, 'default' | 'secondary' | 'destructive' | 'outline'> = {
-    SOLICITADO: 'secondary',    // Gris
-    EN_REVISION: 'default',     // Azul
+): 'default' | 'success' | 'outline' {
+  const variants: Record<EventStatus, 'default' | 'success' | 'outline'> = {
+    SOLICITADO: 'outline',      // Outline gris
+    EN_REVISION: 'default',     // Azul primario
     RESERVADO: 'outline',       // Outline amarillo
-    APROBADO: 'default',        // Verde (se manejará con className custom)
-    RECHAZADO: 'destructive',   // Rojo
+    APROBADO: 'success',        // Verde
+    RECHAZADO: 'outline',       // Rojo (se manejará con className custom)
   };
 
-  return variants[status] || 'secondary';
+  return variants[status] || 'outline';
 }
 
 /**
@@ -87,7 +87,7 @@ export function getStatusDescription(status: EventStatus): string {
  * const Icon = getStatusIcon('APROBADO') === 'CheckCircle' ? CheckCircle : Clock;
  */
 export function getStatusIcon(status: EventStatus): string {
-  return EVENT_STATUS_METADATA[status].icon;
+  return EVENT_STATUS_METADATA[status].icon || 'Circle';
 }
 
 /**
@@ -155,7 +155,7 @@ export function canDeleteEvent(status: EventStatus): boolean {
  * // '¿Aprobar el evento "Conferencia 2024"? Esta acción es definitiva.'
  */
 export function getConfirmationMessage(
-  currentStatus: EventStatus,
+  _currentStatus: EventStatus,
   targetStatus: EventStatus
 ): string {
   const messages: Record<EventStatus, string> = {
@@ -274,4 +274,52 @@ export function getStatusesForRole(userRole: string): EventStatus[] {
 
   // Por defecto, solo SOLICITADO
   return ['SOLICITADO'];
+}
+
+/**
+ * ===================================================================
+ * UTILIDADES DE PRIORIDADES DE EVENTOS
+ * ===================================================================
+ */
+
+import type { Priority } from '@/models/event';
+
+/**
+ * Obtiene la variante de badge para una prioridad
+ * Compatible con shadcn/ui Badge component
+ * 
+ * @param priority - Prioridad del evento
+ * @returns Variante del badge
+ * 
+ * @example
+ * <Badge variant={getPriorityBadgeVariant(event.priority)}>
+ *   {event.priority}
+ * </Badge>
+ */
+export function getPriorityBadgeVariant(
+  priority: Priority
+): 'default' | 'success' | 'outline' {
+  const variants: Record<Priority, 'default' | 'success' | 'outline'> = {
+    LOW: 'outline',        // Gris outline
+    MEDIUM: 'default',     // Azul primario
+    HIGH: 'outline',       // Rojo (se manejará con className custom)
+  };
+
+  return variants[priority] || 'outline';
+}
+
+/**
+ * Obtiene el label en español para una prioridad
+ * 
+ * @param priority - Prioridad del evento
+ * @returns Label traducido
+ */
+export function getPriorityLabel(priority: Priority): string {
+  const labels: Record<Priority, string> = {
+    LOW: 'Baja',
+    MEDIUM: 'Media',
+    HIGH: 'Alta',
+  };
+
+  return labels[priority] || priority;
 }

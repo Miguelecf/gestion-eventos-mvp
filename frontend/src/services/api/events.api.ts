@@ -22,7 +22,7 @@ import {
   adaptEventForCreate,
   adaptEventForUpdate
 } from './adapters';
-import { adaptSpringPage, buildPaginationQuery } from './adapters/pagination.adapter';
+import { adaptSpringPage, adaptArrayToPage, buildPaginationQuery } from './adapters/pagination.adapter';
 import type { Event, EventFilters } from '@/models/event';
 
 // ==================== TIPOS ESPECÍFICOS DEL SDK ====================
@@ -132,8 +132,6 @@ export interface AvailabilityResponse {
  * });
  */
 export async function getEvents(params: EventsQueryParams = {}): Promise<PageResponse<Event>> {
-  // ✅ DEBUG: Log para rastrear llamadas
-  console.trace('🔍 [eventsApi.getEvents] Llamado con params:', params);
   
   // 1. Construir query params de paginación
   const paginationQuery = buildPaginationQuery(params);
@@ -162,12 +160,26 @@ export async function getEvents(params: EventsQueryParams = {}): Promise<PageRes
   }
 
   // 3. Hacer request al backend
-  const backendPage = await httpClient.get<SpringPageResponse<BackendEventDTO>>(
+  // El backend ahora detecta automáticamente:
+  // - Con page/size params -> devuelve Page<EventResponseDto>
+  // - Sin params -> devuelve List<EventResponseDto>
+  const response = await httpClient.get<SpringPageResponse<BackendEventDTO> | BackendEventDTO[]>(
     `${ENDPOINTS.EVENTS}?${paginationQuery.toString()}`
   );
 
-  // 4. Adaptar página usando el adaptador de Spring Page
-  return adaptSpringPage(backendPage, adaptEventFromBackend);
+  // 4. Detectar si la respuesta es un array o un objeto paginado
+  if (Array.isArray(response)) {
+    // Backend devolvió List (sin params de paginación) - para calendario
+    return adaptArrayToPage(
+      response,
+      adaptEventFromBackend,
+      params.page || 0,
+      params.size || 20
+    );
+  } else {
+    // Backend devolvió Page (con params de paginación) - para listado
+    return adaptSpringPage(response, adaptEventFromBackend);
+  }
 }
 
 /**
@@ -476,6 +488,26 @@ export async function exportEvents(
   return await response.blob();
 }
 
+/**
+ * Obtiene lista simple de eventos activos (sin paginación)
+ * Este endpoint del backend devuelve directamente un array de eventos
+ * 
+ * @returns Array de eventos activos
+ * 
+ * @example
+ * ```ts
+ * const events = await eventsApi.listActive();
+ * console.log(`Total eventos activos: ${events.length}`);
+ * ```
+ */
+export async function listActive(): Promise<Event[]> {
+  // El backend devuelve directamente un array, no un Page
+  const backendEvents = await httpClient.get<BackendEventDTO[]>(ENDPOINTS.EVENTS);
+  
+  // Adaptar cada evento del formato backend al frontend
+  return backendEvents.map(adaptEventFromBackend);
+}
+
 // ==================== EXPORT DEFAULT ====================
 
 /**
@@ -492,7 +524,8 @@ export const eventsApi = {
   checkAvailability,
   getCalendarEvents,
   getEventStats,
-  exportEvents
+  exportEvents,
+  listActive
 };
 
 // Export individual de funciones para tree-shaking

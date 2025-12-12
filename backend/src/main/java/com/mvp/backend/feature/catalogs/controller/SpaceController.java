@@ -1,7 +1,6 @@
 package com.mvp.backend.feature.catalogs.controller;
 
 import com.mvp.backend.feature.catalogs.dto.CreateSpaceRequest;
-import com.mvp.backend.feature.catalogs.dto.PublicSpaceResponse;
 import com.mvp.backend.feature.catalogs.dto.SpaceResponse;
 import com.mvp.backend.feature.catalogs.dto.UpdateSpaceRequest;
 import com.mvp.backend.feature.catalogs.service.SpaceService;
@@ -15,8 +14,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-
 @RestController
 @RequestMapping("/api/catalogs/spaces")
 @RequiredArgsConstructor
@@ -28,14 +25,8 @@ public class SpaceController {
     public Page<SpaceResponse> list(
             @RequestParam(required = false) String q,
             @RequestParam(required = false) Boolean active,
-            @PageableDefault(size = 20, sort = "name", direction = Sort.Direction.ASC) Pageable pageable
-    ) {
+            @PageableDefault(size = 20, sort = "name", direction = Sort.Direction.ASC) Pageable pageable) {
         return service.list(q, active, pageable);
-    }
-
-    @GetMapping("/public")
-    public List<PublicSpaceResponse> list() {
-        return service.listPublicSpaces();
     }
 
     @GetMapping("/{id}")
@@ -52,8 +43,7 @@ public class SpaceController {
     @PatchMapping("/{id}")
     public SpaceResponse update(
             @PathVariable Long id,
-            @Valid @RequestBody UpdateSpaceRequest request
-    ) {
+            @Valid @RequestBody UpdateSpaceRequest request) {
         return service.update(id, request);
     }
 }

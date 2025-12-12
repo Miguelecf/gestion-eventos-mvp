@@ -15,6 +15,7 @@ import com.mvp.backend.feature.history.repository.EventHistoryRepository;
 import com.mvp.backend.feature.history.repository.EventRequestHistoryRepository;
 import com.mvp.backend.feature.requests.dto.CreateEventRequestDto;
 import com.mvp.backend.feature.requests.dto.EventRequestCreatedDto;
+import com.mvp.backend.feature.requests.dto.EventRequestResponseDto;
 import com.mvp.backend.feature.requests.dto.TrackingResponse;
 import com.mvp.backend.feature.requests.dto.TrackingResponse.DepartmentData;
 import com.mvp.backend.feature.requests.dto.TrackingResponse.EventData;
@@ -31,6 +32,8 @@ import com.mvp.backend.feature.requests.repository.EventRequestRepository;
 import com.mvp.backend.shared.DomainValidationException;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,8 +42,10 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -54,6 +59,10 @@ public class EventRequestService {
     private final EventHistoryRepository eventHistoryRepository;
     private final AvailabilityService availabilityService;
 
+    private static final Set<RequestStatus> PUBLIC_REQUEST_STATUSES = EnumSet.of(
+            RequestStatus.RECIBIDO,
+            RequestStatus.EN_REVISION);
+
     @Transactional
     public EventRequestCreatedDto create(CreateEventRequestDto dto) {
         validateSchedule(dto);
@@ -66,7 +75,7 @@ public class EventRequestService {
                     .filter(Space::isActive)
                     .orElseThrow(() -> new EntityNotFoundException("Space not found"));
         }
-        //chequeo si hay espacio disponible
+        // chequeo si hay espacio disponible
         Integer resolvedBufferBefore = resolveBufferBefore(dto, space);
         Integer resolvedBufferAfter = resolveBufferAfter(dto, space);
 
@@ -132,7 +141,8 @@ public class EventRequestService {
                 .toValue(saved.getStatus().name())
                 .build());
 
-        // TODO: agregar el envio de notificacion mail cuando se crea una solicitud de evento
+        // TODO: agregar el envio de notificacion mail cuando se crea una solicitud de
+        // evento
 
         return new EventRequestCreatedDto(saved.getTrackingUuid(), saved.getStatus(), saved.getRequestDate());
     }
@@ -159,8 +169,7 @@ public class EventRequestService {
                     event.getScheduleTo(),
                     event.getTechnicalSchedule(),
                     event.getBufferBeforeMin(),
-                    event.getBufferAfterMin()
-            );
+                    event.getBufferAfterMin());
             locationData = toLocationData(event.getSpace(), event.getFreeLocation());
             departmentData = event.getDepartment() != null
                     ? new DepartmentData(event.getDepartment().getId(), event.getDepartment().getName())
@@ -172,11 +181,11 @@ public class EventRequestService {
                     request.getScheduleTo(),
                     request.getTechnicalSchedule(),
                     request.getBufferBeforeMin(),
-                    request.getBufferAfterMin()
-            );
+                    request.getBufferAfterMin());
             locationData = toLocationData(request.getSpace(), request.getFreeLocation());
             departmentData = request.getRequestingDepartment() != null
-                    ? new DepartmentData(request.getRequestingDepartment().getId(), request.getRequestingDepartment().getName())
+                    ? new DepartmentData(request.getRequestingDepartment().getId(),
+                            request.getRequestingDepartment().getName())
                     : null;
         }
 
@@ -189,8 +198,23 @@ public class EventRequestService {
                 scheduleData,
                 locationData,
                 departmentData,
-                timeline
-        );
+                timeline);
+    }
+
+    @Transactional(readOnly = true)
+    public List<EventRequestResponseDto> listPublicActive() {
+        List<RequestStatus> allowedStatuses = List.copyOf(PUBLIC_REQUEST_STATUSES);
+        return eventRequestRepository.findByActiveTrueAndStatusIn(allowedStatuses)
+                .stream()
+                .map(EventRequestMapper::toDto)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public Page<EventRequestResponseDto> listPublicActivePaged(Pageable pageable) {
+        List<RequestStatus> allowedStatuses = List.copyOf(PUBLIC_REQUEST_STATUSES);
+        return eventRequestRepository.findByActiveTrueAndStatusIn(allowedStatuses, pageable)
+                .map(EventRequestMapper::toDto);
     }
 
     private Integer resolveBufferBefore(CreateEventRequestDto dto, Space space) {
@@ -229,8 +253,7 @@ public class EventRequestService {
                     type,
                     history.getFromValue(),
                     history.getToValue(),
-                    history.getDetails()
-            ));
+                    history.getDetails()));
         }
 
         if (event != null) {
@@ -246,8 +269,7 @@ public class EventRequestService {
                         type,
                         history.getFromValue(),
                         history.getToValue(),
-                        history.getDetails()
-                ));
+                        history.getDetails()));
             }
         }
 

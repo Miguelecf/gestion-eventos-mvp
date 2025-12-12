@@ -57,6 +57,7 @@ import { Card } from '@/components/ui/card';
 export default function InternalEventForm() {
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [locationType, setLocationType] = useState<'space' | 'free'>('space');
 
   // ============================================================
   // SETUP: React Hook Form + Zod Resolver
@@ -72,13 +73,29 @@ export default function InternalEventForm() {
     resolver: zodResolver(internalEventSchema),
     defaultValues: {
       priority: 'MEDIUM',
-      audienceType: 'ESTUDIANTES',
+      bufferBeforeMin: 15,
+      bufferAfterMin: 15,
+      requiresTech: false,
+      internal: true,
     },
   });
 
   // Watch para validación en tiempo real
   const scheduleFromValue = watch('scheduleFrom');
   const scheduleToValue = watch('scheduleTo');
+  const requiresTechValue = watch('requiresTech');
+  
+  // Handler para cambio de tipo de ubicación
+  const handleLocationTypeChange = (type: 'space' | 'free') => {
+    setLocationType(type);
+    
+    // Limpiar el campo no seleccionado
+    if (type === 'space') {
+      setValue('freeLocation', undefined);
+    } else {
+      setValue('spaceId', undefined);
+    }
+  };
 
   // ============================================================
   // FEI-10: SUBMIT HANDLER
@@ -184,6 +201,23 @@ export default function InternalEventForm() {
               />
             </FormField>
 
+            {/* Área solicitante */}
+            <FormField
+              label="Área solicitante"
+              htmlFor="requestingArea"
+              error={errors.requestingArea?.message}
+              helpText="Área específica dentro del departamento (opcional)"
+            >
+              <Input
+                id="requestingArea"
+                type="text"
+                placeholder="Ej: Secretaría Académica"
+                maxLength={150}
+                aria-invalid={!!errors.requestingArea}
+                {...register('requestingArea')}
+              />
+            </FormField>
+
             {/* Prioridad */}
             <FormField
               label="Prioridad"
@@ -191,7 +225,7 @@ export default function InternalEventForm() {
               required
               error={errors.priority?.message}
             >
-                  <Controller
+              <Controller
                 name="priority"
                 control={control}
                 render={({ field }) => (
@@ -208,11 +242,11 @@ export default function InternalEventForm() {
             <FormField
               label="Tipo de audiencia"
               htmlFor="audienceType"
-              required
               error={errors.audienceType?.message}
+              helpText="Opcional - deje vacío si no aplica"
               className="md:col-span-2"
             >
-                  <Controller
+              <Controller
                 name="audienceType"
                 control={control}
                 render={({ field }) => (
@@ -220,6 +254,7 @@ export default function InternalEventForm() {
                     value={field.value}
                     onChange={field.onChange}
                     ariaInvalid={!!errors.audienceType}
+                    allowEmpty={true}
                   />
                 )}
               />
@@ -292,25 +327,179 @@ export default function InternalEventForm() {
         </FormSectionCard>
 
         {/* ============================================================ */}
+        {/* SECCIÓN "BUFFERS DE TIEMPO" */}
+        {/* ============================================================ */}
+        <FormSectionCard
+          title="Tiempos de Preparación"
+          description="Tiempo adicional para preparación y limpieza del espacio"
+        >
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Buffer antes */}
+            <FormField
+              label="Buffer antes del evento"
+              htmlFor="bufferBeforeMin"
+              required
+              error={errors.bufferBeforeMin?.message}
+              helpText="Minutos de preparación antes del inicio (0-240)"
+            >
+              <div className="flex items-center gap-2">
+                <Input
+                  id="bufferBeforeMin"
+                  type="number"
+                  min="0"
+                  max="240"
+                  step="5"
+                  placeholder="15"
+                  aria-invalid={!!errors.bufferBeforeMin}
+                  {...register('bufferBeforeMin', { valueAsNumber: true })}
+                />
+                <span className="text-sm text-muted-foreground">min</span>
+              </div>
+            </FormField>
+
+            {/* Buffer después */}
+            <FormField
+              label="Buffer después del evento"
+              htmlFor="bufferAfterMin"
+              required
+              error={errors.bufferAfterMin?.message}
+              helpText="Minutos de limpieza después del fin (0-240)"
+            >
+              <div className="flex items-center gap-2">
+                <Input
+                  id="bufferAfterMin"
+                  type="number"
+                  min="0"
+                  max="240"
+                  step="5"
+                  placeholder="15"
+                  aria-invalid={!!errors.bufferAfterMin}
+                  {...register('bufferAfterMin', { valueAsNumber: true })}
+                />
+                <span className="text-sm text-muted-foreground">min</span>
+              </div>
+            </FormField>
+          </div>
+
+          {/* Información contextual */}
+          <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
+            <div className="flex items-start gap-3">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-5 w-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+              <div className="text-sm text-blue-700 dark:text-blue-300">
+                <p className="font-medium mb-1">¿Qué son los buffers?</p>
+                <p>
+                  Los buffers son tiempos adicionales que bloquean el espacio antes y después del evento
+                  para permitir preparación, montaje, limpieza y desmontaje. Esto evita que eventos 
+                  consecutivos se solapen.
+                </p>
+                <p className="mt-2">
+                  <strong>Ejemplo:</strong> Un evento de 10:00 a 12:00 con buffers de 15 min bloqueará 
+                  el espacio de 09:45 a 12:15.
+                </p>
+              </div>
+            </div>
+          </div>
+        </FormSectionCard>
+
+        {/* ============================================================ */}
         {/* FEI-06: SECCIÓN "UBICACIÓN" */}
         {/* ============================================================ */}
         <FormSectionCard
           title="Ubicación"
           description="Espacio donde se realizará el evento"
         >
-          <FormField
-            label="Espacio"
-            htmlFor="spaceId"
-            required
-            error={errors.spaceId?.message}
-            helpText="Seleccione el espacio físico para el evento"
-          >
-            <SpaceSelect
-              value={watch('spaceId')}
-              onChange={(spaceId) => setValue('spaceId', spaceId)}
+          {/* Selector de tipo de ubicación */}
+          <div className="mb-4">
+            <label className="text-sm font-medium mb-2 block">
+              Tipo de ubicación <span className="text-red-600">*</span>
+            </label>
+            <div className="flex gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="locationType"
+                  value="space"
+                  checked={locationType === 'space'}
+                  onChange={() => handleLocationTypeChange('space')}
+                  className="w-4 h-4"
+                />
+                <span className="text-sm">Espacio físico</span>
+              </label>
+              
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="locationType"
+                  value="free"
+                  checked={locationType === 'free'}
+                  onChange={() => handleLocationTypeChange('free')}
+                  className="w-4 h-4"
+                />
+                <span className="text-sm">Ubicación libre</span>
+              </label>
+            </div>
+          </div>
+
+          {/* Campo condicional: Espacio físico */}
+          {locationType === 'space' && (
+            <FormField
+              label="Espacio físico"
+              htmlFor="spaceId"
+              required
               error={errors.spaceId?.message}
-            />
-          </FormField>
+              helpText="Seleccione el espacio registrado en el sistema"
+            >
+              <SpaceSelect
+                value={watch('spaceId')}
+                onChange={(spaceId) => setValue('spaceId', spaceId)}
+                error={errors.spaceId?.message}
+              />
+            </FormField>
+          )}
+
+          {/* Campo condicional: Ubicación libre */}
+          {locationType === 'free' && (
+            <FormField
+              label="Ubicación libre"
+              htmlFor="freeLocation"
+              required
+              error={errors.freeLocation?.message}
+              helpText="Describa la ubicación del evento (máx. 200 caracteres)"
+            >
+              <Input
+                id="freeLocation"
+                type="text"
+                placeholder="Ej: Centro Cultural Municipal, Av. Principal 123"
+                maxLength={200}
+                aria-invalid={!!errors.freeLocation}
+                {...register('freeLocation')}
+              />
+            </FormField>
+          )}
+
+          {/* Información contextual */}
+          <div className="mt-4 p-3 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 text-sm text-gray-700 dark:text-gray-300">
+            <p>
+              <strong>Espacio físico:</strong> Espacios registrados en el sistema con disponibilidad verificada.
+            </p>
+            <p className="mt-1">
+              <strong>Ubicación libre:</strong> Para eventos fuera de la universidad o en ubicaciones no registradas.
+              No se verificará disponibilidad automáticamente.
+            </p>
+          </div>
         </FormSectionCard>
 
         {/* ============================================================ */}
@@ -438,53 +627,86 @@ export default function InternalEventForm() {
         </FormSectionCard>
 
         {/* ============================================================ */}
-        {/* FEI-09: SECCIÓN "CONFIGURACIÓN" (READ-ONLY FLAGS) */}
+        {/* SECCIÓN "SOPORTE TÉCNICO" */}
         {/* ============================================================ */}
-        <Card className="p-6 border-blue-200 bg-blue-50/50 dark:bg-blue-950/20 dark:border-blue-800">
-          <div className="flex items-start gap-4">
-            <div className="flex-shrink-0">
-              <div className="size-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="size-5 text-blue-600 dark:text-blue-400"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
-              </div>
-            </div>
-            <div className="flex-1">
-              <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">
-                Configuración del Evento
-              </h3>
-              <p className="text-sm text-blue-700 dark:text-blue-300 mb-3">
-                Este evento se creará con la siguiente configuración predeterminada para eventos
-                internos:
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <Badge variant="outline" className="bg-white dark:bg-blue-950/50">
-                  🏢 Evento Interno
-                </Badge>
-                <Badge variant="outline" className="bg-white dark:bg-blue-950/50">
-                  🔧 Sin soporte técnico requerido
-                </Badge>
-                <Badge variant="outline" className="bg-white dark:bg-blue-950/50">
-                  ⏱️ Sin buffers de tiempo
-                </Badge>
-                <Badge variant="outline" className="bg-white dark:bg-blue-950/50">
-                  📍 Ubicación fija (espacio seleccionado)
-                </Badge>
-              </div>
-            </div>
+        <FormSectionCard
+          title="Soporte Técnico"
+          description="Configuración de soporte técnico para el evento"
+        >
+          {/* Checkbox: Requiere técnico */}
+          <div className="mb-4">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                {...register('requiresTech')}
+                className="w-4 h-4"
+              />
+              <span className="text-sm font-medium">
+                Este evento requiere soporte técnico
+              </span>
+            </label>
           </div>
-        </Card>
+
+          {/* Campos condicionales si requiresTech = true */}
+          {requiresTechValue && (
+            <div className="space-y-4 pl-6 border-l-2 border-blue-300 dark:border-blue-700">
+              {/* Modo de soporte */}
+              <FormField
+                label="Modo de soporte"
+                htmlFor="techSupportMode"
+                required
+                error={errors.techSupportMode?.message}
+              >
+                <Controller
+                  name="techSupportMode"
+                  control={control}
+                  render={({ field }) => (
+                    <select
+                      id="techSupportMode"
+                      value={field.value || ''}
+                      onChange={(e) => field.onChange(e.target.value)}
+                      className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm"
+                      aria-invalid={!!errors.techSupportMode}
+                    >
+                      <option value="">Seleccione...</option>
+                      <option value="SETUP_ONLY">Solo montaje y desmontaje</option>
+                      <option value="ATTENDED">Soporte completo durante el evento</option>
+                    </select>
+                  )}
+                />
+              </FormField>
+
+              {/* Horario técnico */}
+              <FormField
+                label="Horario de llegada del técnico"
+                htmlFor="technicalSchedule"
+                error={errors.technicalSchedule?.message}
+                helpText="Hora en que el técnico debe llegar (antes del inicio)"
+              >
+                <TimeField
+                  id="technicalSchedule"
+                  aria-invalid={!!errors.technicalSchedule}
+                  {...register('technicalSchedule')}
+                />
+              </FormField>
+
+              {/* Información */}
+              <div className="p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg text-sm text-blue-700 dark:text-blue-300">
+                <p className="font-medium mb-1">Modos de soporte:</p>
+                <ul className="list-disc list-inside space-y-1">
+                  <li>
+                    <strong>Solo montaje:</strong> El técnico prepara el equipo antes del evento 
+                    y lo desmonta después.
+                  </li>
+                  <li>
+                    <strong>Soporte completo:</strong> El técnico permanece durante todo el evento 
+                    para asistir con equipos.
+                  </li>
+                </ul>
+              </div>
+            </div>
+          )}
+        </FormSectionCard>
 
         {/* ============================================================ */}
         {/* BOTONES DE ACCIÓN */}

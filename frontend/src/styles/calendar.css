@@ -222,3 +222,84 @@
 .dark .fc .fc-timegrid-slot {
   @apply hover:bg-slate-800;
 }
+
+/* ====================================
+   COLORES DE EVENTOS POR PRIORIDAD
+   ==================================== */
+
+.fc-bg-danger,
+.fc .fc-event.fc-bg-danger {
+  background-color: #ef4444 !important; /* red-500 - Alta prioridad */
+  border-color: #dc2626 !important; /* red-600 */
+  color: white !important;
+}
+
+.fc-bg-warning,
+.fc .fc-event.fc-bg-warning {
+  background-color: #f59e0b !important; /* amber-500 - Media prioridad */
+  border-color: #d97706 !important; /* amber-600 */
+  color: white !important;
+}
+
+.fc-bg-primary,
+.fc .fc-event.fc-bg-primary {
+  background-color: #3b82f6 !important; /* blue-500 - Baja prioridad */
+  border-color: #2563eb !important; /* blue-600 */
+  color: white !important;
+}
+
+.fc-bg-success,
+.fc .fc-event.fc-bg-success {
+  background-color: #10b981 !important; /* green-500 - Sin prioridad */
+  border-color: #059669 !important; /* green-600 */
+  color: white !important;
+}
+
+/* Hover effect para eventos con colores */
+.fc .fc-event.fc-bg-danger:hover,
+.fc .fc-event.fc-bg-warning:hover,
+.fc .fc-event.fc-bg-primary:hover,
+.fc .fc-event.fc-bg-success:hover {
+  opacity: 0.9;
+  transform: scale(1.02);
+  transition: all 0.2s ease;
+}
+
+/* Asegurar que el texto sea legible en todos los colores */
+.event-fc-color {
+  padding: 4px 6px;
+  border-radius: 4px;
+  color: white !important;
+}
+
+.event-fc-color .fc-event-time,
+.event-fc-color .fc-event-title,
+.event-fc-color .fc-event-location {
+  line-height: 1.2;
+  color: white !important;
+}
+
+/* Dark mode para colores de eventos */
+.dark .fc-bg-danger,
+.dark .fc .fc-event.fc-bg-danger {
+  background-color: #dc2626 !important; /* red-600 más oscuro */
+  border-color: #991b1b !important; /* red-800 */
+}
+
+.dark .fc-bg-warning,
+.dark .fc .fc-event.fc-bg-warning {
+  background-color: #d97706 !important; /* amber-600 más oscuro */
+  border-color: #92400e !important; /* amber-800 */
+}
+
+.dark .fc-bg-primary,
+.dark .fc .fc-event.fc-bg-primary {
+  background-color: #2563eb !important; /* blue-600 más oscuro */
+  border-color: #1e3a8a !important; /* blue-800 */
+}
+
+.dark .fc-bg-success,
+.dark .fc .fc-event.fc-bg-success {
+  background-color: #059669 !important; /* green-600 más oscuro */
+  border-color: #065f46 !important; /* green-800 */
+}
