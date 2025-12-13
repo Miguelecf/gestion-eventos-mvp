@@ -24,6 +24,8 @@ import type {
   BackendPageResponse
 } from './types/backend.types';
 import type { PageResponse, SpringPageResponse } from './types/pagination.types';
+import type { Space, CreateSpaceInput, UpdateSpaceInput, SpaceFilters } from '@/models/space';
+import type { Department, CreateDepartmentInput, UpdateDepartmentInput, DepartmentFilters } from '@/models/department';
 
 // ==================== TIPOS ESPECÍFICOS DEL SDK ====================
 
@@ -81,65 +83,8 @@ export interface DecisionResult {
   message: string;
 }
 
-/**
- * Espacio (catálogo) adaptado
- */
-export interface Space {
-  id: number;
-  name: string;
-  capacity: number;
-  location: string;
-  description: string;
-  colorHex: string;
-  defaultBufferBeforeMin: number;
-  defaultBufferAfterMin: number;
-  active: boolean;
-  // Helpers
-  label: string; // "Nombre - Ubicación (Cap: X)"
-  isAvailable: boolean; // alias de active
-}
-
-/**
- * Filtros para listar espacios con paginación
- */
-export interface SpaceFilters {
-  q?: string;           // Búsqueda por nombre o ubicación
-  active?: boolean;     // true=activos, false=inactivos, undefined=todos
-  page?: number;        // Número de página (base 0)
-  size?: number;        // Tamaño de página
-  sort?: string;        // Ordenamiento (ej: 'name,ASC')
-}
-
-/**
- * Input para crear espacio
- */
-export type CreateSpaceInput = {
-  name: string;
-  capacity: number;
-  location: string;
-  description?: string;
-  colorHex?: string;
-  defaultBufferBeforeMin: number;
-  defaultBufferAfterMin: number;
-  active?: boolean; // default true
-};
-
-/**
- * Input para actualizar espacio (campos parciales)
- */
-export type UpdateSpaceInput = Partial<CreateSpaceInput>;
-
-/**
- * Departamento (catálogo) adaptado
- */
-export interface Department {
-  id: number;
-  name: string;
-  colorHex: string;
-  active: boolean;
-  // Helpers
-  isAvailable: boolean; // alias de active
-}
+// Space, CreateSpaceInput, UpdateSpaceInput y SpaceFilters ahora se importan desde @/models/space
+// Department, CreateDepartmentInput, UpdateDepartmentInput y DepartmentFilters ahora se importan desde @/models/department
 
 /**
  * Parámetros para solicitud pública de evento
@@ -386,13 +331,11 @@ export async function listSpaces(
     id: dto.id,
     name: dto.name,
     capacity: dto.capacity,
-    location: dto.location,
-    description: dto.description,
     colorHex: dto.colorHex,
     defaultBufferBeforeMin: dto.defaultBufferBeforeMin,
     defaultBufferAfterMin: dto.defaultBufferAfterMin,
     active: dto.active,
-    label: `${dto.name} - ${dto.location} (Cap: ${dto.capacity})`,
+    label: `${dto.name} (Cap: ${dto.capacity})`,
     isAvailable: dto.active
   }));
 }
@@ -423,13 +366,11 @@ export async function getSpaces(
     id: space.id,
     name: space.name,
     capacity: space.capacity,
-    location: space.location,
-    description: space.description,
     colorHex: space.colorHex,
     defaultBufferBeforeMin: space.defaultBufferBeforeMin,
     defaultBufferAfterMin: space.defaultBufferAfterMin,
     active: space.active,
-    label: `${space.name} - ${space.location} (Cap: ${space.capacity})`,
+    label: `${space.name} (Cap: ${space.capacity})`,
     isAvailable: space.active
   }));
 
@@ -455,13 +396,11 @@ export async function getPublicSpaces(): Promise<Space[]> {
     id: space.id,
     name: space.name,
     capacity: space.capacity,
-    location: space.location,
-    description: space.description,
     colorHex: space.colorHex,
     defaultBufferBeforeMin: space.defaultBufferBeforeMin,
     defaultBufferAfterMin: space.defaultBufferAfterMin,
     active: space.active,
-    label: `${space.name} - ${space.location} (Cap: ${space.capacity})`,
+    label: `${space.name} (Cap: ${space.capacity})`,
     isAvailable: space.active
   }));
 }
@@ -485,13 +424,11 @@ export async function getSpaceById(id: number): Promise<Space> {
     id: backendSpace.id,
     name: backendSpace.name,
     capacity: backendSpace.capacity,
-    location: backendSpace.location,
-    description: backendSpace.description,
     colorHex: backendSpace.colorHex,
     defaultBufferBeforeMin: backendSpace.defaultBufferBeforeMin,
     defaultBufferAfterMin: backendSpace.defaultBufferAfterMin,
     active: backendSpace.active,
-    label: `${backendSpace.name} - ${backendSpace.location} (Cap: ${backendSpace.capacity})`,
+    label: `${backendSpace.name} (Cap: ${backendSpace.capacity})`,
     isAvailable: backendSpace.active
   };
 }
@@ -516,8 +453,6 @@ export async function createSpace(input: CreateSpaceInput): Promise<Space> {
   const body = {
     name: input.name,
     capacity: input.capacity,
-    location: input.location,
-    description: input.description || '',
     colorHex: input.colorHex || '#6B7280',
     defaultBufferBeforeMin: input.defaultBufferBeforeMin,
     defaultBufferAfterMin: input.defaultBufferAfterMin,
@@ -533,13 +468,11 @@ export async function createSpace(input: CreateSpaceInput): Promise<Space> {
     id: dto.id,
     name: dto.name,
     capacity: dto.capacity,
-    location: dto.location,
-    description: dto.description,
     colorHex: dto.colorHex,
     defaultBufferBeforeMin: dto.defaultBufferBeforeMin,
     defaultBufferAfterMin: dto.defaultBufferAfterMin,
     active: dto.active,
-    label: `${dto.name} - ${dto.location} (Cap: ${dto.capacity})`,
+    label: `${dto.name} (Cap: ${dto.capacity})`,
     isAvailable: dto.active
   };
 }
@@ -570,13 +503,11 @@ export async function updateSpace(
     id: dto.id,
     name: dto.name,
     capacity: dto.capacity,
-    location: dto.location,
-    description: dto.description,
     colorHex: dto.colorHex,
     defaultBufferBeforeMin: dto.defaultBufferBeforeMin,
     defaultBufferAfterMin: dto.defaultBufferAfterMin,
     active: dto.active,
-    label: `${dto.name} - ${dto.location} (Cap: ${dto.capacity})`,
+    label: `${dto.name} (Cap: ${dto.capacity})`,
     isAvailable: dto.active
   };
 }
@@ -654,7 +585,7 @@ export async function getDepartmentById(id: number): Promise<Department> {
  * });
  */
 export async function listDepartments(
-  filters: import('../../../models/department').DepartmentFilters = {}
+  filters: DepartmentFilters = {}
 ): Promise<PageResponse<Department>> {
   const query = buildPaginationQuery({
     page: filters.page,
@@ -692,7 +623,7 @@ export async function listDepartments(
  * });
  */
 export async function createDepartment(
-  input: import('../../../models/department').CreateDepartmentInput
+  input: CreateDepartmentInput
 ): Promise<Department> {
   const body = {
     name: input.name,
@@ -729,7 +660,7 @@ export async function createDepartment(
  */
 export async function updateDepartment(
   id: number,
-  input: import('../../../models/department').UpdateDepartmentInput
+  input: UpdateDepartmentInput
 ): Promise<Department> {
   const dto = await httpClient.patch<BackendDepartmentDTO>(
     ENDPOINTS.CATALOG_DEPARTMENT_BY_ID(id),

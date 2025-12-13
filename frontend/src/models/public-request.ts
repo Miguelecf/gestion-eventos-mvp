@@ -1,4 +1,5 @@
-import type { Space, Department } from "./event";
+import type { Space } from "./space";
+import type { Department } from "./department";
 
 /**
  * Estados de una solicitud de evento público

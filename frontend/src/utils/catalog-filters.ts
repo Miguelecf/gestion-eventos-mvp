@@ -7,11 +7,12 @@
  * ===================================================================
  */
 
-import type { Space, Department } from '@/services/api/catalogs.api';
+import type { Space } from '@/models/space';
+import type { Department } from '@/models/department';
 
 /**
  * Filtra espacios por query de búsqueda
- * Busca en: nombre y ubicación
+ * Busca en: nombre
  * 
  * @param spaces - Lista de espacios a filtrar
  * @param query - Término de búsqueda
@@ -31,8 +32,7 @@ export function filterSpaces(spaces: Space[], query: string): Space[] {
   const q = query.toLowerCase().trim();
   
   return spaces.filter(space => 
-    space.name.toLowerCase().includes(q) || 
-    space.location.toLowerCase().includes(q)
+    space.name.toLowerCase().includes(q)
   );
 }
 
