@@ -167,7 +167,7 @@ export function adaptChangeStatusForBackend(
  * @example
  * const dto = { 
  *   eventId: 1, 
- *   newStatus: 'APROBADO', 
+ *   status: 'APROBADO', 
  *   approvalPending: false,
  *   missing: [] 
  * };
@@ -178,12 +178,21 @@ export function adaptChangeStatusForBackend(
 export function adaptChangeStatusFromBackend(
   dto: BackendStatusChangeResponse
 ): ChangeStatusResult {
+  // ✅ FIX CRÍTICO: Backend envía 'status', no 'newStatus'
+  // Soportamos ambos por compatibilidad pero priorizamos el campo real
+  const statusValue = (dto as any).status ?? dto.newStatus;
+  
+  if (!statusValue) {
+    console.error('[Status Adapter] Response sin campo de estado:', dto);
+    throw new Error('Respuesta de cambio de estado sin campo status/newStatus');
+  }
+
   // Consolidar missing/missingApprovals (el backend puede usar cualquiera)
-  const missingApprovals = dto.missingApprovals ?? dto.missing ?? [];
+  const missingApprovals = dto.missing ?? dto.missingApprovals ?? [];
 
   return {
     eventId: dto.eventId,
-    newStatus: mapStatusFromBackend(dto.newStatus),
+    newStatus: mapStatusFromBackend(statusValue),
     approvalPending: dto.approvalPending ?? false,
     missingApprovals: missingApprovals,
   };

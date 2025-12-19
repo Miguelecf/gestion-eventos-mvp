@@ -235,13 +235,15 @@ export interface BackendChangeStatusRequest {
 /**
  * DTO de respuesta de cambio de estado
  * Endpoint: POST /api/events/{id}/status
+ * ⚠️ IMPORTANTE: Backend envía 'status' como campo principal, no 'newStatus'
  */
 export interface BackendStatusChangeResponse {
   eventId: number;
-  newStatus: EventStatus;
+  status: EventStatus;           // ✅ Campo REAL del backend
+  newStatus?: EventStatus;       // ⚠️ Deprecated: para compatibilidad
   approvalPending?: boolean;
-  missingApprovals?: string[];
-  missing?: string[]; // Variante alternativa del backend
+  missing?: string[];            // ✅ Campo REAL del backend
+  missingApprovals?: string[];   // ⚠️ Deprecated: para compatibilidad
 }
 
 /**
