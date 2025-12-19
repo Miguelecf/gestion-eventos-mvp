@@ -570,16 +570,41 @@ export interface EventRequestCreatedResponse {
  */
 export interface EventRequestStatusResponse {
   trackingUuid: string;
-  currentStatus: string;           // ej: "SOLICITADO", "EN_REVISION", "APROBADO"
-  eventName: string;
-  date: string;                    // formato: yyyy-MM-dd
-  scheduleFrom: string;            // formato: HH:mm
-  scheduleTo: string;              // formato: HH:mm
-  submittedAt: string;             // ISO 8601
-  lastUpdatedAt: string;           // ISO 8601
-  comments?: string | null;        // Comentarios visibles al público
-  spaceName?: string | null;       // Nombre del espacio (si tiene spaceId)
-  location?: string | null;        // Ubicación libre o del espacio
+  request: {
+    status: string;               // RequestStatus: "SOLICITADO", "EN_REVISION", "CONVERTIDO"
+    submittedAt: string;          // ISO 8601
+  };
+  event: {
+    id: number;
+    status: string;               // Status del evento
+    internal: boolean;
+  } | null;
+  schedule: {
+    date: string;                 // formato: yyyy-MM-dd
+    from: string;                 // formato: HH:mm
+    to: string;                   // formato: HH:mm
+    technical: string | null;     // formato: HH:mm
+    bufferBeforeMin: number;
+    bufferAfterMin: number;
+  };
+  location: {
+    type: 'SPACE' | 'FREE';
+    spaceId: number | null;
+    spaceName: string | null;
+    freeLocation: string | null;
+  };
+  department: {
+    id: number;
+    name: string;
+  } | null;
+  timeline: Array<{
+    at: string;                   // ISO 8601
+    scope: 'REQUEST' | 'EVENT';
+    type: 'STATUS' | 'SCHEDULE_CHANGE' | 'FIELD_UPDATE' | 'REPROGRAM' | 'TECH_CAPACITY_REJECT' | 'SPACE_CONFLICT' | 'PRIORITY_CONFLICT' | 'COMMENT';
+    from: string | null;
+    to: string | null;
+    details: string | null;
+  }>;
 }
 
 /**
