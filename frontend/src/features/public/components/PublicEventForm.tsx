@@ -248,7 +248,7 @@ export default function PublicEventForm() {
       });
 
       // Redirigir a pantalla de confirmación con tracking UUID
-      navigate(`/solicitud/confirmacion/${response.trackingUuid}`);
+      navigate(`/solicitud/confirmacion/${response.tracking_uuid}`);
     } catch (error: any) {
       console.error('Error al crear solicitud:', error);
 

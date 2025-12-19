@@ -555,12 +555,13 @@ export interface PublicEventRequestPayload {
 /**
  * DTO de respuesta al crear Solicitud Pública
  * Endpoint: POST /public/event-requests
+ * 
+ * NOTA: El backend usa snake_case para estos campos
  */
 export interface EventRequestCreatedResponse {
-  trackingUuid: string;            // UUID para tracking público
-  message: string;                 // ej: "Solicitud recibida exitosamente"
+  tracking_uuid: string;           // UUID para tracking público (snake_case del backend)
   status: string;                  // ej: "SOLICITADO"
-  submittedAt: string;             // ISO 8601
+  request_date: string;            // ISO 8601 (snake_case del backend)
 }
 
 /**

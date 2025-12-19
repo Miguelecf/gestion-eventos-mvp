@@ -127,7 +127,7 @@ public class EventRequestService {
                 .contactPhone(contactPhone)
                 .bufferBeforeMin(resolvedBufferBefore)
                 .bufferAfterMin(resolvedBufferAfter)
-                .status(RequestStatus.RECEIVED)
+                .status(RequestStatus.RECIBIDO)
                 .requestDate(Instant.now())
                 .build();
 
@@ -153,7 +153,7 @@ public class EventRequestService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Tracking token not found"));
 
         Event event = request.getConvertedEvent();
-        RequestStatus requestStatus = event != null ? RequestStatus.CONVERTED : request.getStatus();
+        RequestStatus requestStatus = event != null ? RequestStatus.CONVERTIDO : request.getStatus();
         RequestData requestData = new RequestData(requestStatus, request.getRequestDate());
 
         EventData eventData = null;
