@@ -22,6 +22,8 @@ import com.mvp.backend.feature.users.service.UserService;
 import com.mvp.backend.shared.DomainValidationException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -58,7 +60,8 @@ public class PriorityConflictService {
         if (displacedEvents == null || displacedEvents.isEmpty()) {
             return repository.findByHighEventIdAndStatus(highEvent.getId(), PriorityConflictStatus.OPEN);
         }
-        List<PriorityConflict> openConflicts = new ArrayList<>(repository.findByHighEventIdAndStatus(highEvent.getId(), PriorityConflictStatus.OPEN));
+        List<PriorityConflict> openConflicts = new ArrayList<>(
+                repository.findByHighEventIdAndStatus(highEvent.getId(), PriorityConflictStatus.OPEN));
         Set<Long> alreadyRegistered = new HashSet<>();
         Map<LocalDate, Long> sequenceByDate = new HashMap<>();
         for (PriorityConflict existing : openConflicts) {
@@ -113,6 +116,11 @@ public class PriorityConflictService {
     @Transactional(readOnly = true)
     public List<PriorityConflict> getOpenConflicts(Long highEventId) {
         return repository.findByHighEventIdAndStatus(highEventId, PriorityConflictStatus.OPEN);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<PriorityConflict> getAllOpenConflicts(Pageable pageable) {
+        return repository.findByStatus(PriorityConflictStatus.OPEN, pageable);
     }
 
     @Transactional
@@ -179,10 +187,12 @@ public class PriorityConflictService {
         }
 
         if (displaced.isRequiresTech()) {
-            TechSupportMode mode = displaced.getTechSupportMode() != null ? displaced.getTechSupportMode() : TechSupportMode.SETUP_ONLY;
+            TechSupportMode mode = displaced.getTechSupportMode() != null ? displaced.getTechSupportMode()
+                    : TechSupportMode.SETUP_ONLY;
             if (!techCapacityService.hasCapacity(target.date(), target.from(), target.to(),
                     displaced.getBufferBeforeMin(), displaced.getBufferAfterMin(), mode, displaced.getId())) {
-                throw new TechCapacityExceededException("No hay capacidad técnica disponible para el rango solicitado.");
+                throw new TechCapacityExceededException(
+                        "No hay capacidad técnica disponible para el rango solicitado.");
             }
         }
 
@@ -196,7 +206,8 @@ public class PriorityConflictService {
 
         eventRepository.save(displaced);
 
-        auditService.recordScheduleChange(displaced, decider, displaced.getDate(), displaced.getScheduleFrom(), displaced.getScheduleTo());
+        auditService.recordScheduleChange(displaced, decider, displaced.getDate(), displaced.getScheduleFrom(),
+                displaced.getScheduleTo());
     }
 
     private String buildCode(LocalDate date, long sequence) {
