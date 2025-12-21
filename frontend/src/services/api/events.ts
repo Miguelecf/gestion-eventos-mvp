@@ -1,19 +1,38 @@
 import type { Event } from "../../models/event";
-import { httpClient } from "../http/client";
+import { httpClient } from "../../lib/http";
 
-export function fetchEvents() {
-  return httpClient<Event[]>("/events");
+/**
+ * Obtiene todos los eventos activos
+ */
+export async function fetchEvents(): Promise<Event[]> {
+  const response = await httpClient.get<Event[]>("/api/events");
+  return response.data;
 }
 
-export function fetchEventById(eventId: string) {
-  return httpClient<Event>(`/events/${eventId}`);
+/**
+ * Obtiene un evento por ID
+ */
+export async function fetchEventById(eventId: string): Promise<Event> {
+  const response = await httpClient.get<Event>(`/api/events/${eventId}`);
+  return response.data;
 }
 
-export function createEvent(payload: Partial<Event>) {
-  return httpClient<Event>("/events", {
-    method: "POST",
-    body: JSON.stringify(payload),
-    headers: { "Content-Type": "application/json" },
+/**
+ * Obtiene eventos de una fecha específica
+ * @param date - Fecha en formato YYYY-MM-DD (ej: 2025-12-19)
+ */
+export async function fetchEventsByDate(date: string): Promise<Event[]> {
+  const response = await httpClient.get<Event[]>(`/api/events/date`, {
+    params: { date }
   });
+  return response.data;
+}
+
+/**
+ * Crea un nuevo evento
+ */
+export async function createEvent(payload: Partial<Event>): Promise<Event> {
+  const response = await httpClient.post<Event>("/api/events", payload);
+  return response.data;
 }
 
