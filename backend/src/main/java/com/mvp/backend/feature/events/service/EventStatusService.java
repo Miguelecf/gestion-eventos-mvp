@@ -17,11 +17,13 @@ import com.mvp.backend.feature.tech.exception.TechCapacityExceededException;
 import com.mvp.backend.feature.tech.service.TechCapacityService;
 import com.mvp.backend.feature.users.model.User;
 import com.mvp.backend.feature.users.service.UserService;
+import com.mvp.backend.feature.notifications.event.EventStatusChangedEvent;
 import com.mvp.backend.feature.availability.model.ConflictItem;
 import com.mvp.backend.feature.events.model.TechSupportMode;
 import com.mvp.backend.shared.DomainValidationException;
 import com.mvp.backend.shared.Priority;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -50,6 +52,7 @@ public class EventStatusService {
     private final PriorityConflictService priorityConflictService;
     private final UserService userService;
     private final AuditService auditService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional(readOnly = true)
     public StatusOptionsResponse getStatusOptions(Long eventId) {
@@ -95,6 +98,7 @@ public class EventStatusService {
         Event saved = eventRepository.save(event);
 
         auditService.recordStatusChange(saved, actor, previousStatus, saved.getStatus(), request.reason(), request.note());
+        publishStatusChanged(saved, previousStatus, actor);
 
         if (!displacedEvents.isEmpty()) {
             priorityConflictService.registerConflicts(saved, displacedEvents, actor);
@@ -141,6 +145,7 @@ public class EventStatusService {
 
         auditService.recordStatusChange(saved, actor, previousStatus, saved.getStatus(), request.reason(), request.note());
         auditOkChanges(saved, actor, prevCer, saved.isCeremonialOk(), prevTech, saved.isTechnicalOk(), request.reason(), request.note());
+        publishStatusChanged(saved, previousStatus, actor);
 
         return StatusChangeResponse.success(saved.getId(), saved.getStatus());
     }
@@ -152,6 +157,7 @@ public class EventStatusService {
 
         Event saved = eventRepository.save(event);
         auditService.recordStatusChange(saved, actor, previousStatus, saved.getStatus(), request.reason(), request.note());
+        publishStatusChanged(saved, previousStatus, actor);
 
         return StatusChangeResponse.success(saved.getId(), saved.getStatus());
     }
@@ -202,6 +208,7 @@ public class EventStatusService {
 
         auditService.recordStatusChange(saved, actor, previousStatus, saved.getStatus(), request.reason(), request.note());
         auditOkChanges(saved, actor, prevCer, saved.isCeremonialOk(), prevTech, saved.isTechnicalOk(), request.reason(), request.note());
+        publishStatusChanged(saved, previousStatus, actor);
 
         if (!displacedEvents.isEmpty()) {
             priorityConflictService.registerConflicts(saved, displacedEvents, actor);
@@ -347,6 +354,20 @@ public class EventStatusService {
 
     private boolean isTechnical(User user) {
         return "ADMIN_TECNICA".equalsIgnoreCase(user.getRole());
+    }
+
+    private void publishStatusChanged(Event event, Status previousStatus, User actor) {
+        if (event == null || previousStatus == null || actor == null) {
+            return;
+        }
+        if (previousStatus != event.getStatus()) {
+            eventPublisher.publishEvent(new EventStatusChangedEvent(
+                event.getId(),
+                previousStatus,
+                event.getStatus(),
+                actor.getId()
+            ));
+        }
     }
 
     private User getCurrentUser() {

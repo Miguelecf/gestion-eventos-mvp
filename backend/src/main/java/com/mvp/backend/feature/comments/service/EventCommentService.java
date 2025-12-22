@@ -13,6 +13,8 @@ import com.mvp.backend.feature.events.repository.EventRepository;
 import com.mvp.backend.feature.history.service.AuditService;
 import com.mvp.backend.feature.users.model.User;
 import com.mvp.backend.feature.users.service.UserService;
+import com.mvp.backend.feature.notifications.event.NewCommentEvent;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -35,25 +37,27 @@ public class EventCommentService {
     private static final Set<String> PRIVILEGED_ROLES = Set.of(
             "ROLE_ADMIN_FULL",
             "ROLE_ADMIN_CEREMONIAL",
-            "ROLE_ADMIN_TECNICA"
-    );
+            "ROLE_ADMIN_TECNICA");
 
     private final EventRepository eventRepository;
     private final EventCommentRepository commentRepository;
     private final EventCommentMapper mapper;
     private final AuditService auditService;
     private final UserService userService;
+    private final ApplicationEventPublisher eventPublisher;
 
     public EventCommentService(EventRepository eventRepository,
-                               EventCommentRepository commentRepository,
-                               EventCommentMapper mapper,
-                               AuditService auditService,
-                               UserService userService) {
+            EventCommentRepository commentRepository,
+            EventCommentMapper mapper,
+            AuditService auditService,
+            UserService userService,
+            ApplicationEventPublisher eventPublisher) {
         this.eventRepository = eventRepository;
         this.commentRepository = commentRepository;
         this.mapper = mapper;
         this.auditService = auditService;
         this.userService = userService;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional(readOnly = true)
@@ -69,8 +73,7 @@ public class EventCommentService {
                 items,
                 page.getNumber(),
                 page.getSize(),
-                page.getTotalElements()
-        );
+                page.getTotalElements());
     }
 
     public CommentResponseDto create(Long eventId, CommentCreateDto dto) {
@@ -87,6 +90,7 @@ public class EventCommentService {
 
         EventComment saved = commentRepository.save(comment);
         auditService.recordCommentCreated(event, currentUser, saved.getId(), currentUser.getId(), saved.getBody());
+        eventPublisher.publishEvent(new NewCommentEvent(event.getId(), saved.getId(), currentUser.getId()));
         return mapper.toResponse(saved);
     }
 
@@ -104,7 +108,8 @@ public class EventCommentService {
 
         EventComment saved = commentRepository.save(comment);
         Long authorId = comment.getAuthor() != null ? comment.getAuthor().getId() : null;
-        auditService.recordCommentUpdated(comment.getEvent(), currentUser, comment.getId(), authorId, previousBody, normalizedBody);
+        auditService.recordCommentUpdated(comment.getEvent(), currentUser, comment.getId(), authorId, previousBody,
+                normalizedBody);
         return mapper.toResponse(saved);
     }
 
@@ -117,7 +122,8 @@ public class EventCommentService {
         comment.setActive(false);
         commentRepository.save(comment);
         Long authorId = comment.getAuthor() != null ? comment.getAuthor().getId() : null;
-        auditService.recordCommentDeleted(comment.getEvent(), currentUser, comment.getId(), authorId, comment.getBody());
+        auditService.recordCommentDeleted(comment.getEvent(), currentUser, comment.getId(), authorId,
+                comment.getBody());
     }
 
     private EventComment getEditableComment(Long eventId, Long commentId) {

@@ -20,6 +20,7 @@ import com.mvp.backend.feature.tech.service.TechCapacityService;
 import com.mvp.backend.feature.users.model.User;
 import com.mvp.backend.feature.users.service.UserService;
 import com.mvp.backend.shared.DomainValidationException;
+import com.mvp.backend.feature.notifications.event.PriorityConflictEvent;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
@@ -109,6 +110,10 @@ public class PriorityConflictService {
                 alreadyRegistered.add(displaced.getId());
             }
             eventPublisher.publishEvent(new PriorityConflictCreatedEvent(saved));
+            eventPublisher.publishEvent(new PriorityConflictEvent(
+                    saved.getId(),
+                    displaced.getId(),
+                    highEvent != null ? highEvent.getId() : null));
         }
         return openConflicts;
     }
