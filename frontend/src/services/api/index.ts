@@ -119,6 +119,12 @@ export type {
   QuickReaction
 } from './comments.api';
 
+// SDK de Notificaciones
+export { notificationsApi } from './notifications.api';
+export type {
+  GetNotificationsParams
+} from './notifications.api';
+
 // SDK de Estados de Eventos
 export { eventStatusApi } from './event-status.api';
 

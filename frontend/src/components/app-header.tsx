@@ -24,10 +24,29 @@ import { AppBreadcrumbs } from "@/components/breadcrumbs";
 import LogoutButton from "@/features/auth/components/LogoutButton";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { useTheme } from "@/contexts/ThemeContext";
+import { NotificationDropdown } from "@/components/notifications";
+import { useNotificationsStore } from "@/store/notifications.store";
 
 export default function AppHeader() {
   const { isDark, toggleTheme } = useTheme();
-  const { user } = useAuth();
+  const { user, tokens } = useAuth();
+  const { startPolling, stopPolling } = useNotificationsStore();
+  
+  // Iniciar/detener polling según autenticación
+  useEffect(() => {
+    if (tokens?.accessToken) {
+      // Usuario autenticado → iniciar polling
+      startPolling();
+    } else {
+      // Usuario no autenticado → detener polling
+      stopPolling();
+    }
+    
+    // Cleanup al desmontar
+    return () => {
+      stopPolling();
+    };
+  }, [tokens?.accessToken, startPolling, stopPolling]);
 
   return (
     <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/80 backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
@@ -67,20 +86,7 @@ export default function AppHeader() {
             )}
           </Button>
 
-          <Button
-            variant="ghost"
-            size="icon"
-            className="relative rounded-full border border-slate-200 bg-white transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700"
-            aria-label="Ver notificaciones"
-          >
-            <Bell className="h-5 w-5 text-slate-600 dark:text-slate-300" />
-            <Badge
-              variant="default"
-              className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full px-0 text-[10px]"
-            >
-              3
-            </Badge>
-          </Button>
+          <NotificationDropdown />
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
