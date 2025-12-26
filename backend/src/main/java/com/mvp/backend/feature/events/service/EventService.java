@@ -13,6 +13,9 @@ import com.mvp.backend.feature.events.repository.EventRepository;
 import com.mvp.backend.feature.priority.PriorityPolicy;
 import com.mvp.backend.feature.priority.model.PriorityConflict;
 import com.mvp.backend.feature.priority.service.PriorityConflictService;
+import com.mvp.backend.feature.notifications.event.EventCreatedEmailEvent;
+import com.mvp.backend.feature.notifications.event.EventRescheduledEmailEvent;
+import org.springframework.context.ApplicationEventPublisher;
 import com.mvp.backend.feature.tech.exception.TechCapacityExceededException;
 import com.mvp.backend.feature.tech.service.TechCapacityService;
 import com.mvp.backend.feature.users.model.User;
@@ -58,6 +61,7 @@ public class EventService {
     private final PriorityPolicy priorityPolicy;
     private final TechCapacityService techCapacityService;
     private final PriorityConflictService priorityConflictService;
+    private final ApplicationEventPublisher eventPublisher;
 
     /* ---------- Commands ---------- */
     public EventCreateResult create(CreateEventDto dto) {
@@ -146,7 +150,8 @@ public class EventService {
 
         List<PriorityConflictSummary> conflictSummaries = registerPriorityConflicts(saved, displacedEvents,
                 currentUser);
-        // TODO: enviar notificaciones aal correo del usuario creador
+
+        eventPublisher.publishEvent(new EventCreatedEmailEvent(saved.getId()));
 
         return new EventCreateResult(saved.getId(), saved.getPriority(), saved.getStatus(), conflictSummaries);
     }
@@ -164,6 +169,7 @@ public class EventService {
         Status previousStatus = event.getStatus();
         boolean previousInternal = event.isInternal();
         Long previousSpaceId = event.getSpace() != null ? event.getSpace().getId() : null;
+        String previousFreeLocation = event.getFreeLocation();
 
         Space newSpace = resolveSpace(req.spaceId());
 
@@ -317,6 +323,16 @@ public class EventService {
         // agregar las otificaciones de si se movió agenda/espacio
         List<PriorityConflictSummary> conflictSummaries = registerPriorityConflicts(saved, displacedEvents,
                 currentUser);
+
+        if (agendaChanged) {
+            eventPublisher.publishEvent(new EventRescheduledEmailEvent(
+                    saved.getId(),
+                    previousDate,
+                    previousFrom,
+                    previousTo,
+                    previousSpaceId,
+                    previousFreeLocation));
+        }
 
         if (previousInternal != saved.isInternal()) {
             auditService.recordInternalToggle(saved, currentUser, previousInternal, saved.isInternal());

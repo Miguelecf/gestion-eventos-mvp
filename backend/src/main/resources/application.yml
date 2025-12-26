@@ -48,6 +48,10 @@ spring:
           auth: ${MAIL_SMTP_AUTH:false}
           starttls:
             enable: ${MAIL_SMTP_STARTTLS_ENABLE:false}
+
+app:
+  mail:
+    from: ${MAIL_FROM:noreply@example.com}
 server:
   port: 9090
 

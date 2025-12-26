@@ -29,9 +29,11 @@ import com.mvp.backend.feature.requests.dto.TrackingResponse.TimelineEntry.Type;
 import com.mvp.backend.feature.requests.model.EventRequest;
 import com.mvp.backend.feature.requests.model.RequestStatus;
 import com.mvp.backend.feature.requests.repository.EventRequestRepository;
+import com.mvp.backend.feature.notifications.event.EventRequestCreatedEmailEvent;
 import com.mvp.backend.shared.DomainValidationException;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -58,6 +60,7 @@ public class EventRequestService {
     private final EventRequestHistoryRepository eventRequestHistoryRepository;
     private final EventHistoryRepository eventHistoryRepository;
     private final AvailabilityService availabilityService;
+    private final ApplicationEventPublisher eventPublisher;
 
     private static final Set<RequestStatus> PUBLIC_REQUEST_STATUSES = EnumSet.of(
             RequestStatus.RECIBIDO,
@@ -141,8 +144,7 @@ public class EventRequestService {
                 .toValue(saved.getStatus().name())
                 .build());
 
-        // TODO: agregar el envio de notificacion mail cuando se crea una solicitud de
-        // evento
+        eventPublisher.publishEvent(new EventRequestCreatedEmailEvent(saved.getId()));
 
         return new EventRequestCreatedDto(saved.getTrackingUuid(), saved.getStatus(), saved.getRequestDate());
     }
