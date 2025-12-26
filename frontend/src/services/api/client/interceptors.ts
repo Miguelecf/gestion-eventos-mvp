@@ -73,6 +73,13 @@ export const errorInterceptor = async (error: AxiosError): Promise<never> => {
   // Manejo especial de 409 (conflicto)
   if (status === 409) {
     apiError.message = (data as any)?.message || 'Ya existe un recurso con los mismos datos';
+    
+    // ⚠️ IMPORTANTE: Preservar datos originales del backend para conflictos de disponibilidad
+    // Si el backend retorna AvailabilityConflictResponse (con isAvailable, conflicts, etc.),
+    // lo agregamos al ApiError para que pueda ser extraído posteriormente
+    if (data && typeof data === 'object' && 'isAvailable' in data && 'conflicts' in data) {
+      apiError.details = data;
+    }
   }
 
   return Promise.reject(apiError);

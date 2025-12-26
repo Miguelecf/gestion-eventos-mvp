@@ -1,5 +1,7 @@
 package com.mvp.backend.shared;
 
+import com.mvp.backend.feature.availability.exception.AvailabilityConflictException;
+import com.mvp.backend.feature.availability.service.AvailabilityMapper;
 import com.mvp.backend.feature.tech.exception.TechCapacityExceededException;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -15,14 +17,18 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 @RestControllerAdvice
+@lombok.RequiredArgsConstructor
 public class GlobalExceptionHandler {
+
+    private final AvailabilityMapper availabilityMapper;
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, Object>> handleValidationErrors(MethodArgumentNotValidException ex) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("message", "Validation failed");
         Map<String, String> errors = ex.getBindingResult().getFieldErrors().stream()
-                .collect(Collectors.toMap(FieldError::getField, FieldError::getDefaultMessage, (a, b) -> a, LinkedHashMap::new));
+                .collect(Collectors.toMap(FieldError::getField, FieldError::getDefaultMessage, (a, b) -> a,
+                        LinkedHashMap::new));
         body.put("errors", errors);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
     }
@@ -54,5 +60,16 @@ public class GlobalExceptionHandler {
         body.put("error", "TECH_CAPACITY_REACHED");
         body.put("message", ex.getMessage());
         return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+    }
+
+    @ExceptionHandler(AvailabilityConflictException.class)
+    public ResponseEntity<Object> handleAvailabilityConflict(AvailabilityConflictException ex) {
+        // Reusar los mismos DTOs que los endpoints de disponibilidad para mantener
+        // formato consistente.
+        Object body = ex.isPublicView()
+                ? availabilityMapper.toPublicResponse(ex.getResult())
+                : availabilityMapper.toInternalResponse(ex.getResult());
+
+        return ResponseEntity.status(ex.getStatus()).body(body);
     }
 }

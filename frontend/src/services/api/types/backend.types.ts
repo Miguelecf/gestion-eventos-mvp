@@ -672,3 +672,35 @@ export interface SpaceOccupancyResponse {
     bufferAfterMin?: number;
   }>;
 }
+
+/**
+ * DTO de Item de Conflicto (HTTP 409)
+ * Representa un evento que entra en conflicto con el evento candidato
+ */
+export interface ConflictItem {
+  eventId: number;
+  status: EventStatus;
+  title: string;
+  spaceId: number;
+  date: string;                    // formato: yyyy-MM-dd
+  from: string;                    // formato: HH:mm
+  to: string;                      // formato: HH:mm
+  internal: boolean;
+  bufferBeforeMin: number | null;
+  bufferAfterMin: number | null;
+}
+
+/**
+ * DTO de Respuesta de Conflicto de Disponibilidad (HTTP 409)
+ * Retornada por POST /api/events cuando hay conflicto de disponibilidad
+ * Endpoint: POST /api/events (cuando retorna 409)
+ */
+export interface AvailabilityConflictResponse {
+  isAvailable: boolean;
+  skipped: boolean;
+  reason: string | null;
+  effectiveFrom: string;           // formato: HH:mm
+  effectiveTo: string;             // formato: HH:mm
+  conflicts: ConflictItem[];
+  suggestions: any[];
+}

@@ -8,6 +8,7 @@
 
 import type { AxiosError } from 'axios';
 import type { ValidationError } from './validators';
+import type { ApiError as ApiErrorResponse } from '../types/api.types';
 
 // ==================== TIPOS ====================
 
@@ -116,6 +117,49 @@ export function isConflictError(error: unknown): boolean {
     return 'type' in error && (error as ApiError).type === 'CONFLICT';
   }
   return false;
+}
+
+/**
+ * Extrae datos de conflicto de disponibilidad de un error 409
+ * @param error - Error que puede contener datos de conflicto
+ * @returns Datos del conflicto o null si no es un error de conflicto de disponibilidad
+ */
+export function extractConflictData(error: unknown): import('../types/backend.types').AvailabilityConflictResponse | null {
+  // Verificar si es un ApiErrorResponse con status 409
+  if (typeof error === 'object' && error !== null && 'status' in error && 'message' in error) {
+    const apiError = error as ApiErrorResponse;
+    
+    if (apiError.status === 409) {
+      // Los datos de disponibilidad están en error.details
+      const data = apiError.details;
+
+      // Verificar que tiene la estructura esperada de AvailabilityConflictResponse
+      if (
+        data &&
+        typeof data === 'object' &&
+        'isAvailable' in data &&
+        'conflicts' in data
+      ) {
+        return data as import('../types/backend.types').AvailabilityConflictResponse;
+      }
+    }
+  }
+  
+  // Fallback: Intentar con error de Axios (por compatibilidad)
+  if (isAxiosError(error)) {
+    const data = error.response?.data;
+
+    if (
+      data &&
+      typeof data === 'object' &&
+      'isAvailable' in data &&
+      'conflicts' in data
+    ) {
+      return data as import('../types/backend.types').AvailabilityConflictResponse;
+    }
+  }
+
+  return null;
 }
 
 /**

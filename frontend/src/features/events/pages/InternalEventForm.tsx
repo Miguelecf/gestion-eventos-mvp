@@ -16,7 +16,7 @@
  * ===================================================================
  */
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigate } from 'react-router-dom';
@@ -31,6 +31,8 @@ import {
 
 // API
 import { eventsApi } from '@/services/api';
+import { extractConflictData } from '@/services/api/utils/error-handler';
+import type { AvailabilityConflictResponse } from '@/services/api/types/backend.types';
 
 // Componentes de formulario reutilizables
 import {
@@ -43,12 +45,11 @@ import {
   DepartmentSelect,
 } from '@/components/form';
 import FormField from '@/components/form/FormField';
+import ConflictAlert from '../components/ConflictAlert';
 
 // UI Components
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Card } from '@/components/ui/card';
 
 /**
  * Formulario completo de eventos internos
@@ -58,6 +59,8 @@ export default function InternalEventForm() {
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [locationType, setLocationType] = useState<'space' | 'free'>('space');
+  const [conflictData, setConflictData] = useState<AvailabilityConflictResponse | null>(null);
+  const conflictAlertRef = useRef<HTMLDivElement>(null);
 
   // ============================================================
   // SETUP: React Hook Form + Zod Resolver
@@ -97,13 +100,24 @@ export default function InternalEventForm() {
     }
   };
 
-  // ============================================================
-  // FEI-10: SUBMIT HANDLER
+  // Scroll automático a la alerta cuando hay conflicto
+  useEffect(() => {
+    if (conflictData && conflictAlertRef.current) {
+      setTimeout(() => {
+        conflictAlertRef.current?.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'nearest' 
+        });
+      }, 100);
+    }
+  }, [conflictData]);
+
   // ============================================================
   // FEI-10: SUBMIT HANDLER
   // ============================================================
   const onSubmit = async (data: InternalEventFormData) => {
     setIsSubmitting(true);
+    setConflictData(null); // Limpiar conflicto previo
 
     try {
       // 1. Convertir form data a payload del backend
@@ -121,18 +135,33 @@ export default function InternalEventForm() {
       // 4. Redirigir a la página de detalle del evento
       navigate(`/events/${createdEvent.id}`);
     } catch (error: any) {
-      // Manejo de errores con toast
+      // Manejo de errores
       console.error('Error al crear evento:', error);
 
-      const errorMessage =
-        error.response?.data?.message ||
-        error.message ||
-        'Error desconocido al crear el evento';
+      // Intentar extraer datos de conflicto 409
+      const conflict = extractConflictData(error);
 
-      toast.error('Error al crear evento', {
-        description: errorMessage,
-        duration: 7000,
-      });
+      if (conflict) {
+        // Error de disponibilidad: mostrar alerta detallada
+        setConflictData(conflict);
+
+        toast.error('Conflicto de disponibilidad', {
+          description:
+            'El espacio no está disponible en el horario seleccionado. Revise los detalles debajo del formulario.',
+          duration: 7000,
+        });
+      } else {
+        // Otro tipo de error: mensaje genérico
+        const errorMessage =
+          error.response?.data?.message ||
+          error.message ||
+          'Error desconocido al crear el evento';
+
+        toast.error('Error al crear evento', {
+          description: errorMessage,
+          duration: 7000,
+        });
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -148,6 +177,7 @@ export default function InternalEventForm() {
   // ============================================================
   // RENDER
   // ============================================================
+  
   return (
     <div className="container mx-auto max-w-4xl py-8 px-4">
       {/* Header */}
@@ -752,6 +782,16 @@ export default function InternalEventForm() {
           </Button>
         </div>
       </form>
+
+      {/* ==================== ALERTA DE CONFLICTO ==================== */}
+      {conflictData && (
+        <div ref={conflictAlertRef} className="mt-6">
+          <ConflictAlert 
+            conflictData={conflictData} 
+            requestedSpaceId={watch('spaceId')} 
+          />
+        </div>
+      )}
     </div>
   );
 }
