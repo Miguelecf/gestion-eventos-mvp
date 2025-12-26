@@ -41,12 +41,25 @@ export type TechSupportModeType = z.infer<typeof TechSupportModeSchema>;
 
 /**
  * Validación de fecha futura (fecha debe ser hoy o posterior)
+ * Considera la zona horaria de Argentina
  */
 const futureDateValidation = (dateStr: string) => {
-  const date = new Date(dateStr);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0); // Normalizar a medianoche
-  return date >= today;
+  const nowArgentina = getNowInArgentina();
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const eventDate = new Date(year, month - 1, day);
+  const todayArgentina = new Date(nowArgentina.getFullYear(), nowArgentina.getMonth(), nowArgentina.getDate());
+  return eventDate >= todayArgentina;
+};
+
+/**
+ * Obtiene la hora actual en zona horaria de Argentina
+ */
+const getNowInArgentina = (): Date => {
+  const now = new Date();
+  const argentinaTimeStr = now.toLocaleString('en-US', { 
+    timeZone: 'America/Argentina/Buenos_Aires' 
+  });
+  return new Date(argentinaTimeStr);
 };
 
 /**
@@ -257,6 +270,20 @@ export const internalEventSchema = z.object({
   {
     message: 'La hora de inicio debe ser anterior a la hora de fin',
     path: ['scheduleTo'] // El error se muestra en el campo scheduleTo
+  }
+).refine(
+  // Validación: El evento debe estar al menos 1 hora en el futuro
+  (data) => {
+    const nowArgentina = getNowInArgentina();
+    const [year, month, day] = data.date.split('-').map(Number);
+    const [hour, minute] = data.scheduleFrom.split(':').map(Number);
+    const eventDateTime = new Date(year, month - 1, day, hour, minute);
+    const minimumAllowedTime = new Date(nowArgentina.getTime() + 60 * 60 * 1000);
+    return eventDateTime >= minimumAllowedTime;
+  },
+  {
+    message: 'El evento debe programarse al menos 1 hora después de la hora actual',
+    path: ['scheduleFrom']
   }
 ).refine(
   // =============== VALIDACIÓN XOR: spaceId O freeLocation ===============
