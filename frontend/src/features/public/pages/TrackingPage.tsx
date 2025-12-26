@@ -242,8 +242,12 @@ export function TrackingPage() {
 // ========== HELPERS ==========
 
 function formatDate(isoString: string): string {
-  const date = new Date(isoString);
-  return date.toLocaleDateString('es-AR', {
+
+  const dateToFormat = isoString.includes('T') 
+    ? new Date(isoString) 
+    : new Date(isoString + 'T00:00:00');
+  
+  return dateToFormat.toLocaleDateString('es-AR', {
     weekday: 'long',
     year: 'numeric',
     month: 'long',

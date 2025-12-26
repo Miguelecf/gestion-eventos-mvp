@@ -37,6 +37,7 @@ import {
   getStatusDescription,
   canEditEvent,
 } from '@/features/events/utils/status-helpers';
+import { formatLocalDate } from '@/utils/dates';
 
 // Types
 import type { Event } from '@/models/event';
@@ -358,7 +359,7 @@ export function DetailPage() {
               <div className="space-y-1">
                 <p className="text-sm font-medium text-muted-foreground">📅 Fecha y Horario</p>
                 <p className="text-base font-semibold">
-                  {new Date(event.date).toLocaleDateString('es-AR', {
+                  {formatLocalDate(event.date, {
                     weekday: 'long',
                     year: 'numeric',
                     month: 'long',
