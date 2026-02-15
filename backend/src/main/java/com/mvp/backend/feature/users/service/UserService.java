@@ -1,6 +1,7 @@
 package com.mvp.backend.feature.users.service;
 
 import com.mvp.backend.feature.auth.dto.RegisterRequest;
+import com.mvp.backend.feature.users.model.RoleName;
 import com.mvp.backend.feature.users.model.User;
 import com.mvp.backend.feature.users.repository.UserRepository;
 import com.mvp.backend.shared.Priority;
@@ -10,8 +11,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Optional;
-
-import java.util.Locale;
 
 import static org.springframework.http.HttpStatus.CONFLICT;
 
@@ -23,20 +22,23 @@ public class UserService {
 
     @Transactional
     public User register(RegisterRequest request, String encodedPassword) {
-        if (userRepository.existsByUsername(request.getUsername())) {
+        String username = request.getUsername().trim();
+        String email = request.getEmail().trim();
+
+        if (userRepository.existsByUsernameIgnoreCase(username)) {
             throw new ResponseStatusException(CONFLICT, "El nombre de usuario ya está en uso");
         }
-        if (userRepository.existsByEmail(request.getEmail())) {
+        if (userRepository.existsByEmailIgnoreCase(email)) {
             throw new ResponseStatusException(CONFLICT, "El email ya está en uso");
         }
 
-        String role = request.getRole() != null ? request.getRole().toUpperCase(Locale.ROOT) : "USER";
+        String role = RoleName.fromNullable(request.getRole(), RoleName.USUARIO).name();
 
         User user = User.builder()
-                .username(request.getUsername())
-                .email(request.getEmail())
-                .name(request.getName())
-                .lastName(request.getLastName())
+                .username(username)
+                .email(email)
+                .name(request.getName().trim())
+                .lastName(request.getLastName().trim())
                 .password(encodedPassword)
                 .priority(Priority.LOW)
                 .role(role)
