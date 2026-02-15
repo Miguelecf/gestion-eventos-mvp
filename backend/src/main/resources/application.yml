@@ -15,7 +15,7 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
 
   jpa:
-    hibernate:
+    hibernate:git
       ddl-auto: validate # Flyway controla el esquema
     properties:
       hibernate:
@@ -73,3 +73,9 @@ springdoc:
     path: /swagger-ui
     operations-sorter: method
     tags-sorter: alpha
+
+app:
+  mail:
+    from: ${MAIL_FROM:noreply@gestion-eventos.local}
+    mock-mode: ${MAIL_MOCK_MODE:true}
+    fail-on-error: ${MAIL_FAIL_ON_ERROR:true}

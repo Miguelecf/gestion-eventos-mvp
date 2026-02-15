@@ -1,5 +1,6 @@
 package com.mvp.backend.shared;
 
+import com.mvp.backend.feature.auth.exception.EmailDeliveryException;
 import com.mvp.backend.feature.tech.exception.TechCapacityExceededException;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -54,5 +55,14 @@ public class GlobalExceptionHandler {
         body.put("error", "TECH_CAPACITY_REACHED");
         body.put("message", ex.getMessage());
         return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+    }
+
+    @ExceptionHandler(EmailDeliveryException.class)
+    public ResponseEntity<Map<String, Object>> handleEmailDelivery(EmailDeliveryException ex) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("error", "EMAIL_DELIVERY_FAILED");
+        body.put("message", ex.getMessage());
+        body.put("details", "La operación fue revertida para evitar usuarios sin credenciales enviadas.");
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(body);
     }
 }
