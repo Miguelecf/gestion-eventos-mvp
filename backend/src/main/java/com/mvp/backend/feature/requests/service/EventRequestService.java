@@ -7,12 +7,17 @@ import com.mvp.backend.feature.catalogs.model.Department;
 import com.mvp.backend.feature.catalogs.model.Space;
 import com.mvp.backend.feature.catalogs.repository.DepartmentRepository;
 import com.mvp.backend.feature.catalogs.repository.SpaceRepository;
+import com.mvp.backend.feature.events.dto.EventResponseDto;
 import com.mvp.backend.feature.events.model.Event;
+import com.mvp.backend.feature.events.model.Status;
+import com.mvp.backend.feature.events.repository.EventRepository;
+import com.mvp.backend.feature.events.service.EventMapper;
 import com.mvp.backend.feature.history.model.HistoryType;
 import com.mvp.backend.feature.history.model.EventHistory;
 import com.mvp.backend.feature.history.model.EventRequestHistory;
 import com.mvp.backend.feature.history.repository.EventHistoryRepository;
 import com.mvp.backend.feature.history.repository.EventRequestHistoryRepository;
+import com.mvp.backend.feature.requests.dto.ChangeRequestStatusDto;
 import com.mvp.backend.feature.requests.dto.CreateEventRequestDto;
 import com.mvp.backend.feature.requests.dto.EventRequestCreatedDto;
 import com.mvp.backend.feature.requests.dto.EventRequestResponseDto;
@@ -29,9 +34,15 @@ import com.mvp.backend.feature.requests.dto.TrackingResponse.TimelineEntry.Type;
 import com.mvp.backend.feature.requests.model.EventRequest;
 import com.mvp.backend.feature.requests.model.RequestStatus;
 import com.mvp.backend.feature.requests.repository.EventRequestRepository;
+import com.mvp.backend.feature.users.model.User;
+import com.mvp.backend.feature.users.service.UserService;
+import com.mvp.backend.feature.auth.security.UserPrincipal;
 import com.mvp.backend.feature.notifications.event.EventRequestCreatedEmailEvent;
 import com.mvp.backend.shared.DomainValidationException;
 import jakarta.persistence.EntityNotFoundException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
@@ -61,6 +72,8 @@ public class EventRequestService {
     private final EventHistoryRepository eventHistoryRepository;
     private final AvailabilityService availabilityService;
     private final ApplicationEventPublisher eventPublisher;
+    private final EventRepository eventRepository;
+    private final UserService userService;
 
     private static final Set<RequestStatus> PUBLIC_REQUEST_STATUSES = EnumSet.of(
             RequestStatus.RECIBIDO,
@@ -337,5 +350,161 @@ public class EventRequestService {
             uuid = UUID.randomUUID().toString();
         } while (eventRequestRepository.existsByTrackingUuid(uuid));
         return uuid;
+    }
+
+    /* ---------- Admin ---------- */
+
+    @Transactional(readOnly = true)
+    public EventRequestResponseDto getAdminById(Long id) {
+        EventRequest request = eventRequestRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("EventRequest not found with id: " + id));
+        return EventRequestMapper.toDto(request);
+    }
+
+    @Transactional
+    public EventRequestResponseDto changeStatus(Long id, ChangeRequestStatusDto dto) {
+        EventRequest request = eventRequestRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("EventRequest not found with id: " + id));
+
+        RequestStatus current = request.getStatus();
+        RequestStatus newStatus = dto.newStatus();
+
+        if (current == RequestStatus.CONVERTIDO) {
+            throw new DomainValidationException("Cannot change status of a converted request");
+        }
+        if (current == RequestStatus.RECHAZADO) {
+            throw new DomainValidationException("Cannot reopen a rejected request");
+        }
+        if (newStatus == RequestStatus.CONVERTIDO) {
+            throw new DomainValidationException("Use the convert-to-event endpoint to convert a request");
+        }
+
+        validateStatusTransition(current, newStatus);
+
+        String fromValue = current.name();
+
+        if (newStatus == RequestStatus.EN_REVISION) {
+            User actor = getCurrentUser();
+            request.setReviewedAt(Instant.now());
+            request.setReviewedBy(actor.getUsername());
+        }
+
+        if (newStatus == RequestStatus.RECHAZADO
+                && dto.reason() != null && !dto.reason().isBlank()) {
+            request.setObservations(dto.reason().trim());
+        }
+
+        request.setStatus(newStatus);
+        EventRequest saved = eventRequestRepository.save(request);
+
+        eventRequestHistoryRepository.save(EventRequestHistory.builder()
+                .request(saved)
+                .at(Instant.now())
+                .type(HistoryType.STATUS)
+                .fromValue(fromValue)
+                .toValue(saved.getStatus().name())
+                .build());
+
+        return EventRequestMapper.toDto(saved);
+    }
+
+    @Transactional
+    public EventResponseDto convertToEvent(Long id) {
+        EventRequest request = eventRequestRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("EventRequest not found with id: " + id));
+
+        RequestStatus current = request.getStatus();
+        if (current == RequestStatus.CONVERTIDO) {
+            throw new DomainValidationException("Request is already converted");
+        }
+        if (current == RequestStatus.RECHAZADO) {
+            throw new DomainValidationException("Cannot convert a rejected request");
+        }
+
+        User actor = getCurrentUser();
+        Instant now = Instant.now();
+
+        Event event = Event.builder()
+                .date(request.getDate())
+                .technicalSchedule(request.getTechnicalSchedule())
+                .scheduleFrom(request.getScheduleFrom())
+                .scheduleTo(request.getScheduleTo())
+                .status(Status.APROBADO)
+                .name(request.getName())
+                .space(request.getSpace())
+                .freeLocation(request.getFreeLocation())
+                .department(request.getRequestingDepartment())
+                .requirements(request.getRequirements())
+                .coverage(request.getCoverage())
+                .observations(request.getObservations())
+                .priority(request.getPriority())
+                .audienceType(request.getAudienceType())
+                .bufferBeforeMin(request.getBufferBeforeMin())
+                .bufferAfterMin(request.getBufferAfterMin())
+                .contactName(request.getContactName())
+                .contactEmail(request.getContactEmail())
+                .contactPhone(request.getContactPhone())
+                .internal(false)
+                .createdBy(actor)
+                .build();
+
+        Event savedEvent = eventRepository.save(event);
+
+        eventHistoryRepository.save(EventHistory.builder()
+                .event(savedEvent)
+                .actor(actor)
+                .at(now)
+                .type(HistoryType.STATUS)
+                .field("status")
+                .fromValue(null)
+                .toValue(Status.APROBADO.name())
+                .build());
+
+        String fromStatus = request.getStatus().name();
+        request.setConvertedEvent(savedEvent);
+        request.setConvertedAt(now);
+        request.setConvertedBy(actor.getUsername());
+        request.setStatus(RequestStatus.CONVERTIDO);
+        EventRequest savedRequest = eventRequestRepository.save(request);
+
+        eventRequestHistoryRepository.save(EventRequestHistory.builder()
+                .request(savedRequest)
+                .at(now)
+                .type(HistoryType.STATUS)
+                .fromValue(fromStatus)
+                .toValue(RequestStatus.CONVERTIDO.name())
+                .build());
+
+        return EventMapper.toDto(savedEvent);
+    }
+
+    private void validateStatusTransition(RequestStatus from, RequestStatus to) {
+        boolean valid = switch (from) {
+            case RECIBIDO -> to == RequestStatus.EN_REVISION || to == RequestStatus.RECHAZADO;
+            case EN_REVISION -> to == RequestStatus.RECHAZADO;
+            default -> false;
+        };
+        if (!valid) {
+            throw new DomainValidationException("Invalid status transition: " + from + " -> " + to);
+        }
+    }
+
+    private User getCurrentUser() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || authentication.getPrincipal() == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "No authenticated user");
+        }
+        Object principal = authentication.getPrincipal();
+        Long userId;
+        if (principal instanceof UserPrincipal userPrincipal) {
+            userId = userPrincipal.getId();
+        } else if (principal instanceof UserDetails details) {
+            userId = userService.getByUsername(details.getUsername()).getId();
+        } else if (principal instanceof String username) {
+            userId = userService.getByUsername(username).getId();
+        } else {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "No authenticated user");
+        }
+        return userService.getById(userId);
     }
 }

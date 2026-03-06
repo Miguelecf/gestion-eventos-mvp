@@ -44,6 +44,13 @@ public record EventRequestResponseDto(
 
                 @JsonFormat(shape = JsonFormat.Shape.STRING) Instant requestDate,
 
+                @JsonFormat(shape = JsonFormat.Shape.STRING) Instant reviewedAt,
+                String reviewedBy,
+
+                @JsonFormat(shape = JsonFormat.Shape.STRING) Instant convertedAt,
+                String convertedBy,
+                Long convertedEventId,
+
                 @JsonFormat(shape = JsonFormat.Shape.STRING) Instant createdAt,
 
                 @JsonFormat(shape = JsonFormat.Shape.STRING) Instant updatedAt) {

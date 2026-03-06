@@ -34,6 +34,11 @@ public class EventRequestMapper {
                 request.getContactEmail(),
                 request.getContactPhone(),
                 request.getRequestDate(),
+                request.getReviewedAt(),
+                request.getReviewedBy(),
+                request.getConvertedAt(),
+                request.getConvertedBy(),
+                request.getConvertedEvent() != null ? request.getConvertedEvent().getId() : null,
                 request.getCreatedAt(),
                 request.getUpdatedAt());
     }

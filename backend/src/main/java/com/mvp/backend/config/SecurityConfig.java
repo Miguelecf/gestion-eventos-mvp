@@ -94,6 +94,12 @@ public class SecurityConfig {
                         .hasAnyRole("ADMIN_FULL", "ADMIN_CEREMONIAL", "ADMIN_TECNICA", "USUARIO")
                         .requestMatchers(HttpMethod.POST, "/api/events/**")
                         .hasAnyRole("ADMIN_FULL", "ADMIN_CEREMONIAL", "ADMIN_TECNICA", "USUARIO")
+                        .requestMatchers(HttpMethod.GET, "/admin/event-requests/**")
+                        .hasAnyRole("ADMIN_FULL", "ADMIN_CEREMONIAL", "ADMIN_TECNICA")
+                        .requestMatchers(HttpMethod.PATCH, "/admin/event-requests/**")
+                        .hasAnyRole("ADMIN_FULL", "ADMIN_CEREMONIAL", "ADMIN_TECNICA")
+                        .requestMatchers(HttpMethod.POST, "/admin/event-requests/**")
+                        .hasAnyRole("ADMIN_FULL", "ADMIN_CEREMONIAL", "ADMIN_TECNICA")
                         .anyRequest().authenticated())
                 .authenticationProvider(authenticationProvider())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
