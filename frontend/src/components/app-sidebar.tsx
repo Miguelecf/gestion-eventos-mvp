@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import logo from "@/assets/unla-logo.svg";
+import { useRole } from "@/hooks/useRole";
 
 interface NavigationItem {
   label: string;
@@ -58,6 +59,8 @@ export default function AppSidebar({
   variant = "desktop",
   className,
 }: AppSidebarProps) {
+  const { isAdminFull } = useRole();
+  const showAdminSection = isAdminFull();
   const year = new Date().getFullYear();
 
   return (
@@ -88,7 +91,7 @@ export default function AppSidebar({
         <div className="space-y-8 pb-8">
           <SidebarSection title="Menu" items={primaryNavigation} />
           <SidebarSection title="Catálogos" items={catalogsNavigation} />
-          <SidebarSection title="Administración" items={adminNavigation} />
+          {showAdminSection ? <SidebarSection title="Administración" items={adminNavigation} /> : null}
         </div>
       </ScrollArea>
 
@@ -135,4 +138,3 @@ function SidebarSection({ title, items }: SidebarSectionProps) {
     </section>
   );
 }
-

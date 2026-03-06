@@ -1,5 +1,6 @@
 package com.mvp.backend.shared;
 
+import com.mvp.backend.feature.auth.exception.EmailDeliveryException;
 import com.mvp.backend.feature.availability.exception.AvailabilityConflictException;
 import com.mvp.backend.feature.availability.service.AvailabilityMapper;
 import com.mvp.backend.feature.tech.exception.TechCapacityExceededException;
@@ -60,16 +61,5 @@ public class GlobalExceptionHandler {
         body.put("error", "TECH_CAPACITY_REACHED");
         body.put("message", ex.getMessage());
         return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
-    }
-
-    @ExceptionHandler(AvailabilityConflictException.class)
-    public ResponseEntity<Object> handleAvailabilityConflict(AvailabilityConflictException ex) {
-        // Reusar los mismos DTOs que los endpoints de disponibilidad para mantener
-        // formato consistente.
-        Object body = ex.isPublicView()
-                ? availabilityMapper.toPublicResponse(ex.getResult())
-                : availabilityMapper.toInternalResponse(ex.getResult());
-
-        return ResponseEntity.status(ex.getStatus()).body(body);
     }
 }

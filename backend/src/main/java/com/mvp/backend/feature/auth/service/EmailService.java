@@ -1,5 +1,6 @@
 package com.mvp.backend.feature.auth.service;
 
+import com.mvp.backend.feature.auth.exception.EmailDeliveryException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -26,6 +27,7 @@ public class EmailService {
     }
 
     public void sendNewPassword(String to, String temporaryPassword) {
+
         SimpleMailMessage message = new SimpleMailMessage();
         message.setFrom(fromAddress);
         message.setTo(to);

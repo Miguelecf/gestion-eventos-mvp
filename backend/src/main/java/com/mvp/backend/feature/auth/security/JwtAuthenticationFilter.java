@@ -77,7 +77,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         return p != null && (
                         (p.equals("/auth/login") && m.equals("POST")) ||
-                        (p.equals("/auth/register") && m.equals("POST")) ||
                         (p.equals("/auth/refresh") && m.equals("POST")) ||
                         p.startsWith("/public/") ||
                         p.startsWith("/v3/api-docs") || p.startsWith("/swagger") || p.startsWith("/swagger-ui")
