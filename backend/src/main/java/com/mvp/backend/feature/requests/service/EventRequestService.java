@@ -421,6 +421,52 @@ public class EventRequestService {
             throw new DomainValidationException("Cannot convert a rejected request");
         }
 
+        // B. Validaciones de fecha y horario
+        if (request.getDate() == null) {
+            throw new DomainValidationException("date is required to convert a request");
+        }
+        if (request.getScheduleFrom() == null) {
+            throw new DomainValidationException("scheduleFrom is required to convert a request");
+        }
+        if (request.getScheduleTo() == null) {
+            throw new DomainValidationException("scheduleTo is required to convert a request");
+        }
+        if (!request.getScheduleFrom().isBefore(request.getScheduleTo())) {
+            throw new DomainValidationException("scheduleFrom must be before scheduleTo");
+        }
+
+        boolean hasSpace = request.getSpace() != null;
+        boolean hasFreeLocation = request.getFreeLocation() != null && !request.getFreeLocation().isBlank();
+
+        if (!hasSpace && !hasFreeLocation) {
+            throw new DomainValidationException("Request must have either space or freeLocation");
+        }
+
+        if (hasSpace && hasFreeLocation) {
+            throw new DomainValidationException("Request cannot have both space and freeLocation");
+        }
+
+        // C. Validación de espacio activo
+        if (request.getSpace() != null && !request.getSpace().isActive()) {
+            throw new DomainValidationException("Cannot convert request: associated space is inactive");
+        }
+
+        // D. Check de disponibilidad al convertir
+        if (request.getSpace() != null) {
+            var availabilityParams = AvailabilityParams.builder()
+                    .date(request.getDate())
+                    .spaceId(request.getSpace().getId())
+                    .scheduleFrom(request.getScheduleFrom())
+                    .scheduleTo(request.getScheduleTo())
+                    .bufferBeforeMin(request.getBufferBeforeMin())
+                    .bufferAfterMin(request.getBufferAfterMin())
+                    .build();
+            var availabilityResult = availabilityService.checkSpaceAvailability(availabilityParams);
+            if (Boolean.FALSE.equals(availabilityResult.isAvailable())) {
+                throw AvailabilityConflictException.internalConflict(availabilityResult);
+            }
+        }
+
         User actor = getCurrentUser();
         Instant now = Instant.now();
 

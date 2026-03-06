@@ -74,6 +74,14 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(ex.getStatus()).body(body);
     }
 
+    @ExceptionHandler(DomainValidationException.class)
+    public ResponseEntity<Map<String, Object>> handleDomainValidation(DomainValidationException ex) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("error", "DOMAIN_VALIDATION_ERROR");
+        body.put("message", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
+    }
+
     @ExceptionHandler(EmailDeliveryException.class)
     public ResponseEntity<Map<String, Object>> handleEmailDelivery(EmailDeliveryException ex) {
         Map<String, Object> body = new LinkedHashMap<>();
