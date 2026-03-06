@@ -15,7 +15,7 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
 
   jpa:
-    hibernate:git
+    hibernate:
       ddl-auto: validate # Flyway controla el esquema
     properties:
       hibernate:
@@ -48,10 +48,6 @@ spring:
           auth: ${MAIL_SMTP_AUTH:false}
           starttls:
             enable: ${MAIL_SMTP_STARTTLS_ENABLE:false}
-
-app:
-  mail:
-    from: ${MAIL_FROM:noreply@example.com}
 server:
   port: 9090
 
