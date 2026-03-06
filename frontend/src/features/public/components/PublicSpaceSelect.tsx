@@ -83,7 +83,6 @@ const PublicSpaceSelect = React.forwardRef<HTMLSelectElement, PublicSpaceSelectP
               <option key={space.id} value={space.id}>
                 {space.name}
                 {space.capacity ? ` - Capacidad: ${space.capacity}` : ''}
-                {space.location ? ` (${space.location})` : ''}
               </option>
             ))}
         </select>

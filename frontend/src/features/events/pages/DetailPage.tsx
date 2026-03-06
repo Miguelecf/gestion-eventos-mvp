@@ -36,7 +36,6 @@ import {
   getStatusLabel,
   getStatusDescription,
   canEditEvent,
-  getConfirmationMessage,
 } from '@/features/events/utils/status-helpers';
 
 // Types
@@ -49,6 +48,12 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { AppBreadcrumbs } from '@/components/breadcrumbs';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 import { 
   Dialog, 
   DialogContent, 
@@ -59,6 +64,17 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+
+// Approval Workflow Utilities
+import {
+  ApprovalBadge,
+  formatMissingApprovals,
+  formatBuffers,
+  getTechSupportModeLabel,
+  getApprovalStatusMessage,
+  shouldShowApprovalIndicators,
+} from '@/features/events/utils/approval-helpers';
+import { useTechCapacityStatus } from '@/features/events/hooks/useTechCapacityStatus';
 
 export function DetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -78,6 +94,14 @@ export function DetailPage() {
   const [showStatusDialog, setShowStatusDialog] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState<EventStatus | null>(null);
   const [statusReason, setStatusReason] = useState('');
+  
+  // ✅ NUEVO: Estado para aprobaciones pendientes (solo en memoria)
+  const [pendingApprovalInfo, setPendingApprovalInfo] = useState<{
+    missing: string[];
+  } | null>(null);
+  
+  // ✅ NUEVO: Estado para historial de aprobaciones colapsable
+  const [showApprovalHistory, setShowApprovalHistory] = useState(false);
 
   // ============ HOOKS ESPECIALIZADOS ============
   const { fetchEventById, loading: loadingEvent } = useEvents();
@@ -95,13 +119,25 @@ export function DetailPage() {
     eventId,
     autoLoad: true,
     onStatusChange: (result) => {
-      toast.success(`Estado cambiado exitosamente`, {
-        description: `Nuevo estado: ${getStatusLabel(result.newStatus)}`,
-      });
+      // ✅ NUEVO: Manejar aprobación pendiente
+      if (result.approvalPending) {
+        setPendingApprovalInfo({ missing: result.missingApprovals });
+        toast.warning('Aprobación parcial registrada', {
+          description: `Faltan: ${formatMissingApprovals(result.missingApprovals)}`,
+        });
+      } else {
+        setPendingApprovalInfo(null);
+        toast.success(`Estado cambiado exitosamente`, {
+          description: `Nuevo estado: ${getStatusLabel(result.newStatus)}`,
+        });
+      }
+      
       setShowStatusDialog(false);
       setStatusReason('');
-      // Recargar evento para actualizar datos
+      
+      // ✅ NUEVO: Recargar AMBOS: evento Y estado
       loadEvent();
+      refetchStatus();
     },
     onError: (error) => {
       // ✅ FIX: Solo mostrar toast para errores que NO sean de permisos
@@ -122,6 +158,17 @@ export function DetailPage() {
     hasMore,
     loadMoreComments,
   } = useEventComments(eventId);
+
+  // ✅ NUEVO: Hook para verificar capacidad técnica
+  const {
+    isSaturated: techCapacitySaturated,
+    saturatedBlocks,
+  } = useTechCapacityStatus(
+    event?.date || null,
+    event?.scheduleFrom || null,
+    event?.scheduleTo || null,
+    event?.requiresTech === true
+  );
 
   // ============ CARGA INICIAL ============
   const loadEvent = async () => {
@@ -149,6 +196,13 @@ export function DetailPage() {
       }
     }
   }, [statusError]);
+
+  // ✅ NUEVO: Limpiar estado de aprobación pendiente al desmontar
+  useEffect(() => {
+    return () => {
+      setPendingApprovalInfo(null);
+    };
+  }, []);
 
   // ============ HANDLERS ============
   const handleEditClick = () => {
@@ -285,9 +339,16 @@ export function DetailPage() {
             </Badge>
           )}
 
-          <Badge variant="secondary" className="text-sm">
+          <Badge variant="default" className="text-sm">
             {event.priority}
           </Badge>
+          
+          {/* ✅ NUEVO: Badge de reprogramación (arriba, discreto) */}
+          {event.requiresRebooking && (
+            <Badge variant="outline" className="text-sm bg-red-50 text-red-600 border-red-200">
+              🔄 Reprogramación
+            </Badge>
+          )}
         </div>
 
         {/* Datos Clave Resumidos */}
@@ -307,6 +368,43 @@ export function DetailPage() {
                 <p className="text-sm text-muted-foreground">
                   {event.scheduleFrom} - {event.scheduleTo}
                 </p>
+                
+                {/* ✅ NUEVO: Mostrar buffers */}
+                {formatBuffers(event.bufferBeforeMin, event.bufferAfterMin) && (
+                  <p className="text-xs text-muted-foreground">
+                    {formatBuffers(event.bufferBeforeMin, event.bufferAfterMin)}
+                  </p>
+                )}
+                
+                {/* ✅ NUEVO: Mostrar horario técnico y modo cuando requiresTech */}
+                {event.requiresTech && (
+                  <div className="mt-2 space-y-1">
+                    {event.technicalSchedule && (
+                      <p className="text-xs text-muted-foreground">
+                        ⚙️ Horario técnico: {event.technicalSchedule}
+                      </p>
+                    )}
+                    {event.techSupportMode && (
+                      <p className="text-xs text-muted-foreground">
+                        🔧 Soporte: {getTechSupportModeLabel(event.techSupportMode)}
+                      </p>
+                    )}
+                  </div>
+                )}
+                
+                {/* ✅ NUEVO: Badge de reprogramación (contextual, descriptivo) */}
+                {event.requiresRebooking && (
+                  <Badge variant="outline" className="text-xs mt-2">
+                    ⚠️ Requiere reprogramación
+                  </Badge>
+                )}
+                
+                {/* ✅ NUEVO: Badge de capacidad técnica saturada */}
+                {event.requiresTech && techCapacitySaturated && saturatedBlocks.length > 0 && (
+                  <Badge variant="outline" className="text-xs mt-2 bg-red-50 text-red-600 border-red-200">
+                    ⚠️ Capacidad técnica colmada ({saturatedBlocks.map(b => b.from).join(', ')})
+                  </Badge>
+                )}
               </div>
 
               <div className="space-y-1">
@@ -364,7 +462,7 @@ export function DetailPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <p className="text-sm font-medium">Prioridad</p>
-                  <Badge variant="secondary">{event.priority}</Badge>
+                  <Badge variant="default">{event.priority}</Badge>
                 </div>
 
                 <div className="space-y-1">
@@ -431,6 +529,69 @@ export function DetailPage() {
         {/* ============ COLUMNA DERECHA (1/3) ============ */}
         <div className="space-y-6">
           
+          {/* ✅ NUEVO: Conformidades Requeridas */}
+          {shouldShowApprovalIndicators(event.status) && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Conformidades Requeridas</CardTitle>
+                <CardDescription>Estado de aprobaciones administrativas</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Indicadores de aprobación */}
+                <div className="space-y-2">
+                  <ApprovalBadge type="ceremonial" approved={event.ceremonialOk} />
+                  <ApprovalBadge type="technical" approved={event.technicalOk} />
+                </div>
+
+                {/* Mensaje de estado */}
+                <p className="text-sm text-muted-foreground">
+                  {getApprovalStatusMessage(event.ceremonialOk, event.technicalOk)}
+                </p>
+
+                {/* ✅ NUEVO: Historial de aprobaciones colapsable */}
+                <Collapsible open={showApprovalHistory} onOpenChange={setShowApprovalHistory}>
+                  <Separator className="my-4" />
+                  <CollapsibleTrigger asChild>
+                    <Button variant="ghost" size="sm" className="w-full justify-between">
+                      <span className="text-xs">Historial de Aprobaciones</span>
+                      <span className="text-xs">{showApprovalHistory ? '▲' : '▼'}</span>
+                    </Button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="mt-3">
+                    <div className="text-xs text-muted-foreground space-y-2">
+                      <p>Próximamente: historial detallado de cambios en conformidades.</p>
+                      {/* TODO: Integrar con audit log filtrado por ceremonialOk/technicalOk */}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              </CardContent>
+            </Card>
+          )}
+          
+          {/* ✅ NUEVO: Alert de aprobación pendiente */}
+          {pendingApprovalInfo && (
+            <Alert>
+              <AlertDescription>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="font-semibold text-sm">Aprobación parcial registrada</p>
+                    <p className="text-xs mt-1">
+                      Faltan: {formatMissingApprovals(pendingApprovalInfo.missing)}
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setPendingApprovalInfo(null)}
+                    className="h-6 w-6 p-0"
+                  >
+                    ✕
+                  </Button>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+          
           {/* Estado y Acciones */}
           <Card>
             <CardHeader>
@@ -461,18 +622,34 @@ export function DetailPage() {
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">Cambiar Estado a:</Label>
                     <div className="space-y-2">
-                      {allowedTransitions.map((status) => (
-                        <Button
-                          key={status}
-                          variant="outline"
-                          className="w-full justify-start"
-                          disabled={changing || !canChangeTo(status)}
-                          onClick={() => handleStatusChangeRequest(status)}
-                        >
-                          <span className="mr-2">→</span>
-                          {getStatusLabel(status)}
-                        </Button>
-                      ))}
+                      {allowedTransitions.map((status) => {
+                        // ✅ NUEVO: Label personalizado para APROBADO
+                        const buttonLabel =
+                          status === 'APROBADO'
+                            ? 'Aprobar (requiere 2 OK)'
+                            : getStatusLabel(status);
+
+                        return (
+                          <div key={status} className="space-y-1">
+                            <Button
+                              variant="outline"
+                              className="w-full justify-start"
+                              disabled={changing || !canChangeTo(status)}
+                              onClick={() => handleStatusChangeRequest(status)}
+                            >
+                              <span className="mr-2">→</span>
+                              {buttonLabel}
+                            </Button>
+                            
+                            {/* ✅ NUEVO: Helper text para RESERVADO */}
+                            {status === 'RESERVADO' && (
+                              <p className="text-xs text-muted-foreground ml-1">
+                                Reservar bloquea el espacio antes de la aprobación final
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 </>
@@ -600,6 +777,15 @@ export function DetailPage() {
                   Vas a cambiar el estado de{' '}
                   <strong>{getStatusLabel(currentStatus || event.status)}</strong> a{' '}
                   <strong>{getStatusLabel(selectedStatus)}</strong>.
+                  
+                  {/* ✅ NUEVO: Texto educativo para APROBADO */}
+                  {selectedStatus === 'APROBADO' && (
+                    <>
+                      <br /><br />
+                      Esta acción registra tu OK (según tu rol). Si falta el otro OK, 
+                      el evento quedará <em>pendiente</em>.
+                    </>
+                  )}
                 </>
               )}
             </DialogDescription>
@@ -783,7 +969,7 @@ function CommentItem({ comment, onDelete }: CommentItemProps) {
 
       {/* Badge de visibilidad */}
       {!comment.isPublic && (
-        <Badge variant="secondary" className="text-xs">
+        <Badge variant="outline" className="text-xs">
           🔒 Solo Interno
         </Badge>
       )}

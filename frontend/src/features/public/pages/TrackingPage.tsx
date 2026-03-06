@@ -106,12 +106,17 @@ export function TrackingPage() {
       color: 'bg-yellow-100 text-yellow-800',
       variant: 'outline',
     },
+    CONVERTIDO: { label: 'Aprobada', color: 'bg-green-100 text-green-800', variant: 'success' },
     APROBADO: { label: 'Aprobada', color: 'bg-green-100 text-green-800', variant: 'success' },
     RESERVADO: { label: 'Reservada', color: 'bg-green-100 text-green-800', variant: 'success' },
     RECHAZADO: { label: 'Rechazada', color: 'bg-red-100 text-red-800', variant: 'outline' },
   };
 
-  const currentStatus = statusConfig[data.currentStatus] || statusConfig.SOLICITADO;
+  const currentStatus = statusConfig[data.request.status] || statusConfig.SOLICITADO;
+  const eventName = data.event?.id ? `Evento #${data.event.id}` : 'Solicitud de Evento';
+  const locationDisplay = data.location.type === 'SPACE' 
+    ? data.location.spaceName || 'Espacio no especificado'
+    : data.location.freeLocation || 'Ubicación no especificada';
 
   return (
     <div className="container mx-auto max-w-4xl py-12 px-4">
@@ -127,9 +132,9 @@ export function TrackingPage() {
       <Card className="p-6 mb-6">
         <div className="flex items-start justify-between mb-4">
           <div>
-            <h2 className="text-xl font-semibold mb-1">{data.eventName}</h2>
+            <h2 className="text-xl font-semibold mb-1">{eventName}</h2>
             <p className="text-sm text-muted-foreground">
-              Enviada el {formatDate(data.submittedAt)}
+              Enviada el {formatDate(data.request.submittedAt)}
             </p>
           </div>
           <Badge variant={currentStatus.variant} className={currentStatus.color}>
@@ -138,7 +143,7 @@ export function TrackingPage() {
         </div>
 
         {/* Estado aprobado */}
-        {(data.currentStatus === 'APROBADO' || data.currentStatus === 'RESERVADO') && (
+        {(data.request.status === 'CONVERTIDO' || data.event?.status === 'APROBADO' || data.event?.status === 'RESERVADO') && (
           <Alert className="bg-green-50 dark:bg-green-950/20 border-green-200">
             <AlertDescription>
               <p className="font-semibold text-green-800 dark:text-green-200">
@@ -152,11 +157,13 @@ export function TrackingPage() {
         )}
 
         {/* Estado rechazado */}
-        {data.currentStatus === 'RECHAZADO' && data.comments && (
+        {data.request.status === 'RECHAZADO' && data.timeline.some(t => t.type === 'COMMENT') && (
           <Alert variant="destructive">
             <AlertDescription>
               <p className="font-semibold mb-1">Solicitud rechazada</p>
-              <p className="text-sm">{data.comments}</p>
+              <p className="text-sm">
+                {data.timeline.find(t => t.type === 'COMMENT')?.details || 'Sin comentarios'}
+              </p>
             </AlertDescription>
           </Alert>
         )}
@@ -170,31 +177,33 @@ export function TrackingPage() {
           <div>
             <p className="text-sm font-medium text-muted-foreground mb-1">Fecha y Horario</p>
             <p className="text-sm">
-              {formatDate(data.date)}
+              {formatDate(data.schedule.date)}
               <br />
-              {data.scheduleFrom} - {data.scheduleTo}
+              {data.schedule.from} - {data.schedule.to}
             </p>
           </div>
 
           {/* Ubicación */}
           <div>
             <p className="text-sm font-medium text-muted-foreground mb-1">Ubicación</p>
-            <p className="text-sm">{data.spaceName || data.location || 'No especificada'}</p>
+            <p className="text-sm">{locationDisplay}</p>
           </div>
 
           {/* Última actualización */}
           <div className="md:col-span-2">
             <p className="text-sm font-medium text-muted-foreground mb-1">Última Actualización</p>
-            <p className="text-sm">{formatDateTime(data.lastUpdatedAt)}</p>
+            <p className="text-sm">
+              {data.timeline.length > 0 ? formatDateTime(data.timeline[data.timeline.length - 1].at) : formatDateTime(data.request.submittedAt)}
+            </p>
           </div>
 
           {/* Comentarios adicionales */}
-          {data.comments && data.currentStatus !== 'RECHAZADO' && (
-            <div className="md:col-span-2">
+          {data.timeline.filter(t => t.type === 'COMMENT' && data.request.status !== 'RECHAZADO').map((comment, idx) => (
+            <div key={idx} className="md:col-span-2">
               <p className="text-sm font-medium text-muted-foreground mb-1">Comentarios</p>
-              <p className="text-sm">{data.comments}</p>
+              <p className="text-sm">{comment.details}</p>
             </div>
-          )}
+          ))}
         </div>
       </Card>
 
@@ -205,13 +214,13 @@ export function TrackingPage() {
             <strong>Estado actual:</strong> {currentStatus.label}
           </p>
           <p className="text-sm text-muted-foreground mt-1">
-            {data.currentStatus === 'SOLICITADO' &&
+            {data.request.status === 'SOLICITADO' &&
               'Su solicitud está pendiente de revisión. El equipo la evaluará pronto.'}
-            {data.currentStatus === 'EN_REVISION' &&
+            {data.request.status === 'EN_REVISION' &&
               'Su solicitud está siendo revisada por el equipo de Ceremonial y Técnica.'}
-            {(data.currentStatus === 'APROBADO' || data.currentStatus === 'RESERVADO') &&
+            {(data.request.status === 'CONVERTIDO' || data.event?.status === 'APROBADO' || data.event?.status === 'RESERVADO') &&
               'Su solicitud ha sido aprobada. Recibirá más detalles por email.'}
-            {data.currentStatus === 'RECHAZADO' &&
+            {data.request.status === 'RECHAZADO' &&
               'Su solicitud no pudo ser aprobada. Consulte los comentarios arriba para más información.'}
           </p>
         </AlertDescription>

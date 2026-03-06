@@ -16,13 +16,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
-import type { Space, CreateSpaceInput } from '@/services/api';
+import type { Space } from '@/models/space';
+import type { CreateSpaceInput } from '@/services/api';
 
 const spaceSchema = z.object({
   name: z.string().min(1, 'El nombre es obligatorio').max(100, 'Máximo 100 caracteres'),
   capacity: z.number().min(0, 'La capacidad debe ser positiva').int('Debe ser un número entero'),
-  location: z.string().min(1, 'La ubicación es obligatoria').max(200, 'Máximo 200 caracteres'),
-  description: z.string().max(500, 'Máximo 500 caracteres').optional(),
   colorHex: z
     .string()
     .regex(/^#[0-9A-Fa-f]{6}$/, 'Formato inválido (ej: #3498db)')
@@ -65,8 +64,6 @@ export function SpaceFormDialog({ open, onOpenChange, mode, space }: SpaceFormDi
     defaultValues: {
       name: '',
       capacity: 30,
-      location: '',
-      description: '',
       colorHex: '#6B7280',
       defaultBufferBeforeMin: 30,
       defaultBufferAfterMin: 30,
@@ -83,8 +80,6 @@ export function SpaceFormDialog({ open, onOpenChange, mode, space }: SpaceFormDi
       reset({
         name: space.name,
         capacity: space.capacity,
-        location: space.location,
-        description: space.description || '',
         colorHex: space.colorHex || '#6B7280',
         defaultBufferBeforeMin: space.defaultBufferBeforeMin,
         defaultBufferAfterMin: space.defaultBufferAfterMin,
@@ -94,8 +89,6 @@ export function SpaceFormDialog({ open, onOpenChange, mode, space }: SpaceFormDi
       reset({
         name: '',
         capacity: 30,
-        location: '',
-        description: '',
         colorHex: '#6B7280',
         defaultBufferBeforeMin: 30,
         defaultBufferAfterMin: 30,
@@ -110,8 +103,6 @@ export function SpaceFormDialog({ open, onOpenChange, mode, space }: SpaceFormDi
         const input: CreateSpaceInput = {
           name: data.name,
           capacity: data.capacity,
-          location: data.location,
-          description: data.description,
           colorHex: data.colorHex || '#6B7280',
           defaultBufferBeforeMin: data.defaultBufferBeforeMin,
           defaultBufferAfterMin: data.defaultBufferAfterMin,
@@ -191,37 +182,6 @@ export function SpaceFormDialog({ open, onOpenChange, mode, space }: SpaceFormDi
               />
               {formErrors.capacity && (
                 <p className="text-sm text-destructive">{formErrors.capacity.message}</p>
-              )}
-            </div>
-
-            {/* Ubicación */}
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="location">
-                Ubicación <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="location"
-                {...register('location')}
-                placeholder="Ej: Edificio Central – Planta Baja"
-                aria-invalid={!!formErrors.location}
-              />
-              {formErrors.location && (
-                <p className="text-sm text-destructive">{formErrors.location.message}</p>
-              )}
-            </div>
-
-            {/* Descripción */}
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="description">Descripción (opcional)</Label>
-              <textarea
-                id="description"
-                {...register('description')}
-                rows={3}
-                placeholder="Características adicionales del espacio..."
-                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-4 focus-visible:ring-primary/20 focus-visible:border-primary resize-none"
-              />
-              {formErrors.description && (
-                <p className="text-sm text-destructive">{formErrors.description.message}</p>
               )}
             </div>
 

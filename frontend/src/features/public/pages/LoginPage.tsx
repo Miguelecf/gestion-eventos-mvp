@@ -23,6 +23,7 @@ export function LoginPage() {
 
   const from = (location.state as any)?.from?.pathname || '/dashboard';
   const sessionExpired = searchParams.get('sessionExpired') === 'true';
+  const [loginSuccess, setLoginSuccess] = useState(false);
 
   // Si el usuario ya está autenticado, redirigir
   useEffect(() => {
@@ -30,6 +31,13 @@ export function LoginPage() {
       navigate(from, { replace: true });
     }
   }, [user, loading, navigate, from]);
+
+  // Redirigir después de login exitoso
+  useEffect(() => {
+    if (loginSuccess) {
+      navigate(from, { replace: true });
+    }
+  }, [loginSuccess, navigate, from]);
 
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -70,8 +78,8 @@ export function LoginPage() {
         password: formData.password 
       });
       
-      // Navegar después de login exitoso
-      navigate(from, { replace: true });
+      // Marcar login exitoso para disparar navegación en useEffect
+      setLoginSuccess(true);
       
     } catch (err: any) {
       console.error('Error en login:', err);

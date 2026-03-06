@@ -8,21 +8,21 @@ SET @now = NOW(6);
 -- ===========================
 INSERT INTO departments (active, created_at, updated_at, name, color_hex)
 VALUES
-  (b'1', @now, @now, 'Departamento de Salud Comunitaria',                 NULL),
-  (b'1', @now, @now, 'Departamento de Desarrollo Productivo y Tecnológico', NULL),
-  (b'1', @now, @now, 'Departamento de Planificación y Políticas Públicas',  NULL),
-  (b'1', @now, @now, 'Departamento de Humanidades y Artes',               NULL),
-  (b'1', @now, @now, 'Dirección de Gestión y Documentación Estudiantil',  NULL);
+  (b'1', @now, @now, 'Departamento de Salud Comunitaria',                 '#8BD3E6'),
+  (b'1', @now, @now, 'Departamento de Desarrollo Productivo y Tecnológico', '#F9C6A5'),
+  (b'1', @now, @now, 'Departamento de Planificación y Políticas Públicas',  '#BEE5B0'),
+  (b'1', @now, @now, 'Departamento de Humanidades y Artes',               '#D7C7F7'),
+  (b'1', @now, @now, 'Dirección de Gestión y Documentación Estudiantil',  '#FFE7A3');
 
 -- ===========================
 -- Spaces (algunos de la referencia del mapa)
 -- ===========================
 INSERT INTO spaces (active, created_at, updated_at, name, capacity, notes, default_buffer_before_min, default_buffer_after_min, color_hex)
 VALUES
-  (b'1', @now, @now, 'Aula Magna Bicentenario',         400, 'Auditorio principal', 30, 30, NULL),
-  (b'1', @now, @now, 'Cine Universitario Tita Merello', 250, 'Sala audiovisual',    20, 20, NULL),
-  (b'1', @now, @now, 'Gimnasio Universitario Gatica',    300, 'Deportes/Actos',     30, 30, NULL),
-  (b'1', @now, @now, 'Quincho Roberto Fontanarrosa',     120, 'Espacio abierto',    15, 15, NULL);
+  (b'1', @now, @now, 'Aula Magna Bicentenario',         400, 'Auditorio principal', 30, 30, '#A4C8F0'),
+  (b'1', @now, @now, 'Cine Universitario Tita Merello', 250, 'Sala audiovisual',    20, 20, '#F6A5C0'),
+  (b'1', @now, @now, 'Gimnasio Universitario Gatica',    300, 'Deportes/Actos',     30, 30, '#AEE0D6'),
+  (b'1', @now, @now, 'Quincho Roberto Fontanarrosa',     120, 'Espacio abierto',    15, 15, '#F7D8A7');
 
 -- ===========================
 -- Users (uno por rol)

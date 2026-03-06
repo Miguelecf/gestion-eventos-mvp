@@ -153,11 +153,6 @@ export type {
   GetConflictsParams,
   MakeDecisionParams,
   DecisionResult,
-  Space,
-  SpaceFilters,
-  CreateSpaceInput,
-  UpdateSpaceInput,
-  Department,
   PublicEventRequestInput,
   PublicRequestResult,
   PublicTrackingResult
@@ -185,6 +180,13 @@ export type {
   UpdateDepartmentInput,
   DepartmentFilters
 } from '../../models/department';
+
+export type {
+  Space as SpaceModel,
+  CreateSpaceInput,
+  UpdateSpaceInput,
+  SpaceFilters
+} from '../../models/space';
 
 // ==================== FASE 4: UTILIDADES ====================
 

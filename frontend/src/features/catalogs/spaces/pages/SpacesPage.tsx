@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AppBreadcrumbs } from '@/components/breadcrumbs';
 import { SpaceFormDialog } from '../components';
 import { toast } from 'sonner';
-import type { Space } from '@/services/api';
+import type { Space } from '@/models/space';
 
 export function SpacesPage() {
   const {
@@ -98,7 +98,7 @@ export function SpacesPage() {
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
-                placeholder="Buscar por nombre o ubicación..."
+                placeholder="Buscar por nombre..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10"
@@ -177,7 +177,6 @@ export function SpacesPage() {
                   <thead className="border-b">
                     <tr className="text-left text-sm font-medium text-muted-foreground">
                       <th className="pb-3 pr-4">Nombre</th>
-                      <th className="pb-3 pr-4">Ubicación</th>
                       <th className="pb-3 pr-4 text-right">Capacidad</th>
                       <th className="pb-3 pr-4 text-center">Buffers (min)</th>
                       <th className="pb-3 pr-4">Color</th>
@@ -197,9 +196,6 @@ export function SpacesPage() {
                             <span className="font-medium">{space.name}</span>
                           </div>
                         </td>
-                        <td className="py-4 pr-4 text-sm text-muted-foreground max-w-[200px] truncate">
-                          {space.location}
-                        </td>
                         <td className="py-4 pr-4 text-right font-medium">
                           {space.capacity}
                         </td>
@@ -218,7 +214,7 @@ export function SpacesPage() {
                           </div>
                         </td>
                         <td className="py-4 pr-4">
-                          <Badge variant={space.active ? 'default' : 'secondary'}>
+                          <Badge variant={space.active ? 'default' : 'outline'}>
                             {space.active ? 'Activo' : 'Inactivo'}
                           </Badge>
                         </td>
@@ -264,13 +260,12 @@ export function SpacesPage() {
                           />
                           <span className="font-semibold">{space.name}</span>
                         </div>
-                        <Badge variant={space.active ? 'default' : 'secondary'}>
+                        <Badge variant={space.active ? 'default' : 'outline'}>
                           {space.active ? 'Activo' : 'Inactivo'}
                         </Badge>
                       </div>
                       
                       <div className="text-sm text-muted-foreground space-y-1">
-                        <p>📍 {space.location}</p>
                         <p>👥 Capacidad: {space.capacity}</p>
                         <p>⏱️ Buffers: {space.defaultBufferBeforeMin} / {space.defaultBufferAfterMin} min</p>
                       </div>

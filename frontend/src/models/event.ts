@@ -8,6 +8,8 @@
  */
 
 import type { EventStatus, Priority, TechSupportMode, AudienceType } from '@/services/api/types/backend.types';
+import type { Space } from './space';
+import type { Department } from './department';
 
 /**
  * Usuario básico (creador/modificador)
@@ -18,25 +20,6 @@ export interface User {
   name: string;
   lastName: string;
   email: string;
-}
-
-/**
- * Espacio/Lugar
- */
-export interface Space {
-  id: number;
-  name: string;
-  capacity?: number;
-  colorHex?: string;
-}
-
-/**
- * Departamento
- */
-export interface Department {
-  id: number;
-  name: string;
-  colorHex?: string;
 }
 
 /**
