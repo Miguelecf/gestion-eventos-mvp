@@ -118,7 +118,7 @@ export function isFinalStatus(status: EventStatus): boolean {
 
 /**
  * Verifica si un evento puede ser editado según su estado
- * Solo se pueden editar eventos en SOLICITADO o EN_REVISION
+ * Solo se pueden editar eventos en EN_REVISION o RESERVADO
  * 
  * @param status - Estado del evento
  * @returns true si puede ser editado
@@ -129,7 +129,7 @@ export function isFinalStatus(status: EventStatus): boolean {
  * </Button>
  */
 export function canEditEvent(status: EventStatus): boolean {
-  return status === 'SOLICITADO' || status === 'EN_REVISION';
+  return status === 'EN_REVISION' || status === 'RESERVADO';
 }
 
 /**

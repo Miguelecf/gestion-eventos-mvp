@@ -46,13 +46,17 @@ export function adaptEventFromBackend(backendEvent: BackendEventDTO): Event {
       id: backendEvent.space.id,
       name: backendEvent.space.name,
       capacity: backendEvent.space.capacity,
-      colorHex: backendEvent.space.colorHex || undefined
+      colorHex: backendEvent.space.colorHex || '#6B7280',
+      defaultBufferBeforeMin: backendEvent.bufferBeforeMin ?? 0,
+      defaultBufferAfterMin: backendEvent.bufferAfterMin ?? 0,
+      active: true,
     } : null,
     freeLocation: backendEvent.freeLocation,
     department: backendEvent.department ? {
       id: backendEvent.department.id,
       name: backendEvent.department.name,
-      colorHex: backendEvent.department.colorHex || undefined
+      colorHex: backendEvent.department.colorHex || '#6B7280',
+      active: true,
     } : null,
     requirements: backendEvent.requirements,
     coverage: backendEvent.coverage,
@@ -144,13 +148,13 @@ export function adaptEventForCreate(
     bufferBeforeMin?: number;
     bufferAfterMin?: number;
     spaceId?: number;
-    freeLocation?: string;
-    requestingArea?: string;
-    techSupportMode?: 'SETUP_ONLY' | 'ATTENDED';
-    technicalSchedule?: string;
-    requirements?: string;
-    coverage?: string;
-    observations?: string;
+    freeLocation?: string | null;
+    requestingArea?: string | null;
+    techSupportMode?: 'SETUP_ONLY' | 'ATTENDED' | null;
+    technicalSchedule?: string | null;
+    requirements?: string | null;
+    coverage?: string | null;
+    observations?: string | null;
   }
 ): BackendCreateEventDTO {
   return {
@@ -207,8 +211,19 @@ export function adaptEventForCreate(
  * const dto = adaptEventForUpdate(updates);
  * await httpClient.patch(`/api/events/${id}`, dto);
  */
+type AdaptEventUpdateInput = Omit<
+  Partial<Event>,
+  'audienceType' | 'techSupportMode' | 'technicalSchedule' | 'spaceId' | 'departmentId'
+> & {
+  audienceType?: Event['audienceType'] | null;
+  techSupportMode?: Event['techSupportMode'] | null;
+  technicalSchedule?: string | null;
+  spaceId?: number | null;
+  departmentId?: number | null;
+};
+
 export function adaptEventForUpdate(
-  eventData: Partial<Event>
+  eventData: AdaptEventUpdateInput
 ): BackendUpdateEventDTO {
   const updateDTO: BackendUpdateEventDTO = {};
 
@@ -229,6 +244,10 @@ export function adaptEventForUpdate(
     updateDTO.spaceId = eventData.spaceId;
   }
 
+  if (eventData.freeLocation !== undefined) {
+    updateDTO.freeLocation = eventData.freeLocation;
+  }
+
   if (eventData.departmentId !== undefined) {
     updateDTO.departmentId = eventData.departmentId;
   }
@@ -237,9 +256,20 @@ export function adaptEventForUpdate(
     updateDTO.name = eventData.name;
   }
 
-  if (eventData.description !== undefined) {
-    updateDTO.requirements = eventData.description;
-    updateDTO.observations = eventData.description;
+  if (eventData.requestingArea !== undefined) {
+    updateDTO.requestingArea = eventData.requestingArea;
+  }
+
+  if (eventData.requirements !== undefined) {
+    updateDTO.requirements = eventData.requirements;
+  }
+
+  if (eventData.coverage !== undefined) {
+    updateDTO.coverage = eventData.coverage;
+  }
+
+  if (eventData.observations !== undefined) {
+    updateDTO.observations = eventData.observations;
   }
 
   if (eventData.priority !== undefined) {
@@ -256,7 +286,34 @@ export function adaptEventForUpdate(
 
   if (eventData.requiresTech !== undefined) {
     updateDTO.requiresTech = eventData.requiresTech;
-    updateDTO.techSupportMode = eventData.requiresTech ? 'SETUP_ONLY' : null;
+  }
+
+  if (eventData.techSupportMode !== undefined) {
+    updateDTO.techSupportMode = eventData.techSupportMode;
+  }
+
+  if (eventData.technicalSchedule !== undefined) {
+    updateDTO.technicalSchedule = eventData.technicalSchedule;
+  }
+
+  if (eventData.bufferBeforeMin !== undefined) {
+    updateDTO.bufferBeforeMin = eventData.bufferBeforeMin;
+  }
+
+  if (eventData.bufferAfterMin !== undefined) {
+    updateDTO.bufferAfterMin = eventData.bufferAfterMin;
+  }
+
+  if (eventData.contactName !== undefined) {
+    updateDTO.contactName = eventData.contactName;
+  }
+
+  if (eventData.contactEmail !== undefined) {
+    updateDTO.contactEmail = eventData.contactEmail;
+  }
+
+  if (eventData.contactPhone !== undefined) {
+    updateDTO.contactPhone = eventData.contactPhone;
   }
 
   return updateDTO;
@@ -276,8 +333,7 @@ export function adaptEventForUpdate(
  * }
  */
 export function canEditEvent(event: Event): boolean {
-  // Solo SOLICITADO y EN_REVISION son editables
-  return event.status === 'SOLICITADO' || event.status === 'EN_REVISION';
+  return event.status === 'EN_REVISION' || event.status === 'RESERVADO';
 }
 
 /**

@@ -76,7 +76,7 @@ export function useDashboardAlerts(): DashboardAlert[] {
         } requiere${todayConflicts.length > 1 ? 'n' : ''} resolución`,
         count: todayConflicts.length,
         actionLabel: 'Resolver conflictos',
-        actionHref: '/eventos',
+        actionHref: '/events',
         items: todayConflicts.slice(0, 3).map((c) => {
           // Buscar nombres de eventos en la lista de eventos del día
           const highEvent = events?.find(e => e.id === c.highEventId);
@@ -142,7 +142,7 @@ export function useDashboardAlerts(): DashboardAlert[] {
         } sin capacidad disponible`,
         count: saturatedBlocks.length,
         actionLabel: 'Ver distribución',
-        actionHref: '/eventos', // TODO: Ajustar cuando exista página de capacidad técnica
+        actionHref: '/events', // TODO: Ajustar cuando exista página de capacidad técnica
         items: saturatedBlocks.slice(0, 3).map((b) => ({
           id: b.id,
           name: `Bloque ${b.startTime}-${b.endTime}`,
@@ -183,7 +183,7 @@ export function useDashboardAlerts(): DashboardAlert[] {
         } inicia${upcomingNoConformity.length > 1 ? 'n' : ''} pronto`,
         count: upcomingNoConformity.length,
         actionLabel: 'Revisar eventos',
-        actionHref: '/eventos',
+        actionHref: '/events',
         items: upcomingNoConformity.slice(0, 3).map((e) => {
           try {
             const eventTime = parseISO(`${e.date}T${e.scheduleFrom}`);

@@ -1,5 +1,20 @@
-import type { InternalAxiosRequestConfig, AxiosError } from 'axios';
+import type { InternalAxiosRequestConfig, AxiosError, AxiosResponse } from 'axios';
 import type { ApiError } from '../types/api.types';
+
+type BackendErrorPayload = {
+  message?: string;
+  code?: string;
+  error?: string;
+  timestamp?: string;
+  isAvailable?: boolean;
+  conflicts?: unknown;
+} & Record<string, unknown>;
+
+const isObjectRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
+
+const toBackendErrorPayload = (value: unknown): BackendErrorPayload | null =>
+  isObjectRecord(value) ? (value as BackendErrorPayload) : null;
 
 /**
  * Interceptor de autenticación
@@ -37,14 +52,15 @@ export const errorInterceptor = async (error: AxiosError): Promise<never> => {
 
   // Error HTTP con respuesta del servidor
   const { status, data } = error.response;
+  const payload = toBackendErrorPayload(data);
   
   // Construir ApiError desde respuesta del backend
   const apiError: ApiError = {
-    message: (data as any)?.message || error.message || 'Error desconocido',
+    message: payload?.message || error.message || 'Error desconocido',
     status,
-    code: (data as any)?.code || `HTTP_${status}`,
-    details: (data as any)?.details,
-    timestamp: (data as any)?.timestamp || new Date().toISOString()
+    code: payload?.code || payload?.error || payload?.message || `HTTP_${status}`,
+    details: isObjectRecord(data) ? data : undefined,
+    timestamp: payload?.timestamp || new Date().toISOString()
   };
 
   // Manejo especial de 401 (sesión expirada)
@@ -67,17 +83,17 @@ export const errorInterceptor = async (error: AxiosError): Promise<never> => {
 
   // Manejo especial de 404
   if (status === 404) {
-    apiError.message = (data as any)?.message || 'El recurso solicitado no existe';
+    apiError.message = payload?.message || 'El recurso solicitado no existe';
   }
 
   // Manejo especial de 409 (conflicto)
   if (status === 409) {
-    apiError.message = (data as any)?.message || 'Ya existe un recurso con los mismos datos';
+    apiError.message = payload?.message || 'Ya existe un recurso con los mismos datos';
     
     // ⚠️ IMPORTANTE: Preservar datos originales del backend para conflictos de disponibilidad
     // Si el backend retorna AvailabilityConflictResponse (con isAvailable, conflicts, etc.),
     // lo agregamos al ApiError para que pueda ser extraído posteriormente
-    if (data && typeof data === 'object' && 'isAvailable' in data && 'conflicts' in data) {
+    if (payload?.isAvailable !== undefined && payload.conflicts !== undefined) {
       apiError.details = data;
     }
   }
@@ -103,7 +119,9 @@ export const requestLoggingInterceptor = (
 /**
  * Interceptor de responses para logging (solo en desarrollo)
  */
-export const responseLoggingInterceptor = (response: any) => {
+export const responseLoggingInterceptor = (
+  response: AxiosResponse<unknown>
+): AxiosResponse<unknown> => {
   if (import.meta.env.DEV) {
     console.log(`[API Response] ${response.status} ${response.config.url}`, {
       data: response.data

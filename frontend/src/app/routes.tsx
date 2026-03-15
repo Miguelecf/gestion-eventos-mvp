@@ -6,7 +6,7 @@ import { RoleRoute } from "./RoleRoute";
 
 // Pages
 import { DashboardPage } from "@/features/dashboard/pages/DashboardPage";
-import { ListPage, CalendarPage, DetailPage, NewPage } from "@/features/events/pages";
+import { ListPage, CalendarPage, DetailPage, NewPage, EditPage } from "@/features/events/pages";
 import { PublicRequestsListPage } from "@/features/publicRequests/pages";
 import { SpacesPage, DepartmentsPage } from "@/features/catalogs";
 import { UsersPage } from "@/features/admin/users/pages/UsersPage";
@@ -73,6 +73,12 @@ export const router = createBrowserRouter([
           {
             element: <RoleRoute action="create" subject="Event" />,
             children: [{ path: "/events/new", element: <NewPage /> }],
+          },
+
+          // Edit event (update)
+          {
+            element: <RoleRoute action="update" subject="Event" />,
+            children: [{ path: "/events/:id/edit", element: <EditPage /> }],
           },
 
           // Catalogs (manageCatalogs)

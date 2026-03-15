@@ -11,6 +11,8 @@ import { httpClient } from './client';
 import { ENDPOINTS } from './client/config';
 import type { 
   BackendEventDTO, 
+  BackendEventCreateResult,
+  BackendEventUpdateResult,
   BackendStatusChangeResponse,
   BackendSpaceAvailabilityResponse,
   EventStatus
@@ -40,12 +42,34 @@ export interface EventsQueryParams {
 /**
  * Input para crear un evento (tipo alias para Event parcial)
  */
-export type CreateEventInput = Omit<Event, 'id' | 'version' | 'createdBy' | 'createdAt' | 'lastModifiedAt'>;
+export type CreateEventInput = Partial<Event> & {
+  name: string;
+  date: string;
+  scheduleFrom: string;
+  scheduleTo: string;
+  priority: Event['priority'];
+  internal: boolean;
+  requiresTech: boolean;
+  contactName: string;
+  contactEmail: string;
+  contactPhone: string;
+  audienceType?: Event['audienceType'];
+};
 
 /**
  * Input para actualizar un evento (tipo alias para Event parcial)
  */
 export type UpdateEventInput = Partial<Omit<Event, 'id' | 'createdBy' | 'createdAt'>>;
+export type EventUpdatePatchInput = Omit<
+  UpdateEventInput,
+  'audienceType' | 'techSupportMode' | 'technicalSchedule' | 'spaceId' | 'departmentId'
+> & {
+  audienceType?: Event['audienceType'] | null;
+  techSupportMode?: Event['techSupportMode'] | null;
+  technicalSchedule?: string | null;
+  spaceId?: number | null;
+  departmentId?: number | null;
+};
 
 /**
  * Parámetros para cambiar el estado de un evento
@@ -230,31 +254,23 @@ export async function getEventById(eventId: number): Promise<Event> {
  * });
  */
 export async function createEvent(
-  eventData: Partial<Event> & {
-    name: string;
-    date: string;
-    scheduleFrom: string;
-    scheduleTo: string;
-    priority: Event['priority'];
-    audienceType: Event['audienceType'];
-    internal: boolean;
-    requiresTech: boolean;
-    contactName: string;
-    contactEmail: string;
-    contactPhone: string;
-  }
+  eventData: CreateEventInput
 ): Promise<Event> {
   // 1. Adaptar datos del frontend al formato del backend
   const createDTO = adaptEventForCreate(eventData);
 
   // 2. Enviar al backend
-  const createdEvent = await httpClient.post<BackendEventDTO>(
+  const createdEvent = await httpClient.post<BackendEventCreateResult>(
     ENDPOINTS.EVENTS,
     createDTO
   );
 
-  // 3. Adaptar respuesta
-  return adaptEventFromBackend(createdEvent);
+  // 3. Pedir el evento completo usando el ID retornado por la mutación
+  const backendEvent = await httpClient.get<BackendEventDTO>(
+    ENDPOINTS.EVENT_BY_ID(createdEvent.eventId)
+  );
+
+  return adaptEventFromBackend(backendEvent);
 }
 
 /**
@@ -275,19 +291,23 @@ export async function createEvent(
  */
 export async function updateEvent(
   eventId: number,
-  updates: Partial<Event> & { audienceType?: 'ESTUDIANTES' | 'COMUNIDAD' | 'MIXTO' }
+  updates: EventUpdatePatchInput
 ): Promise<Event> {
   // 1. Adaptar solo los campos modificados
   const updateDTO = adaptEventForUpdate(updates);
 
   // 2. Enviar al backend
-  const updatedEvent = await httpClient.patch<BackendEventDTO>(
+  const updatedEvent = await httpClient.patch<BackendEventUpdateResult>(
     ENDPOINTS.EVENT_BY_ID(eventId),
     updateDTO
   );
 
-  // 3. Adaptar respuesta
-  return adaptEventFromBackend(updatedEvent);
+  // 3. Leer el evento completo ya actualizado
+  const backendEvent = await httpClient.get<BackendEventDTO>(
+    ENDPOINTS.EVENT_BY_ID(updatedEvent.eventId)
+  );
+
+  return adaptEventFromBackend(backendEvent);
 }
 
 /**

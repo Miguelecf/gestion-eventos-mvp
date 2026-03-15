@@ -44,6 +44,8 @@ export {
 // DTOs del Backend
 export type {
   BackendEventDTO,
+  BackendEventCreateResult,
+  BackendEventUpdateResult,
   BackendCreateEventDTO,
   BackendUpdateEventDTO,
   BackendStatusChangeResponse,
@@ -181,18 +183,18 @@ export type {
 
 // Tipos de modelos de dominio
 export type {
-  Department as DepartmentModel,
-  CreateDepartmentInput,
-  UpdateDepartmentInput,
-  DepartmentFilters
-} from '../../models/department';
-
-export type {
-  Space as SpaceModel,
+  Space,
   CreateSpaceInput,
   UpdateSpaceInput,
   SpaceFilters
 } from '../../models/space';
+
+export type {
+  Department,
+  CreateDepartmentInput,
+  UpdateDepartmentInput,
+  DepartmentFilters
+} from '../../models/department';
 
 // ==================== FASE 4: UTILIDADES ====================
 

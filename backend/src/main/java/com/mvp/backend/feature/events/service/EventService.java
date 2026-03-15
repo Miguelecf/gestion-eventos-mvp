@@ -215,6 +215,10 @@ public class EventService {
 
         String effectiveRequestingArea = req.requestingArea() != null ? trimToNull(req.requestingArea())
                 : event.getRequestingArea();
+        String effectiveName = req.name() != null ? trimToNull(req.name()) : event.getName();
+        if (req.name() != null && effectiveName == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "name must not be blank");
+        }
         Priority requestedPriority = req.priority() != null ? req.priority() : event.getPriority();
         Priority derivedPriority = priorityPolicy.derivePriority(effectiveRequestingArea, requestedPriority);
         boolean requiresTech = req.requiresTech() != null ? req.requiresTech() : event.isRequiresTech();
@@ -262,6 +266,7 @@ public class EventService {
         if (req.scheduleTo() != null)
             event.setScheduleTo(req.scheduleTo());
 
+        event.setName(effectiveName);
         event.setRequestingArea(effectiveRequestingArea);
         if (req.requestingArea() != null)
             event.setRequestingArea(trimToNull(req.requestingArea()));

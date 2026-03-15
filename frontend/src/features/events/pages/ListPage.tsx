@@ -24,6 +24,7 @@ import {
   getPriorityBadgeVariant,
   getPriorityLabel,
 } from '@/features/events/utils/status-helpers';
+import { getEditBlockReason } from '@/features/events/utils/edit-event';
 import { toast } from 'sonner';
 import type { Event } from '@/models/event';
 import type { EventStatus } from '@/models/event-status';
@@ -88,6 +89,19 @@ export function ListPage() {
     }
     setEventToDelete(event);
     setDeleteDialogOpen(true);
+  };
+
+  const handleEditClick = (event: Event, e: React.MouseEvent) => {
+    e.stopPropagation();
+
+    if (!canEditEvent(event.status)) {
+      toast.error('No se puede editar', {
+        description: getEditBlockReason(event.status),
+      });
+      return;
+    }
+
+    navigate(`/events/${event.id}/edit`);
   };
 
   const confirmDelete = async () => {
@@ -396,12 +410,8 @@ export function ListPage() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                navigate(`/events/${event.id}`);
-                              }}
-                              disabled={!canEditEvent(event.status)}
-                              title={canEditEvent(event.status) ? 'Editar evento' : 'No se puede editar este evento'}
+                              onClick={(e) => handleEditClick(event, e)}
+                              title={canEditEvent(event.status) ? 'Editar evento' : 'Ver motivo de bloqueo'}
                             >
                               <Edit className="w-4 h-4" />
                             </Button>
@@ -516,18 +526,14 @@ export function ListPage() {
                           <Eye className="w-4 h-4 mr-2" />
                           Ver
                         </Button>
-                        {canEditEvent(event.status) && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              navigate(`/events/${event.id}`);
-                            }}
-                          >
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                        )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => handleEditClick(event, e)}
+                          title={canEditEvent(event.status) ? 'Editar evento' : 'Ver motivo de bloqueo'}
+                        >
+                          <Edit className="w-4 h-4" />
+                        </Button>
                         {canDeleteEvent(event.status) && (
                           <Button
                             variant="outline"

@@ -44,7 +44,7 @@ export function QuickActions() {
           icon={List}
           label="Ver todos los eventos"
           description="Listado completo con búsqueda avanzada"
-          href="/eventos"
+          href="/events"
           variant="primary"
         />
 
@@ -53,7 +53,7 @@ export function QuickActions() {
           icon={CalendarDays}
           label="Abrir calendario del día"
           description="Vista de calendario con fecha de hoy"
-          href={`/calendario?date=${today}`}
+          href={`/calendar?date=${today}`}
           variant="primary"
         />
 
@@ -62,7 +62,7 @@ export function QuickActions() {
           icon={MapPin}
           label="Gestionar espacios"
           description="Catálogo de espacios disponibles"
-          href="/espacios"
+          href="/catalog/spaces"
           variant="secondary"
         />
 
@@ -71,7 +71,7 @@ export function QuickActions() {
           icon={Plus}
           label="Nueva solicitud"
           description="Crear un nuevo evento"
-          href="/eventos/nuevo"
+          href="/events/new"
           variant="accent"
         />
       </CardContent>

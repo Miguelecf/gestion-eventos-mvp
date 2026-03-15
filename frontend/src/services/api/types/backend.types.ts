@@ -172,6 +172,29 @@ export interface BackendEventDTO {
   } | null;
 }
 
+export interface BackendPriorityConflictSummary {
+  conflictCode: string;
+  displacedEventId: number;
+  spaceId: number;
+  fromTime: string;
+  toTime: string;
+  requiresRebooking: boolean;
+}
+
+export interface BackendEventCreateResult {
+  eventId: number;
+  priority: Priority;
+  status: EventStatus;
+  priorityConflicts: BackendPriorityConflictSummary[];
+}
+
+export interface BackendEventUpdateResult {
+  eventId: number;
+  priority: Priority;
+  status: EventStatus;
+  priorityConflicts: BackendPriorityConflictSummary[];
+}
+
 /**
  * DTO para crear Evento
  * Endpoint: POST /api/events
@@ -702,5 +725,5 @@ export interface AvailabilityConflictResponse {
   effectiveFrom: string;           // formato: HH:mm
   effectiveTo: string;             // formato: HH:mm
   conflicts: ConflictItem[];
-  suggestions: any[];
+  suggestions: unknown[];
 }

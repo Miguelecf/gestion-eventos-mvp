@@ -21,7 +21,7 @@
  * ===================================================================
  */
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
@@ -37,6 +37,7 @@ import {
   getStatusDescription,
   canEditEvent,
 } from '@/features/events/utils/status-helpers';
+import { getEditBlockReason } from '@/features/events/utils/edit-event';
 import { formatLocalDate } from '@/utils/dates';
 
 // Types
@@ -80,15 +81,9 @@ import { useTechCapacityStatus } from '@/features/events/hooks/useTechCapacitySt
 export function DetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  
-  // ✅ Validación temprana del ID
-  if (!id || isNaN(parseInt(id, 10))) {
-    toast.error('ID de evento inválido');
-    navigate('/events');
-    return null;
-  }
-  
-  const eventId = parseInt(id, 10);
+  const parsedEventId = id ? parseInt(id, 10) : NaN;
+  const isInvalidEventId = !id || Number.isNaN(parsedEventId);
+  const eventId = isInvalidEventId ? 0 : parsedEventId;
 
   // ============ ESTADO LOCAL ============
   const [event, setEvent] = useState<Event | null>(null);
@@ -118,7 +113,7 @@ export function DetailPage() {
     error: statusError,
   } = useEventStatusManager({
     eventId,
-    autoLoad: true,
+    autoLoad: !isInvalidEventId,
     onStatusChange: (result) => {
       // ✅ NUEVO: Manejar aprobación pendiente
       if (result.approvalPending) {
@@ -158,7 +153,7 @@ export function DetailPage() {
     deleteComment,
     hasMore,
     loadMoreComments,
-  } = useEventComments(eventId);
+  } = useEventComments(eventId, { autoLoad: !isInvalidEventId });
 
   // ✅ NUEVO: Hook para verificar capacidad técnica
   const {
@@ -172,7 +167,11 @@ export function DetailPage() {
   );
 
   // ============ CARGA INICIAL ============
-  const loadEvent = async () => {
+  const loadEvent = useCallback(async () => {
+    if (isInvalidEventId) {
+      return;
+    }
+
     const data = await fetchEventById(eventId);
     if (data) {
       setEvent(data);
@@ -182,11 +181,17 @@ export function DetailPage() {
       });
       navigate('/events');
     }
-  };
+  }, [eventId, fetchEventById, isInvalidEventId, navigate]);
 
   useEffect(() => {
+    if (isInvalidEventId) {
+      toast.error('ID de evento inválido');
+      navigate('/events');
+      return;
+    }
+
     loadEvent();
-  }, [eventId]);
+  }, [isInvalidEventId, loadEvent, navigate]);
 
   // ✅ FIX: Manejar error de permisos una sola vez (no mostrar toast repetido)
   useEffect(() => {
@@ -211,14 +216,12 @@ export function DetailPage() {
 
     if (!canEditEvent(event.status)) {
       toast.error('No se puede editar', {
-        description: 'El evento no puede ser editado en su estado actual',
+        description: getEditBlockReason(event.status),
       });
       return;
     }
 
-    // TODO: Navegar a página de edición cuando esté implementada
-    toast.info('Función de edición próximamente');
-    // navigate(`/events/${eventId}/edit`);
+    navigate(`/events/${eventId}/edit`);
   };
 
   const handleStatusChangeRequest = (targetStatus: EventStatus) => {
@@ -304,7 +307,7 @@ export function DetailPage() {
           <Button
             variant="outline"
             onClick={handleEditClick}
-            disabled={!canEditEvent(event.status)}
+            title={canEditEvent(event.status) ? 'Editar evento' : 'Ver motivo de bloqueo'}
           >
             ✏️ Editar Evento
           </Button>

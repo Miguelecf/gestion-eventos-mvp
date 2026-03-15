@@ -109,7 +109,7 @@ export function AgendaEventCard({ event }: AgendaEventCardProps) {
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => navigate(`/eventos/${event.id}`)}
+          onClick={() => navigate(`/events/${event.id}`)}
           className="hover:bg-slate-100"
         >
           <Eye className="h-4 w-4 mr-2" />
