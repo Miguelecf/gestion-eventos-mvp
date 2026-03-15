@@ -12,6 +12,7 @@ export { useCommentsStore, type CommentsStore } from './comments.store';
 export { useAuditStore, type AuditStore } from './audit.store';
 export { useAvailabilityStore, type AvailabilityStore } from './availability.store';
 export { useCatalogsStore, type CatalogsStore } from './catalogs.store';
+export { usePublicRequestsStore, type PublicRequestsStore } from './publicRequests.store';
 
 // Re-export presets
 export { PRESETS, getPresetConfig, type PresetName } from './presets';

@@ -420,6 +420,9 @@ public class EventRequestService {
         if (current == RequestStatus.RECHAZADO) {
             throw new DomainValidationException("Cannot convert a rejected request");
         }
+        if (current != RequestStatus.EN_REVISION) {
+            throw new DomainValidationException("Only requests in EN_REVISION can be converted");
+        }
 
         // B. Validaciones de fecha y horario
         if (request.getDate() == null) {
@@ -475,7 +478,7 @@ public class EventRequestService {
                 .technicalSchedule(request.getTechnicalSchedule())
                 .scheduleFrom(request.getScheduleFrom())
                 .scheduleTo(request.getScheduleTo())
-                .status(Status.APROBADO)
+                .status(Status.EN_REVISION)
                 .name(request.getName())
                 .space(request.getSpace())
                 .freeLocation(request.getFreeLocation())
@@ -503,7 +506,7 @@ public class EventRequestService {
                 .type(HistoryType.STATUS)
                 .field("status")
                 .fromValue(null)
-                .toValue(Status.APROBADO.name())
+                .toValue(Status.EN_REVISION.name())
                 .build());
 
         String fromStatus = request.getStatus().name();

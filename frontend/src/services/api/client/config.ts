@@ -98,6 +98,10 @@ export const ENDPOINTS = {
   // ================ SOLICITUDES PÚBLICAS ================
   PUBLIC_EVENT_REQUESTS: '/public/event-requests', // POST
   PUBLIC_TRACK: (trackingUuid: string) => `/public/track/${trackingUuid}`,
+  ADMIN_EVENT_REQUESTS: '/admin/event-requests',
+  ADMIN_EVENT_REQUEST_BY_ID: (id: number) => `/admin/event-requests/${id}`,
+  ADMIN_EVENT_REQUEST_STATUS: (id: number) => `/admin/event-requests/${id}/status`,
+  ADMIN_EVENT_REQUEST_CONVERT: (id: number) => `/admin/event-requests/${id}/convert-to-event`,
 } as const;
 
 /**

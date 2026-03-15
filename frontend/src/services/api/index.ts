@@ -169,7 +169,9 @@ export type {
 // SDK de Solicitudes Públicas
 export { publicRequestsApi } from './publicRequests.api';
 export type {
-  PublicSpacesFilters
+  ChangeAdminRequestStatusInput,
+  PublicSpacesFilters,
+  RequestConversionResult,
 } from './publicRequests.api';
 export type {
   PublicEventRequestPayload,

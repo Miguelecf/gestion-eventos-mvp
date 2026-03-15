@@ -1,160 +1,64 @@
-/**
- * ===================================================================
- * PUBLIC REQUESTS STORE - Integración con SDK
- * ===================================================================
- * Store de Zustand que integra publicRequestsApi SDK para gestión de solicitudes
- * ===================================================================
- */
-
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import type { StateCreator } from 'zustand';
-import { publicRequestsApi } from '@/services/api/publicRequests.api';
+import { handleApiError, logError } from '@/services/api';
+import {
+  publicRequestsApi,
+  type RequestConversionResult,
+} from '@/services/api/publicRequests.api';
 import type {
+  PaginationState,
   PublicEventRequest,
   PublicRequestFilters,
-  PaginationState,
+  PublicRequestStatus,
 } from '@/models/public-request';
 
-// ==================== TIPOS ====================
-
-/**
- * Estado de carga async
- */
 export interface LoadingState {
   requests: boolean;
   detail: boolean;
+  action: boolean;
 }
 
-/**
- * Estado de errores
- */
 export interface ErrorState {
   requests: string | null;
   detail: string | null;
+  action: string | null;
 }
 
-/**
- * Store completo de solicitudes públicas
- */
+export interface FetchRequestsParams {
+  page?: number;
+  size?: number;
+  search?: string;
+  sort?: string;
+}
+
 export interface PublicRequestsStore {
-  // ==================== DATOS ====================
-  
-  /**
-   * Lista de solicitudes (página actual)
-   */
   requests: PublicEventRequest[];
-  
-  /**
-   * Solicitud seleccionada (para detalle)
-   */
   selectedRequest: PublicEventRequest | null;
-  
-  // ==================== ESTADO UI ====================
-  
-  /**
-   * Filtros actuales
-   */
   filters: PublicRequestFilters;
-  
-  /**
-   * Paginación
-   */
   pagination: PaginationState;
-  
-  /**
-   * Campo de ordenamiento
-   */
-  sortField: string;
-  
-  /**
-   * Dirección de ordenamiento
-   */
-  sortDirection: 'asc' | 'desc';
-  
-  // ==================== ESTADO ASYNC ====================
-  
-  /**
-   * Estados de carga
-   */
+  sort: string;
   loading: LoadingState;
-  
-  /**
-   * Errores
-   */
   errors: ErrorState;
-  
-  /**
-   * Timestamp de última actualización
-   */
   lastFetch: number | null;
-  
-  // ==================== ACCIONES SDK ====================
-  
-  /**
-   * Obtener lista de solicitudes con filtros actuales
-   */
-  fetchRequests: (forceRefresh?: boolean) => Promise<void>;
-  
-  /**
-   * Obtener solicitud por ID
-   */
+  fetchRequests: (params?: FetchRequestsParams) => Promise<void>;
   fetchRequestById: (id: number) => Promise<PublicEventRequest | null>;
-  
-  // ==================== ACCIONES UI ====================
-  
-  /**
-   * Actualizar filtros
-   */
+  changeRequestStatus: (
+    id: number,
+    to: Extract<PublicRequestStatus, 'EN_REVISION' | 'RECHAZADO'>,
+    reason?: string
+  ) => Promise<PublicEventRequest | null>;
+  convertRequestToEvent: (id: number) => Promise<RequestConversionResult | null>;
   setFilters: (filters: Partial<PublicRequestFilters>) => void;
-  
-  /**
-   * Limpiar filtros
-   */
-  clearFilters: () => void;
-  
-  /**
-   * Cambiar página
-   */
-  setPage: (page: number) => void;
-  
-  /**
-   * Cambiar tamaño de página
-   */
-  setPageSize: (size: number) => void;
-  
-  /**
-   * Cambiar ordenamiento
-   */
-  setSort: (field: string, direction: 'asc' | 'desc') => void;
-  
-  /**
-   * Seleccionar solicitud
-   */
-  selectRequest: (request: PublicEventRequest | null) => void;
-  
-  /**
-   * Limpiar errores
-   */
+  setPagination: (pagination: Partial<Pick<PaginationState, 'page' | 'pageSize'>>) => void;
+  setSort: (sort: string) => void;
+  clearSelectedRequest: () => void;
   clearErrors: () => void;
-  
-  /**
-   * Reset completo del store
-   */
   reset: () => void;
 }
 
-// ==================== ESTADO INICIAL ====================
-
 const initialFilters: PublicRequestFilters = {
-  search: undefined,
-  status: ['RECIBIDO', 'EN_REVISION'], // Por defecto: mostrar nuevas y en revisión
-  dateFrom: undefined,
-  dateTo: undefined,
-  requiresTech: undefined,
-  audienceType: undefined,
-  spaceIds: undefined,
-  departmentIds: undefined,
+  search: '',
 };
 
 const initialPagination: PaginationState = {
@@ -167,189 +71,233 @@ const initialPagination: PaginationState = {
 const initialLoading: LoadingState = {
   requests: false,
   detail: false,
+  action: false,
 };
 
 const initialErrors: ErrorState = {
   requests: null,
   detail: null,
+  action: null,
 };
 
-// ==================== HELPERS ====================
-
-/**
- * Construye el query string para ordenamiento
- */
-function buildSortQuery(field: string, direction: 'asc' | 'desc'): string {
-  return `${field},${direction}`;
-}
-
-/**
- * Maneja errores de API y los convierte a string
- */
-function handleError(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-  return 'Error desconocido';
-}
-
-// ==================== STORE ====================
-
-const storeCreator: StateCreator<PublicRequestsStore> = (set, get) => ({
-  // ==================== ESTADO INICIAL ====================
-  
+const initialState = {
   requests: [],
   selectedRequest: null,
   filters: initialFilters,
   pagination: initialPagination,
-  sortField: 'requestDate',
-  sortDirection: 'desc',
+  sort: 'requestDate,desc',
   loading: initialLoading,
   errors: initialErrors,
   lastFetch: null,
-  
-  // ==================== ACCIONES SDK ====================
-  
-  fetchRequests: async (forceRefresh = false) => {
-    const { filters, pagination, sortField, sortDirection, lastFetch } = get();
-    
-    // Caché simple: no refetch si fue hace menos de 30s
-    if (!forceRefresh && lastFetch && Date.now() - lastFetch < 30000) {
-      return;
+};
+
+const createPublicRequestsStore: StateCreator<PublicRequestsStore> = (set, get) => ({
+  ...initialState,
+
+  fetchRequests: async (params) => {
+    const currentFilters = get().filters;
+    const currentPagination = get().pagination;
+    const nextSearch =
+      params?.search !== undefined ? params.search : currentFilters.search || '';
+    const nextPage = params?.page ?? currentPagination.page;
+    const nextPageSize = params?.size ?? currentPagination.pageSize;
+    const nextSort = params?.sort ?? get().sort;
+
+    if (params) {
+      set((state) => ({
+        filters: {
+          ...state.filters,
+          ...(params.search !== undefined ? { search: params.search } : {}),
+        },
+        pagination: {
+          ...state.pagination,
+          ...(params.page !== undefined ? { page: params.page } : {}),
+          ...(params.size !== undefined ? { pageSize: params.size } : {}),
+        },
+        ...(params.sort !== undefined ? { sort: params.sort } : {}),
+      }));
     }
-    
+
     set((state) => ({
       loading: { ...state.loading, requests: true },
       errors: { ...state.errors, requests: null },
     }));
-    
+
     try {
-      const response = await publicRequestsApi.getPublicRequests({
-        page: pagination.page,
-        size: pagination.pageSize,
-        sort: buildSortQuery(sortField, sortDirection),
-        search: filters.search,
-        status: filters.status?.join(','),
-        dateFrom: filters.dateFrom,
-        dateTo: filters.dateTo,
-        requiresTech: filters.requiresTech,
+      const response = await publicRequestsApi.listAdminRequests({
+        page: nextPage,
+        size: nextPageSize,
+        search: nextSearch || undefined,
+        sort: nextSort,
       });
-      
-      set({
+
+      set((state) => ({
         requests: response.content,
         pagination: {
+          ...state.pagination,
           page: response.page.number,
           pageSize: response.page.size,
           totalElements: response.page.totalElements,
           totalPages: response.page.totalPages,
         },
+        sort: nextSort,
         lastFetch: Date.now(),
-        loading: { ...get().loading, requests: false },
-      });
+        loading: { ...state.loading, requests: false },
+      }));
     } catch (error) {
-      set({
-        loading: { ...get().loading, requests: false },
-        errors: { ...get().errors, requests: handleError(error) },
-      });
+      logError(error, 'PublicRequestsStore.fetchRequests');
+      const apiError = handleApiError(error);
+
+      set((state) => ({
+        requests: [],
+        loading: { ...state.loading, requests: false },
+        errors: { ...state.errors, requests: apiError.message },
+      }));
     }
   },
-  
-  fetchRequestById: async (id: number) => {
+
+  fetchRequestById: async (id) => {
     set((state) => ({
       loading: { ...state.loading, detail: true },
       errors: { ...state.errors, detail: null },
     }));
-    
+
     try {
-      const request = await publicRequestsApi.getPublicRequestById(id);
-      
-      set({
+      const request = await publicRequestsApi.getAdminRequestById(id);
+
+      set((state) => ({
         selectedRequest: request,
-        loading: { ...get().loading, detail: false },
-      });
-      
+        loading: { ...state.loading, detail: false },
+      }));
+
       return request;
     } catch (error) {
-      set({
-        loading: { ...get().loading, detail: false },
-        errors: { ...get().errors, detail: handleError(error) },
-      });
+      logError(error, 'PublicRequestsStore.fetchRequestById');
+      const apiError = handleApiError(error);
+
+      set((state) => ({
+        selectedRequest: null,
+        loading: { ...state.loading, detail: false },
+        errors: { ...state.errors, detail: apiError.message },
+      }));
+
       return null;
     }
   },
-  
-  // ==================== ACCIONES UI ====================
-  
-  setFilters: (newFilters) => {
+
+  changeRequestStatus: async (id, to, reason) => {
     set((state) => ({
-      filters: { ...state.filters, ...newFilters },
-      pagination: { ...state.pagination, page: 0 }, // Reset a página 1
+      loading: { ...state.loading, action: true },
+      errors: { ...state.errors, action: null },
     }));
-    
-    // Auto-fetch cuando cambian filtros
-    get().fetchRequests(true);
+
+    try {
+      const updatedRequest = await publicRequestsApi.changeAdminRequestStatus(id, {
+        newStatus: to,
+        ...(reason ? { reason } : {}),
+      });
+
+      set((state) => ({
+        selectedRequest: updatedRequest,
+        // Technical debt:
+        // While the listing depends on /public/event-requests, rejected/converted
+        // requests disappear from the source dataset. Revisit this once
+        // GET /admin/event-requests exists.
+        requests:
+          updatedRequest.status === 'RECHAZADO' || updatedRequest.status === 'CONVERTIDO'
+            ? state.requests.filter((request) => request.id !== id)
+            : state.requests.map((request) => (
+                request.id === id ? updatedRequest : request
+              )),
+        loading: { ...state.loading, action: false },
+      }));
+
+      return updatedRequest;
+    } catch (error) {
+      logError(error, 'PublicRequestsStore.changeRequestStatus');
+      const apiError = handleApiError(error);
+
+      set((state) => ({
+        loading: { ...state.loading, action: false },
+        errors: { ...state.errors, action: apiError.message },
+      }));
+
+      return null;
+    }
   },
-  
-  clearFilters: () => {
-    set({
-      filters: initialFilters,
-      pagination: { ...get().pagination, page: 0 },
-    });
-    
-    get().fetchRequests(true);
-  },
-  
-  setPage: (page) => {
+
+  convertRequestToEvent: async (id) => {
     set((state) => ({
-      pagination: { ...state.pagination, page },
+      loading: { ...state.loading, action: true },
+      errors: { ...state.errors, action: null },
     }));
-    
-    get().fetchRequests(true);
+
+    try {
+      const result = await publicRequestsApi.convertAdminRequestToEvent(id);
+
+      set((state) => ({
+        selectedRequest: state.selectedRequest?.id === id
+          ? {
+              ...state.selectedRequest,
+              status: 'CONVERTIDO',
+              convertedEventId: result.eventId,
+            }
+          : state.selectedRequest,
+        // Technical debt:
+        // The current listing still comes from /public/event-requests, which only
+        // returns active requests. Revisit this removal strategy when /admin/event-requests
+        // becomes available and the grid can show RECHAZADO / CONVERTIDO items.
+        requests: state.requests.filter((request) => request.id !== id),
+        loading: { ...state.loading, action: false },
+      }));
+
+      return result;
+    } catch (error) {
+      logError(error, 'PublicRequestsStore.convertRequestToEvent');
+      const apiError = handleApiError(error);
+
+      set((state) => ({
+        loading: { ...state.loading, action: false },
+        errors: { ...state.errors, action: apiError.message },
+      }));
+
+      return null;
+    }
   },
-  
-  setPageSize: (size) => {
+
+  setFilters: (filters) => {
     set((state) => ({
-      pagination: { ...state.pagination, pageSize: size, page: 0 },
+      filters: { ...state.filters, ...filters },
+      pagination: { ...state.pagination, page: 0 },
     }));
-    
-    get().fetchRequests(true);
   },
-  
-  setSort: (field, direction) => {
-    set({
-      sortField: field,
-      sortDirection: direction,
-      pagination: { ...get().pagination, page: 0 },
-    });
-    
-    get().fetchRequests(true);
+
+  setPagination: (pagination) => {
+    set((state) => ({
+      pagination: { ...state.pagination, ...pagination },
+    }));
   },
-  
-  selectRequest: (request) => {
-    set({ selectedRequest: request });
+
+  setSort: (sort) => {
+    set((state) => ({
+      sort,
+      pagination: { ...state.pagination, page: 0 },
+    }));
   },
-  
+
+  clearSelectedRequest: () => {
+    set({ selectedRequest: null });
+  },
+
   clearErrors: () => {
     set({ errors: initialErrors });
   },
-  
+
   reset: () => {
-    set({
-      requests: [],
-      selectedRequest: null,
-      filters: initialFilters,
-      pagination: initialPagination,
-      sortField: 'requestDate',
-      sortDirection: 'desc',
-      loading: initialLoading,
-      errors: initialErrors,
-      lastFetch: null,
-    });
+    set(initialState);
   },
 });
 
-// ==================== EXPORT ====================
-
 export const usePublicRequestsStore = create<PublicRequestsStore>()(
-  devtools(storeCreator, { name: 'PublicRequestsStore' })
+  devtools(createPublicRequestsStore, { name: 'PublicRequestsStore' })
 );

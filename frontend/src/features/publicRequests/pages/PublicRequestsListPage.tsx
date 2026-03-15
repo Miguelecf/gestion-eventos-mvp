@@ -1,424 +1,205 @@
-import { useState, useEffect } from 'react';
-import { Search, RefreshCcw, Eye, Building2, MapPin } from 'lucide-react';
-import { usePublicRequestsStore } from '@/store/publicRequests.store';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useEffect, useState } from 'react';
+import { Building2, Eye, MapPin, RefreshCcw, Search } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { AppBreadcrumbs } from '@/components/breadcrumbs';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import {
-  getRequestStatusBadgeVariant,
-  getRequestStatusLabel,
-  getRequestStatusColor,
-  getRequestStatusDescription,
-  getTechSupportLabel,
-  getTechSupportColor,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { usePublicRequestsStore } from '@/store/publicRequests.store';
+import {
   getAudienceTypeLabel,
+  getRequestLocationHint,
+  type PublicEventRequest,
 } from '@/models/public-request';
-import type { PublicEventRequest, PublicRequestStatus } from '@/models/public-request';
+import { formatLocalDate } from '@/utils/dates';
+import { PublicRequestStatusBadge } from '@/features/publicRequests/components';
 
 export function PublicRequestsListPage() {
+  const navigate = useNavigate();
   const {
     requests,
-    pagination,
     filters,
+    pagination,
     loading,
     errors,
     fetchRequests,
     setFilters,
-    setPage,
-    setPageSize,
+    setPagination,
   } = usePublicRequestsStore();
 
-  const [searchQuery, setSearchQuery] = useState(filters.search || '');
+  const [searchValue, setSearchValue] = useState(filters.search || '');
 
-  // Carga inicial
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      const normalizedSearch = searchValue.trim();
+      const currentSearch = filters.search?.trim() || '';
+
+      if (normalizedSearch !== currentSearch) {
+        setFilters({ search: normalizedSearch });
+      }
+    }, 350);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [filters.search, searchValue, setFilters]);
+
   useEffect(() => {
     fetchRequests();
-  }, [fetchRequests]);
+  }, [fetchRequests, filters.search, pagination.page, pagination.pageSize]);
 
-  // Debounce búsqueda
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (searchQuery !== filters.search) {
-        setFilters({ search: searchQuery });
-      }
-    }, 500);
-
-    return () => clearTimeout(timer);
-  }, [searchQuery, filters.search, setFilters]);
-
-  const handleStatusFilterChange = (value: string) => {
-    if (value === 'all') {
-      setFilters({ status: undefined });
-    } else if (value === 'nuevas') {
-      setFilters({ status: ['NUEVA', 'EN_REVISION'] });
-    } else {
-      setFilters({ status: [value as PublicRequestStatus] });
-    }
+  const handleRefresh = () => {
+    fetchRequests();
   };
 
-  const handleViewClick = (request: PublicEventRequest, e: React.MouseEvent) => {
-    e.stopPropagation();
-    // TODO: Implementar navegación al detalle cuando esté disponible
-    console.log('Ver solicitud:', request.id);
+  const handleView = (requestId: number) => {
+    navigate(`/solicitudes/${requestId}`);
   };
 
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr + 'T00:00:00');
-    return date.toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: 'numeric' });
-  };
-
-  const isNewRequest = (request: PublicEventRequest) => {
-    return request.status === 'NUEVA';
-  };
+  const currentPageLabel = pagination.totalPages === 0 ? 0 : pagination.page + 1;
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
-      {/* Header */}
+    <div className="container mx-auto space-y-6 py-6">
       <div className="space-y-4">
         <AppBreadcrumbs />
-        
-        <div className="flex items-start justify-between">
+
+        <div className="flex items-start justify-between gap-4">
           <div className="space-y-1">
-            <h1 className="text-3xl font-bold tracking-tight">Solicitudes de Eventos</h1>
+            <h1 className="text-3xl font-bold tracking-tight">Solicitudes</h1>
             <p className="text-muted-foreground">
-              Gestión de solicitudes públicas de eventos. Revisá, aprobá o rechazá nuevas peticiones.
+              Bandeja administrativa de solicitudes recibidas para revisión y conversión a evento.
             </p>
           </div>
         </div>
       </div>
 
-      {/* Toolbar: Filtros */}
       <Card>
         <CardContent className="pt-6">
           <div className="flex flex-col gap-4 md:flex-row md:items-center">
-            {/* Buscador */}
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Buscar por nombre, solicitante o email..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                value={searchValue}
+                onChange={(event) => setSearchValue(event.target.value)}
+                placeholder="Buscar por solicitud, tracking, solicitante o email..."
                 className="pl-10"
               />
             </div>
 
-            {/* Filtro Estado */}
-            <Select
-              value={
-                !filters.status
-                  ? 'all'
-                  : filters.status.length === 2 && filters.status.includes('NUEVA') && filters.status.includes('EN_REVISION')
-                  ? 'nuevas'
-                  : filters.status[0]
-              }
-              onValueChange={handleStatusFilterChange}
-            >
-              <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="Estado" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="nuevas">Nuevas + En revisión</SelectItem>
-                <SelectItem value="all">Todos los estados</SelectItem>
-                <SelectItem value="NUEVA">Nueva</SelectItem>
-                <SelectItem value="EN_REVISION">En Revisión</SelectItem>
-                <SelectItem value="CONVERTIDA">Convertida</SelectItem>
-                <SelectItem value="RECHAZADA">Rechazada</SelectItem>
-              </SelectContent>
-            </Select>
-
-            {/* Select Mostrar */}
             <Select
               value={String(pagination.pageSize)}
-              onValueChange={(v) => setPageSize(Number(v))}
+              onValueChange={(value) => setPagination({ pageSize: Number(value), page: 0 })}
             >
-              <SelectTrigger className="w-[120px]">
+              <SelectTrigger className="w-full md:w-[130px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="10">Mostrar 10</SelectItem>
-                <SelectItem value="25">Mostrar 25</SelectItem>
-                <SelectItem value="50">Mostrar 50</SelectItem>
+                <SelectItem value="10">10 por página</SelectItem>
+                <SelectItem value="20">20 por página</SelectItem>
+                <SelectItem value="50">50 por página</SelectItem>
               </SelectContent>
             </Select>
 
-            {/* Botón Refrescar */}
             <Button
+              type="button"
               variant="outline"
               size="icon"
-              onClick={() => fetchRequests(true)}
+              onClick={handleRefresh}
               disabled={loading.requests}
             >
-              <RefreshCcw className={`w-4 h-4 ${loading.requests ? 'animate-spin' : ''}`} />
+              <RefreshCcw className={`h-4 w-4 ${loading.requests ? 'animate-spin' : ''}`} />
             </Button>
           </div>
         </CardContent>
       </Card>
 
-      {/* Error */}
-      {errors.requests && (
+      {errors.requests ? (
         <Card className="border-destructive">
-          <CardContent className="pt-6">
-            <p className="text-sm text-destructive">{errors.requests}</p>
+          <CardContent className="flex flex-col gap-4 pt-6 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="font-medium text-destructive">No se pudieron cargar las solicitudes</p>
+              <p className="text-sm text-muted-foreground">{errors.requests}</p>
+            </div>
+            <Button variant="outline" onClick={handleRefresh}>
+              Reintentar
+            </Button>
           </CardContent>
         </Card>
-      )}
+      ) : null}
 
-      {/* Tabla */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-4">
             <div>
-              <CardTitle>Solicitudes Públicas</CardTitle>
+              <CardTitle>Solicitudes recibidas</CardTitle>
               <CardDescription>
-                {pagination.totalElements} solicitudes en total
+                {pagination.totalElements} solicitudes visibles en la bandeja actual
               </CardDescription>
             </div>
           </div>
         </CardHeader>
+
         <CardContent>
           {loading.requests && requests.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              Cargando solicitudes...
-            </div>
+            <div className="py-14 text-center text-muted-foreground">Cargando solicitudes...</div>
           ) : requests.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              No se encontraron solicitudes con los filtros aplicados
+            <div className="py-14 text-center">
+              <p className="font-medium">No hay solicitudes para mostrar.</p>
+              <p className="text-sm text-muted-foreground">
+                Ajustá la búsqueda o refrescá la bandeja para volver a consultar.
+              </p>
             </div>
           ) : (
             <>
-              {/* Tabla Desktop */}
-              <div className="hidden md:block overflow-x-auto">
+              <div className="hidden overflow-x-auto md:block">
                 <table className="w-full">
                   <thead className="border-b">
                     <tr className="text-left text-sm font-medium text-muted-foreground">
                       <th className="pb-3 pr-4">Fecha y horario</th>
-                      <th className="pb-3 pr-4">Evento</th>
+                      <th className="pb-3 pr-4">Evento / Solicitud</th>
                       <th className="pb-3 pr-4">Ubicación</th>
                       <th className="pb-3 pr-4">Solicitante</th>
-                      <th className="pb-3 pr-4">Técnica</th>
                       <th className="pb-3 pr-4">Estado</th>
                       <th className="pb-3">Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
                     {requests.map((request) => (
-                      <tr
+                      <RequestTableRow
                         key={request.id}
-                        className={`border-b last:border-0 hover:bg-muted/50 cursor-pointer ${
-                          isNewRequest(request) ? 'border-l-4 border-l-blue-500' : ''
-                        }`}
-                        onClick={() => handleViewClick(request, {} as React.MouseEvent)}
-                      >
-                        {/* Fecha y horario */}
-                        <td className="py-4 pr-4">
-                          <div className="space-y-0.5">
-                            <div className="font-semibold">{formatDate(request.date)}</div>
-                            <div className="text-sm text-muted-foreground">
-                              {request.scheduleFrom} – {request.scheduleTo}
-                            </div>
-                          </div>
-                        </td>
-
-                        {/* Evento */}
-                        <td className="py-4 pr-4">
-                          <div className="space-y-0.5">
-                            <div className="font-medium max-w-[250px] truncate" title={request.name}>
-                              {request.name}
-                            </div>
-                            <div className="text-sm text-muted-foreground">
-                              Audiencia: {getAudienceTypeLabel(request.audienceType)}
-                            </div>
-                          </div>
-                        </td>
-
-                        {/* Ubicación */}
-                        <td className="py-4 pr-4">
-                          <div className="flex items-start gap-2">
-                            {request.space ? (
-                              <>
-                                <Building2 className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
-                                <div className="min-w-0">
-                                  <div className="text-sm max-w-[150px] truncate" title={request.space.name}>
-                                    {request.space.name}
-                                  </div>
-                                  <div className="text-xs text-muted-foreground">Espacio UNLa</div>
-                                </div>
-                              </>
-                            ) : request.freeLocation ? (
-                              <>
-                                <MapPin className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
-                                <div className="min-w-0">
-                                  <div className="text-sm max-w-[150px] truncate" title={request.freeLocation}>
-                                    {request.freeLocation}
-                                  </div>
-                                  <div className="text-xs text-muted-foreground">Otra ubicación</div>
-                                </div>
-                              </>
-                            ) : (
-                              <span className="text-sm text-muted-foreground">—</span>
-                            )}
-                          </div>
-                        </td>
-
-                        {/* Solicitante */}
-                        <td className="py-4 pr-4">
-                          <div className="space-y-0.5">
-                            <div className="text-sm font-medium">{request.contactName}</div>
-                            <div className="text-xs text-muted-foreground max-w-[180px] truncate" title={request.contactEmail}>
-                              {request.contactEmail}
-                            </div>
-                            {request.requestingDepartment && (
-                              <div className="text-xs text-muted-foreground">
-                                {request.requestingDepartment.name}
-                              </div>
-                            )}
-                          </div>
-                        </td>
-
-                        {/* Técnica */}
-                        <td className="py-4 pr-4">
-                          <Badge
-                            variant="outline"
-                            className={getTechSupportColor(request.requiresTech, request.techSupportMode)}
-                            title={getTechSupportLabel(request.requiresTech, request.techSupportMode)}
-                          >
-                            {request.requiresTech ? (
-                              request.techSupportMode === 'SETUP_ONLY' ? '🔧 Montaje' :
-                              request.techSupportMode === 'FULL_SUPPORT' ? '⚡ Acompañamiento' :
-                              '🎚 Técnica'
-                            ) : (
-                              'Sin técnica'
-                            )}
-                          </Badge>
-                        </td>
-
-                        {/* Estado */}
-                        <td className="py-4 pr-4">
-                          <Badge
-                            variant={getRequestStatusBadgeVariant(request.status)}
-                            className={getRequestStatusColor(request.status)}
-                            title={getRequestStatusDescription(request.status)}
-                          >
-                            {getRequestStatusLabel(request.status)}
-                          </Badge>
-                        </td>
-
-                        {/* Acciones */}
-                        <td className="py-4">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={(e) => handleViewClick(request, e)}
-                            title="Ver detalle"
-                          >
-                            <Eye className="w-4 h-4 mr-2" />
-                            Ver
-                          </Button>
-                        </td>
-                      </tr>
+                        request={request}
+                        onView={handleView}
+                      />
                     ))}
                   </tbody>
                 </table>
               </div>
 
-              {/* Cards Mobile */}
-              <div className="md:hidden space-y-4">
+              <div className="space-y-4 md:hidden">
                 {requests.map((request) => (
-                  <Card
+                  <RequestMobileCard
                     key={request.id}
-                    className={`cursor-pointer hover:bg-muted/50 ${
-                      isNewRequest(request) ? 'border-l-4 border-l-blue-500' : ''
-                    }`}
-                    onClick={() => handleViewClick(request, {} as React.MouseEvent)}
-                  >
-                    <CardContent className="pt-6 space-y-3">
-                      {/* Header */}
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="font-semibold text-base">{request.name}</div>
-                        <Badge
-                          variant={getRequestStatusBadgeVariant(request.status)}
-                          className={`${getRequestStatusColor(request.status)} flex-shrink-0`}
-                        >
-                          {getRequestStatusLabel(request.status)}
-                        </Badge>
-                      </div>
-
-                      {/* Info principal */}
-                      <div className="text-sm space-y-2">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">{formatDate(request.date)}</span>
-                          <span className="text-muted-foreground">
-                            {request.scheduleFrom} – {request.scheduleTo}
-                          </span>
-                        </div>
-
-                        {request.space || request.freeLocation ? (
-                          <div className="flex items-center gap-2 text-muted-foreground">
-                            {request.space ? (
-                              <>
-                                <Building2 className="w-4 h-4" />
-                                <span>{request.space.name}</span>
-                              </>
-                            ) : (
-                              <>
-                                <MapPin className="w-4 h-4" />
-                                <span>{request.freeLocation}</span>
-                              </>
-                            )}
-                          </div>
-                        ) : null}
-
-                        <div className="text-muted-foreground">
-                          <span className="font-medium text-foreground">{request.contactName}</span>
-                          <br />
-                          {request.contactEmail}
-                        </div>
-                      </div>
-
-                      {/* Badges */}
-                      <div className="flex flex-wrap gap-2">
-                        <Badge variant="outline">
-                          {getAudienceTypeLabel(request.audienceType)}
-                        </Badge>
-                        <Badge
-                          variant="outline"
-                          className={getTechSupportColor(request.requiresTech, request.techSupportMode)}
-                        >
-                          {getTechSupportLabel(request.requiresTech, request.techSupportMode)}
-                        </Badge>
-                      </div>
-
-                      {/* Acciones */}
-                      <div className="flex items-center gap-2 pt-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={(e) => handleViewClick(request, e)}
-                          className="flex-1"
-                        >
-                          <Eye className="w-4 h-4 mr-2" />
-                          Ver detalle
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
+                    request={request}
+                    onView={handleView}
+                  />
                 ))}
               </div>
 
-              {/* Paginación */}
-              <div className="flex items-center justify-between pt-4 mt-4 border-t">
-                <div className="text-sm text-muted-foreground">
-                  Página {pagination.page + 1} de {pagination.totalPages} · {pagination.totalElements} solicitudes
-                </div>
+              <div className="mt-4 flex flex-col gap-3 border-t pt-4 md:flex-row md:items-center md:justify-between">
+                <p className="text-sm text-muted-foreground">
+                  Página {currentPageLabel} de {pagination.totalPages} · {pagination.totalElements} solicitudes
+                </p>
 
                 <div className="flex items-center gap-2">
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setPage(pagination.page - 1)}
+                    onClick={() => setPagination({ page: pagination.page - 1 })}
                     disabled={pagination.page === 0 || loading.requests}
                   >
                     Anterior
@@ -426,8 +207,12 @@ export function PublicRequestsListPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setPage(pagination.page + 1)}
-                    disabled={pagination.page >= pagination.totalPages - 1 || loading.requests}
+                    onClick={() => setPagination({ page: pagination.page + 1 })}
+                    disabled={
+                      loading.requests ||
+                      pagination.totalPages === 0 ||
+                      pagination.page >= pagination.totalPages - 1
+                    }
                   >
                     Siguiente
                   </Button>
@@ -439,4 +224,162 @@ export function PublicRequestsListPage() {
       </Card>
     </div>
   );
+}
+
+interface RequestRowProps {
+  request: PublicEventRequest;
+  onView: (requestId: number) => void;
+}
+
+function RequestTableRow({ request, onView }: RequestRowProps) {
+  return (
+    <tr
+      className="cursor-pointer border-b last:border-0 hover:bg-muted/50"
+      onClick={() => onView(request.id)}
+    >
+      <td className="py-4 pr-4">
+        <div className="space-y-0.5">
+          <div className="font-semibold">
+            {formatLocalDate(request.date, {
+              day: 'numeric',
+              month: 'short',
+              year: 'numeric',
+            })}
+          </div>
+          <div className="text-sm text-muted-foreground">
+            {request.scheduleFrom} - {request.scheduleTo}
+          </div>
+        </div>
+      </td>
+
+      <td className="py-4 pr-4">
+        <div className="space-y-0.5">
+          <div className="max-w-[260px] truncate font-medium" title={request.name}>
+            {request.name}
+          </div>
+          <div className="text-sm text-muted-foreground">
+            Audiencia: {getAudienceTypeLabel(request.audienceType)}
+          </div>
+        </div>
+      </td>
+
+      <td className="py-4 pr-4">
+        <RequestLocation request={request} />
+      </td>
+
+      <td className="py-4 pr-4">
+        <div className="space-y-0.5">
+          <div className="text-sm font-medium">{request.contactName}</div>
+          <div className="max-w-[220px] truncate text-xs text-muted-foreground" title={request.contactEmail}>
+            {request.contactEmail}
+          </div>
+          {request.requestingDepartment ? (
+            <div className="text-xs text-muted-foreground">{request.requestingDepartment.name}</div>
+          ) : null}
+        </div>
+      </td>
+
+      <td className="py-4 pr-4">
+        <PublicRequestStatusBadge status={request.status} />
+      </td>
+
+      <td className="py-4">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={(event) => {
+            event.stopPropagation();
+            onView(request.id);
+          }}
+        >
+          <Eye className="mr-2 h-4 w-4" />
+          Ver
+        </Button>
+      </td>
+    </tr>
+  );
+}
+
+function RequestMobileCard({ request, onView }: RequestRowProps) {
+  return (
+    <Card className="cursor-pointer hover:bg-muted/50" onClick={() => onView(request.id)}>
+      <CardContent className="space-y-3 pt-6">
+        <div className="flex items-start justify-between gap-3">
+          <div className="space-y-1">
+            <div className="font-semibold">{request.name}</div>
+            <div className="text-sm text-muted-foreground">
+              {formatLocalDate(request.date, {
+                day: 'numeric',
+                month: 'short',
+                year: 'numeric',
+              })}
+              {' · '}
+              {request.scheduleFrom} - {request.scheduleTo}
+            </div>
+          </div>
+          <PublicRequestStatusBadge status={request.status} className="shrink-0" />
+        </div>
+
+        <div className="space-y-2 text-sm">
+          <RequestLocation request={request} />
+          <div className="text-muted-foreground">
+            <span className="font-medium text-foreground">{request.contactName}</span>
+            <br />
+            {request.contactEmail}
+          </div>
+          <div className="text-muted-foreground">
+            Audiencia: {getAudienceTypeLabel(request.audienceType)}
+          </div>
+        </div>
+
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full"
+          onClick={(event) => {
+            event.stopPropagation();
+            onView(request.id);
+          }}
+        >
+          <Eye className="mr-2 h-4 w-4" />
+          Ver
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function RequestLocation({ request }: { request: PublicEventRequest }) {
+  const hint = getRequestLocationHint(request);
+  const label = request.space?.name || request.freeLocation || 'Sin ubicación definida';
+
+  if (request.space) {
+    return (
+      <div className="flex items-start gap-2">
+        <Building2 className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+        <div className="min-w-0">
+          <div className="max-w-[180px] truncate text-sm" title={request.space.name}>
+            {request.space.name}
+          </div>
+          {hint ? <div className="text-xs text-muted-foreground">{hint}</div> : null}
+        </div>
+      </div>
+    );
+  }
+
+  if (request.freeLocation) {
+    return (
+      <div className="flex items-start gap-2">
+        <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+        <div className="min-w-0">
+          <div className="max-w-[180px] truncate text-sm" title={request.freeLocation}>
+            {request.freeLocation}
+          </div>
+          {hint ? <div className="text-xs text-muted-foreground">{hint}</div> : null}
+        </div>
+      </div>
+    );
+  }
+
+  return <span className="text-sm text-muted-foreground">{label}</span>;
 }

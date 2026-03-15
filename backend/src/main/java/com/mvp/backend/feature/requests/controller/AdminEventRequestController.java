@@ -36,7 +36,7 @@ public class AdminEventRequestController {
     }
 
     /**
-     * Convierte la solicitud en un Event con estado APROBADO.
+     * Convierte la solicitud en un Event con estado EN_REVISION.
      * No requiere body.
      */
     @PostMapping("/{id}/convert-to-event")

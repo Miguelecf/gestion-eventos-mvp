@@ -1,410 +1,362 @@
-import { httpClient } from './client';
+import { httpClient } from "./client";
+import { ENDPOINTS } from "./client/config";
+import { adaptSpringPage } from "./adapters/pagination.adapter";
 import type {
-  PublicEventRequestPayload,
-  EventRequestCreatedResponse,
-  EventRequestStatusResponse,
   AvailabilityCheckRequest,
   AvailabilityCheckResponse,
+  EventRequestCreatedResponse,
+  EventRequestStatusResponse,
+  EventStatus,
+  PublicEventRequestPayload,
   PublicSpaceListItem,
   SpaceOccupancyResponse,
-} from './types/backend.types';
-import type { SpringPageResponse, PageResponse } from './types/pagination.types';
-import { adaptSpringPage } from './adapters/pagination.adapter';
-import type {
-  PublicEventRequest,
-  PublicRequestsQueryParams,
-} from '@/models/public-request';
+} from "./types/backend.types";
+import type { PageResponse, SpringPageResponse } from "./types/pagination.types";
+import {
+  matchesRequestSearch,
+  type PublicEventRequest,
+  type PublicRequestStatus,
+  type PublicRequestsQueryParams,
+} from "@/models/public-request";
+import type { Department } from "@/models/department";
+import type { Space } from "@/models/space";
 
-// ============================================================
-// TIPO: FILTROS PARA ESPACIOS PÚBLICOS
-// ============================================================
 export interface PublicSpacesFilters {
-  /** Solo espacios publicables */
   publishableOnly?: boolean;
 }
 
-// ==================== TIPOS DEL BACKEND ====================
+export interface ChangeAdminRequestStatusInput {
+  newStatus: Extract<PublicRequestStatus, "EN_REVISION" | "RECHAZADO">;
+  reason?: string;
+}
 
-/**
- * DTO de respuesta del backend para solicitudes de eventos
- */
+export interface RequestConversionResult {
+  eventId: number;
+  eventName: string;
+  eventStatus: EventStatus;
+}
+
 interface BackendEventRequestResponseDto {
   id: number;
   trackingUuid: string;
-  status: string;
-  
-  // Información del evento
-  name: string;
-  audienceType: string;
   date: string;
+  technicalSchedule: string | null;
   scheduleFrom: string;
   scheduleTo: string;
-  technicalSchedule: string | null;
-  
-  // Ubicación
+  status: PublicRequestStatus;
+  name: string;
   space: {
     id: number;
     name: string;
-    capacity?: number;
-    colorHex?: string;
+    capacity: number | null;
+    colorHex: string | null;
   } | null;
   freeLocation: string | null;
-  
-  // Departamento
   requestingDepartment: {
     id: number;
     name: string;
-    colorHex?: string;
+    colorHex: string | null;
   } | null;
-  
-  // Contacto
-  contactName: string;
-  contactEmail: string;
-  contactPhone: string;
-  
-  // Buffers
-  bufferBeforeMin: number;
-  bufferAfterMin: number;
-  
-  // Técnica
-  requiresTech: boolean;
-  techSupportMode: string | null;
-  
-  // Observaciones
   requirements: string | null;
   coverage: string | null;
   observations: string | null;
-  
-  // Metadata
+  priority: PublicEventRequest["priority"];
+  audienceType: PublicEventRequest["audienceType"];
+  bufferBeforeMin: number | null;
+  bufferAfterMin: number | null;
+  contactName: string;
+  contactEmail: string;
+  contactPhone: string | null;
   requestDate: string;
+  reviewedAt: string | null;
+  reviewedBy: string | null;
+  convertedAt: string | null;
+  convertedBy: string | null;
+  convertedEventId: number | null;
   createdAt: string;
   updatedAt: string;
 }
 
-// ==================== ADAPTADORES ====================
+interface BackendConvertedEventResponseDto {
+  id: number;
+  status: EventStatus;
+  name: string;
+}
 
-/**
- * Adapta una solicitud del backend al modelo del frontend
- */
+function adaptSpace(space: BackendEventRequestResponseDto["space"]): Space | null {
+  if (!space) {
+    return null;
+  }
+
+  return {
+    id: space.id,
+    name: space.name,
+    capacity: space.capacity ?? 0,
+    colorHex: space.colorHex || "#6B7280",
+    defaultBufferBeforeMin: 0,
+    defaultBufferAfterMin: 0,
+    active: true,
+  };
+}
+
+function adaptDepartment(
+  department: BackendEventRequestResponseDto["requestingDepartment"]
+): Department | null {
+  if (!department) {
+    return null;
+  }
+
+  return {
+    id: department.id,
+    name: department.name,
+    colorHex: department.colorHex || "#6B7280",
+    active: true,
+  };
+}
+
 function adaptRequestFromBackend(
   dto: BackendEventRequestResponseDto
 ): PublicEventRequest {
   return {
     id: dto.id,
     trackingUuid: dto.trackingUuid,
-    status: dto.status as PublicEventRequest['status'],
-    name: dto.name,
-    audienceType: dto.audienceType as PublicEventRequest['audienceType'],
     date: dto.date,
+    technicalSchedule: dto.technicalSchedule,
     scheduleFrom: dto.scheduleFrom,
     scheduleTo: dto.scheduleTo,
-    technicalSchedule: dto.technicalSchedule,
-    space: dto.space,
+    status: dto.status,
+    name: dto.name,
+    space: adaptSpace(dto.space),
     freeLocation: dto.freeLocation,
-    requestingDepartment: dto.requestingDepartment,
-    contactName: dto.contactName,
-    contactEmail: dto.contactEmail,
-    contactPhone: dto.contactPhone,
-    bufferBeforeMin: dto.bufferBeforeMin,
-    bufferAfterMin: dto.bufferAfterMin,
-    requiresTech: dto.requiresTech,
-    techSupportMode: dto.techSupportMode as PublicEventRequest['techSupportMode'],
+    requestingDepartment: adaptDepartment(dto.requestingDepartment),
     requirements: dto.requirements,
     coverage: dto.coverage,
     observations: dto.observations,
+    priority: dto.priority,
+    audienceType: dto.audienceType,
+    bufferBeforeMin: dto.bufferBeforeMin ?? 0,
+    bufferAfterMin: dto.bufferAfterMin ?? 0,
+    contactName: dto.contactName,
+    contactEmail: dto.contactEmail,
+    contactPhone: dto.contactPhone,
     requestDate: dto.requestDate,
+    reviewedAt: dto.reviewedAt,
+    reviewedBy: dto.reviewedBy,
+    convertedAt: dto.convertedAt,
+    convertedBy: dto.convertedBy,
+    convertedEventId: dto.convertedEventId,
     createdAt: dto.createdAt,
     updatedAt: dto.updatedAt,
   };
 }
 
-// ============================================================
-// 1. LISTAR SOLICITUDES DE EVENTOS (ADMIN)
-// ============================================================
-/**
- * Obtiene solicitudes públicas paginadas (endpoint protegido para admin).
- * 
- * Características:
- * - Requiere autenticación
- * - Retorna solicitudes activas paginadas
- * - Soporta ordenamiento por múltiples campos
- * 
- * @param params - Parámetros de paginación y ordenamiento
- * @returns Página de solicitudes
- * 
- * @example
- * ```ts
- * const requests = await getPublicRequests({
- *   page: 0,
- *   size: 20,
- *   sort: 'requestDate,desc'
- * });
- * ```
- */
-export const getPublicRequests = async (
-  params?: PublicRequestsQueryParams
-): Promise<PageResponse<PublicEventRequest>> => {
-  const queryParams = new URLSearchParams();
+function getSortableValue(request: PublicEventRequest, field: string): string | number {
+  switch (field) {
+    case "name":
+      return request.name.toLowerCase();
+    case "date":
+      return request.date;
+    case "scheduleFrom":
+      return request.scheduleFrom;
+    case "scheduleTo":
+      return request.scheduleTo;
+    case "requestDate":
+    default:
+      return request.requestDate;
+  }
+}
 
-  // Siempre enviar parámetros de paginación para obtener respuesta Page
-  const page = params?.page !== undefined ? params.page : 0;
-  const size = params?.size !== undefined ? params.size : 20;
-  
-  queryParams.append('page', page.toString());
-  queryParams.append('size', size.toString());
-  
-  if (params?.sort) {
-    queryParams.append('sort', params.sort);
+function sortRequests(
+  requests: PublicEventRequest[],
+  sort = "requestDate,desc"
+): PublicEventRequest[] {
+  const [field = "requestDate", direction = "desc"] = sort.split(",");
+  const multiplier = direction.toLowerCase() === "asc" ? 1 : -1;
+
+  return [...requests].sort((left, right) => {
+    const leftValue = getSortableValue(left, field);
+    const rightValue = getSortableValue(right, field);
+
+    if (leftValue < rightValue) {
+      return -1 * multiplier;
+    }
+    if (leftValue > rightValue) {
+      return 1 * multiplier;
+    }
+    return 0;
+  });
+}
+
+function adaptLocalPage(
+  items: PublicEventRequest[],
+  page: number,
+  size: number
+): PageResponse<PublicEventRequest> {
+  const totalElements = items.length;
+  const totalPages = totalElements === 0 ? 0 : Math.ceil(totalElements / size);
+  const startIndex = page * size;
+  const content = items.slice(startIndex, startIndex + size);
+
+  return {
+    content,
+    page: {
+      number: page,
+      size,
+      totalElements,
+      totalPages,
+    },
+    first: page === 0,
+    last: totalPages === 0 || page >= totalPages - 1,
+    empty: totalElements === 0,
+  };
+}
+
+function normalizeRequestCollection(
+  data: BackendEventRequestResponseDto[] | SpringPageResponse<BackendEventRequestResponseDto>
+): BackendEventRequestResponseDto[] {
+  if (Array.isArray(data)) {
+    return data;
   }
 
-  const url = `/public/event-requests?${queryParams.toString()}`;
-  
-  // httpClient.get() ya devuelve response.data directamente
-  const data = await httpClient.get<SpringPageResponse<BackendEventRequestResponseDto>>(url);
-  
-  return adaptSpringPage(data, adaptRequestFromBackend);
-};
+  return Array.isArray(data.content) ? data.content : [];
+}
 
-/**
- * Obtiene una solicitud pública por ID.
- * 
- * @param id - ID de la solicitud
- * @returns Solicitud completa
- */
-export const getPublicRequestById = async (
-  id: number
-): Promise<PublicEventRequest> => {
-  const response = await httpClient.get<BackendEventRequestResponseDto>(
-    `/public/event-requests/${id}`
+export async function listAdminRequests(
+  params: PublicRequestsQueryParams = {}
+): Promise<PageResponse<PublicEventRequest>> {
+  const page = params.page ?? 0;
+  const size = params.size ?? 20;
+  const sort = params.sort ?? "requestDate,desc";
+  const search = params.search?.trim();
+
+  // Technical debt:
+  // Until the backend exposes GET /admin/event-requests, the admin listing still
+  // depends on /public/event-requests and therefore only includes active requests.
+  if (search) {
+    const backendRequests = await httpClient.get<
+      BackendEventRequestResponseDto[] | SpringPageResponse<BackendEventRequestResponseDto>
+    >(
+      ENDPOINTS.PUBLIC_EVENT_REQUESTS
+    );
+
+    const filteredRequests = sortRequests(
+      normalizeRequestCollection(backendRequests)
+        .map(adaptRequestFromBackend)
+        .filter((request) => matchesRequestSearch(request, search)),
+      sort
+    );
+
+    return adaptLocalPage(filteredRequests, page, size);
+  }
+
+  const queryParams = new URLSearchParams({
+    page: page.toString(),
+    size: size.toString(),
+    sort,
+  });
+
+  const data = await httpClient.get<SpringPageResponse<BackendEventRequestResponseDto>>(
+    `${ENDPOINTS.PUBLIC_EVENT_REQUESTS}?${queryParams.toString()}`
   );
-  
-  return adaptRequestFromBackend(response.data);
-};
 
-// ============================================================
-// 2. CREAR SOLICITUD DE EVENTO PÚBLICO
-// ============================================================
-/**
- * Crea una nueva solicitud de evento público.
- * 
- * Características:
- * - NO requiere autenticación (endpoint público)
- * - Genera UUID automáticamente para tracking
- * - Prioridad siempre es MEDIUM
- * - Estado inicial: SOLICITADO
- * 
- * @param payload - Datos de la solicitud
- * @returns Respuesta con UUID de tracking
- * @throws Error si los datos son inválidos o el servidor falla
- * 
- * @example
- * ```ts
- * const response = await createPublicEventRequest({
- *   name: 'Conferencia de Innovación',
- *   audienceType: 'OPEN',
- *   date: '2025-06-15',
- *   scheduleFrom: '09:00',
- *   scheduleTo: '13:00',
- *   spaceId: 5,
- *   contactName: 'María García',
- *   contactEmail: 'maria@example.com',
- *   contactPhone: '+54 11 1234-5678',
- *   bufferBeforeMin: 15,
- *   bufferAfterMin: 15,
- * });
- * 
- * console.log(`Tracking UUID: ${response.trackingUuid}`);
- * // Guardar UUID para consultas posteriores
- * ```
- */
-export const createPublicEventRequest = async (
-  payload: PublicEventRequestPayload
-): Promise<EventRequestCreatedResponse> => {
-  return await httpClient.post<EventRequestCreatedResponse>(
-    '/public/event-requests',
+  return adaptSpringPage(data, adaptRequestFromBackend);
+}
+
+export async function getAdminRequestById(id: number): Promise<PublicEventRequest> {
+  const request = await httpClient.get<BackendEventRequestResponseDto>(
+    ENDPOINTS.ADMIN_EVENT_REQUEST_BY_ID(id)
+  );
+
+  return adaptRequestFromBackend(request);
+}
+
+export async function changeAdminRequestStatus(
+  id: number,
+  payload: ChangeAdminRequestStatusInput
+): Promise<PublicEventRequest> {
+  const request = await httpClient.patch<BackendEventRequestResponseDto>(
+    ENDPOINTS.ADMIN_EVENT_REQUEST_STATUS(id),
     payload
   );
-};
 
-// ============================================================
-// 3. CONSULTAR ESTADO DE SOLICITUD (TRACKING)
-// ============================================================
-/**
- * Consulta el estado actual de una solicitud mediante su UUID.
- * 
- * Características:
- * - NO requiere autenticación (endpoint público)
- * - Solo necesita el UUID de tracking
- * - Retorna historial de cambios de estado
- * - Incluye comentarios si los hay
- * 
- * @param trackingUuid - UUID de tracking (generado al crear solicitud)
- * @returns Estado actual y detalles de la solicitud
- * @throws Error si el UUID no existe
- * 
- * @example
- * ```ts
- * const status = await trackPublicEventRequest(
- *   '3f8d7c5b-9e2a-4b1f-8c7d-5e6f9a0b1c2d'
- * );
- * 
- * console.log(`Estado: ${status.currentStatus}`);
- * console.log(`Última actualización: ${status.lastUpdatedAt}`);
- * 
- * if (status.comments) {
- *   console.log(`Comentarios: ${status.comments}`);
- * }
- * ```
- */
-export const trackPublicEventRequest = async (
-  trackingUuid: string
-): Promise<EventRequestStatusResponse> => {
-  return await httpClient.get<EventRequestStatusResponse>(
-    `/public/track/${trackingUuid}`
+  return adaptRequestFromBackend(request);
+}
+
+export async function convertAdminRequestToEvent(
+  id: number
+): Promise<RequestConversionResult> {
+  const event = await httpClient.post<BackendConvertedEventResponseDto>(
+    ENDPOINTS.ADMIN_EVENT_REQUEST_CONVERT(id)
   );
-};
 
-// ============================================================
-// 4. VERIFICAR DISPONIBILIDAD DE ESPACIO
-// ============================================================
-/**
- * Verifica si un espacio está disponible en fecha/hora específica.
- * 
- * Características:
- * - NO requiere autenticación (endpoint público)
- * - Considera horarios técnicos y buffers
- * - Retorna ocupación actual y detalles de conflictos
- * - Puede verificar espacio específico o ubicación libre
- * 
- * @param checkRequest - Datos de fecha, hora y espacio a verificar
- * @returns Disponibilidad y detalles de ocupación
- * 
- * @example
- * ```ts
- * // Verificar disponibilidad de espacio específico
- * const availability = await checkPublicAvailability({
- *   date: '2025-06-15',
- *   scheduleFrom: '09:00',
- *   scheduleTo: '13:00',
- *   spaceId: 5,
- *   bufferBeforeMin: 15,
- *   bufferAfterMin: 15,
- * });
- * 
- * if (availability.available) {
- *   console.log('✓ Espacio disponible');
- * } else {
- *   console.log('✗ Conflicto:', availability.reason);
- *   console.log('Eventos existentes:', availability.existingEvents);
- * }
- * 
- * // Verificar ubicación libre (sin spaceId)
- * const freeLocationCheck = await checkPublicAvailability({
- *   date: '2025-06-15',
- *   scheduleFrom: '09:00',
- *   scheduleTo: '13:00',
- *   freeLocation: 'Campus Norte - Jardines',
- * });
- * ```
- */
-export const checkPublicAvailability = async (
+  return {
+    eventId: event.id,
+    eventName: event.name,
+    eventStatus: event.status,
+  };
+}
+
+export const getPublicRequests = listAdminRequests;
+export const getPublicRequestById = getAdminRequestById;
+
+export async function createPublicEventRequest(
+  payload: PublicEventRequestPayload
+): Promise<EventRequestCreatedResponse> {
+  return await httpClient.post<EventRequestCreatedResponse>(
+    ENDPOINTS.PUBLIC_EVENT_REQUESTS,
+    payload
+  );
+}
+
+export async function trackPublicEventRequest(
+  trackingUuid: string
+): Promise<EventRequestStatusResponse> {
+  return await httpClient.get<EventRequestStatusResponse>(
+    ENDPOINTS.PUBLIC_TRACK(trackingUuid)
+  );
+}
+
+export async function checkPublicAvailability(
   checkRequest: AvailabilityCheckRequest
-): Promise<AvailabilityCheckResponse> => {
+): Promise<AvailabilityCheckResponse> {
   return await httpClient.post<AvailabilityCheckResponse>(
-    '/public/availability/check',
+    ENDPOINTS.AVAILABILITY_PUBLIC_CHECK,
     checkRequest
   );
-};
+}
 
-// ============================================================
-// 5. LISTAR ESPACIOS PÚBLICOS
-// ============================================================
-/**
- * Obtiene lista de espacios disponibles para solicitudes públicas.
- * 
- * Características:
- * - NO requiere autenticación (endpoint público)
- * - Solo retorna espacios con `publishable = true`
- * - Incluye capacidad y disponibilidad general
- * - Ordenado por nombre
- * 
- * @param filters - Filtros opcionales (actualmente solo publishableOnly)
- * @returns Lista de espacios públicos
- * 
- * @example
- * ```ts
- * const spaces = await getPublicSpaces({ publishableOnly: true });
- * 
- * spaces.forEach(space => {
- *   console.log(`${space.name} - Capacidad: ${space.capacity}`);
- *   console.log(`  Ubicación: ${space.location || 'No especificada'}`);
- *   console.log(`  Activo: ${space.active ? 'Sí' : 'No'}`);
- * });
- * ```
- */
-export const getPublicSpaces = async (
+export async function getPublicSpaces(
   filters?: PublicSpacesFilters
-): Promise<PublicSpaceListItem[]> => {
+): Promise<PublicSpaceListItem[]> {
   const params = new URLSearchParams();
 
-  // Por defecto, solo espacios publicables
   if (filters?.publishableOnly !== false) {
-    params.append('publishableOnly', 'true');
+    params.append("publishableOnly", "true");
   }
 
   return await httpClient.get<PublicSpaceListItem[]>(
-    `/public/catalogs/spaces${params.toString() ? `?${params.toString()}` : ''}`
+    `${ENDPOINTS.CATALOG_SPACES_PUBLIC}${params.toString() ? `?${params.toString()}` : ""}`
   );
-};
+}
 
-// ============================================================
-// 6. CONSULTAR OCUPACIÓN MENSUAL DE ESPACIO
-// ============================================================
-/**
- * Obtiene la ocupación mensual de un espacio específico.
- * 
- * Características:
- * - NO requiere autenticación (endpoint público)
- * - Retorna eventos del mes especificado
- * - Útil para mostrar calendarios de disponibilidad
- * - Incluye horarios técnicos y buffers
- * 
- * @param spaceId - ID del espacio a consultar
- * @param year - Año (formato: yyyy, ej: 2025)
- * @param month - Mes (formato: MM, ej: 06 para junio)
- * @returns Lista de eventos en el mes especificado
- * 
- * @example
- * ```ts
- * // Consultar ocupación del Auditorio Principal en junio 2025
- * const occupancy = await getSpaceMonthlyOccupancy(5, 2025, 6);
- * 
- * console.log(`Total de eventos: ${occupancy.events.length}`);
- * 
- * occupancy.events.forEach(event => {
- *   console.log(`${event.date} ${event.scheduleFrom}-${event.scheduleTo}`);
- *   console.log(`  ${event.eventName || 'Sin nombre'}`);
- *   console.log(`  Estado: ${event.status}`);
- * });
- * ```
- */
-export const getSpaceMonthlyOccupancy = async (
+export async function getSpaceMonthlyOccupancy(
   spaceId: number,
   year: number,
   month: number
-): Promise<SpaceOccupancyResponse> => {
+): Promise<SpaceOccupancyResponse> {
   return await httpClient.get<SpaceOccupancyResponse>(
-    `/public/spaces/${spaceId}/occupancy`,
+    ENDPOINTS.PUBLIC_SPACE_OCCUPANCY(spaceId),
     {
       params: { year, month },
     }
   );
-};
+}
 
-// ============================================================
-// EXPORTS
-// ============================================================
 export const publicRequestsApi = {
+  listAdminRequests,
+  getAdminRequestById,
+  changeAdminRequestStatus,
+  convertAdminRequestToEvent,
   getPublicRequests,
   getPublicRequestById,
   createPublicEventRequest,
