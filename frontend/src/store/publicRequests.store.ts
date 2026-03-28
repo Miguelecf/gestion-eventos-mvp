@@ -6,10 +6,12 @@ import {
   publicRequestsApi,
   type RequestConversionResult,
 } from '@/services/api/publicRequests.api';
+import { getDefaultPublicRequestSort } from '@/features/publicRequests/utils/list-sorting';
 import type {
   PaginationState,
   PublicEventRequest,
   PublicRequestFilters,
+  PublicRequestsQueryParams,
   PublicRequestStatus,
 } from '@/models/public-request';
 
@@ -25,12 +27,7 @@ export interface ErrorState {
   action: string | null;
 }
 
-export interface FetchRequestsParams {
-  page?: number;
-  size?: number;
-  search?: string;
-  sort?: string;
-}
+export type FetchRequestsParams = PublicRequestsQueryParams;
 
 export interface PublicRequestsStore {
   requests: PublicEventRequest[];
@@ -59,6 +56,11 @@ export interface PublicRequestsStore {
 
 const initialFilters: PublicRequestFilters = {
   search: '',
+  status: undefined,
+  dateFrom: undefined,
+  dateTo: undefined,
+  startDate: undefined,
+  endDate: undefined,
 };
 
 const initialPagination: PaginationState = {
@@ -85,7 +87,7 @@ const initialState = {
   selectedRequest: null,
   filters: initialFilters,
   pagination: initialPagination,
-  sort: 'requestDate,desc',
+  sort: getDefaultPublicRequestSort(),
   loading: initialLoading,
   errors: initialErrors,
   lastFetch: null,
@@ -99,6 +101,16 @@ const createPublicRequestsStore: StateCreator<PublicRequestsStore> = (set, get) 
     const currentPagination = get().pagination;
     const nextSearch =
       params?.search !== undefined ? params.search : currentFilters.search || '';
+    const nextStatus =
+      params?.status !== undefined ? params.status : currentFilters.status;
+    const nextDateFrom =
+      params?.dateFrom !== undefined
+        ? params.dateFrom
+        : currentFilters.dateFrom ?? currentFilters.startDate;
+    const nextDateTo =
+      params?.dateTo !== undefined
+        ? params.dateTo
+        : currentFilters.dateTo ?? currentFilters.endDate;
     const nextPage = params?.page ?? currentPagination.page;
     const nextPageSize = params?.size ?? currentPagination.pageSize;
     const nextSort = params?.sort ?? get().sort;
@@ -108,6 +120,19 @@ const createPublicRequestsStore: StateCreator<PublicRequestsStore> = (set, get) 
         filters: {
           ...state.filters,
           ...(params.search !== undefined ? { search: params.search } : {}),
+          ...(params.status !== undefined ? { status: params.status } : {}),
+          ...(params.dateFrom !== undefined || params.startDate !== undefined
+            ? {
+                dateFrom: params.dateFrom ?? params.startDate,
+                startDate: params.startDate ?? params.dateFrom,
+              }
+            : {}),
+          ...(params.dateTo !== undefined || params.endDate !== undefined
+            ? {
+                dateTo: params.dateTo ?? params.endDate,
+                endDate: params.endDate ?? params.dateTo,
+              }
+            : {}),
         },
         pagination: {
           ...state.pagination,
@@ -128,6 +153,11 @@ const createPublicRequestsStore: StateCreator<PublicRequestsStore> = (set, get) 
         page: nextPage,
         size: nextPageSize,
         search: nextSearch || undefined,
+        status: nextStatus,
+        dateFrom: nextDateFrom,
+        dateTo: nextDateTo,
+        startDate: nextDateFrom,
+        endDate: nextDateTo,
         sort: nextSort,
       });
 

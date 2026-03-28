@@ -1,6 +1,5 @@
 import { httpClient } from "./client";
 import { ENDPOINTS } from "./client/config";
-import { adaptSpringPage } from "./adapters/pagination.adapter";
 import type {
   AvailabilityCheckRequest,
   AvailabilityCheckResponse,
@@ -13,13 +12,18 @@ import type {
 } from "./types/backend.types";
 import type { PageResponse, SpringPageResponse } from "./types/pagination.types";
 import {
-  matchesRequestSearch,
   type PublicEventRequest,
   type PublicRequestStatus,
+  type PublicRequestFilters,
   type PublicRequestsQueryParams,
 } from "@/models/public-request";
 import type { Department } from "@/models/department";
 import type { Space } from "@/models/space";
+import {
+  filterPublicRequests,
+  getDefaultPublicRequestSort,
+  sortPublicRequests,
+} from '@/features/publicRequests/utils/list-sorting';
 
 export interface PublicSpacesFilters {
   publishableOnly?: boolean;
@@ -150,43 +154,6 @@ function adaptRequestFromBackend(
   };
 }
 
-function getSortableValue(request: PublicEventRequest, field: string): string | number {
-  switch (field) {
-    case "name":
-      return request.name.toLowerCase();
-    case "date":
-      return request.date;
-    case "scheduleFrom":
-      return request.scheduleFrom;
-    case "scheduleTo":
-      return request.scheduleTo;
-    case "requestDate":
-    default:
-      return request.requestDate;
-  }
-}
-
-function sortRequests(
-  requests: PublicEventRequest[],
-  sort = "requestDate,desc"
-): PublicEventRequest[] {
-  const [field = "requestDate", direction = "desc"] = sort.split(",");
-  const multiplier = direction.toLowerCase() === "asc" ? 1 : -1;
-
-  return [...requests].sort((left, right) => {
-    const leftValue = getSortableValue(left, field);
-    const rightValue = getSortableValue(right, field);
-
-    if (leftValue < rightValue) {
-      return -1 * multiplier;
-    }
-    if (leftValue > rightValue) {
-      return 1 * multiplier;
-    }
-    return 0;
-  });
-}
-
 function adaptLocalPage(
   items: PublicEventRequest[],
   page: number,
@@ -226,40 +193,30 @@ export async function listAdminRequests(
 ): Promise<PageResponse<PublicEventRequest>> {
   const page = params.page ?? 0;
   const size = params.size ?? 20;
-  const sort = params.sort ?? "requestDate,desc";
-  const search = params.search?.trim();
+  const sort = params.sort ?? getDefaultPublicRequestSort();
+  const filters: PublicRequestFilters = {
+    search: params.search?.trim(),
+    status: params.status,
+    dateFrom: params.dateFrom,
+    dateTo: params.dateTo,
+    startDate: params.startDate,
+    endDate: params.endDate,
+  };
 
   // Technical debt:
   // Until the backend exposes GET /admin/event-requests, the admin listing still
   // depends on /public/event-requests and therefore only includes active requests.
-  if (search) {
-    const backendRequests = await httpClient.get<
-      BackendEventRequestResponseDto[] | SpringPageResponse<BackendEventRequestResponseDto>
-    >(
-      ENDPOINTS.PUBLIC_EVENT_REQUESTS
-    );
-
-    const filteredRequests = sortRequests(
-      normalizeRequestCollection(backendRequests)
-        .map(adaptRequestFromBackend)
-        .filter((request) => matchesRequestSearch(request, search)),
-      sort
-    );
-
-    return adaptLocalPage(filteredRequests, page, size);
-  }
-
-  const queryParams = new URLSearchParams({
-    page: page.toString(),
-    size: size.toString(),
-    sort,
-  });
-
-  const data = await httpClient.get<SpringPageResponse<BackendEventRequestResponseDto>>(
-    `${ENDPOINTS.PUBLIC_EVENT_REQUESTS}?${queryParams.toString()}`
+  const backendRequests = await httpClient.get<
+    BackendEventRequestResponseDto[] | SpringPageResponse<BackendEventRequestResponseDto>
+  >(
+    ENDPOINTS.PUBLIC_EVENT_REQUESTS
   );
 
-  return adaptSpringPage(data, adaptRequestFromBackend);
+  const normalizedRequests = normalizeRequestCollection(backendRequests).map(adaptRequestFromBackend);
+  const filteredRequests = filterPublicRequests(normalizedRequests, filters);
+  const sortedRequests = sortPublicRequests(filteredRequests, sort);
+
+  return adaptLocalPage(sortedRequests, page, size);
 }
 
 export async function getAdminRequestById(id: number): Promise<PublicEventRequest> {

@@ -8,6 +8,13 @@ export type PublicRequestStatus =
   | "RECHAZADO"
   | "CONVERTIDO";
 
+export const PUBLIC_REQUEST_STATUSES: readonly PublicRequestStatus[] = [
+  "RECIBIDO",
+  "EN_REVISION",
+  "RECHAZADO",
+  "CONVERTIDO",
+] as const;
+
 export type RequestAudienceType =
   | "ESTUDIANTES"
   | "COMUNIDAD"
@@ -49,6 +56,11 @@ export interface PublicEventRequest {
 
 export interface PublicRequestFilters {
   search?: string;
+  status?: PublicRequestStatus[];
+  dateFrom?: string;
+  dateTo?: string;
+  startDate?: string;
+  endDate?: string;
 }
 
 export interface PublicRequestsQueryParams {
@@ -56,6 +68,11 @@ export interface PublicRequestsQueryParams {
   size?: number;
   sort?: string;
   search?: string;
+  status?: PublicRequestStatus[];
+  dateFrom?: string;
+  dateTo?: string;
+  startDate?: string;
+  endDate?: string;
 }
 
 export interface PaginationState {
@@ -84,8 +101,14 @@ export function getRequestStatusBadgeVariant(
 
 export function getRequestStatusLabel(status: PublicRequestStatus): string {
   switch (status) {
+    case "RECIBIDO":
+      return "Recibido";
     case "EN_REVISION":
-      return "EN REVISION";
+      return "En revisión";
+    case "RECHAZADO":
+      return "Rechazado";
+    case "CONVERTIDO":
+      return "Convertido";
     default:
       return status;
   }
@@ -120,6 +143,21 @@ export function getRequestStatusDescription(
       return "Solicitud convertida. La gestión continúa en el módulo de eventos.";
     default:
       return "";
+  }
+}
+
+export function getRequestStatusSortOrder(status: PublicRequestStatus): number {
+  switch (status) {
+    case "RECIBIDO":
+      return 0;
+    case "EN_REVISION":
+      return 1;
+    case "RECHAZADO":
+      return 2;
+    case "CONVERTIDO":
+      return 3;
+    default:
+      return Number.MAX_SAFE_INTEGER;
   }
 }
 

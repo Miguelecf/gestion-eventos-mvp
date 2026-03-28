@@ -1,5 +1,14 @@
 import { useEffect, useState } from 'react';
-import { Building2, Eye, MapPin, RefreshCcw, Search } from 'lucide-react';
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  Building2,
+  Eye,
+  MapPin,
+  RefreshCcw,
+  Search,
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { AppBreadcrumbs } from '@/components/breadcrumbs';
 import { Button } from '@/components/ui/button';
@@ -12,14 +21,137 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { cn } from '@/lib/utils';
+import { formatShortLocalDate } from '@/utils/dates';
 import { usePublicRequestsStore } from '@/store/publicRequests.store';
 import {
   getAudienceTypeLabel,
   getRequestLocationHint,
+  getRequestStatusLabel,
+  PUBLIC_REQUEST_STATUSES,
   type PublicEventRequest,
+  type PublicRequestFilters,
+  type PublicRequestStatus,
 } from '@/models/public-request';
-import { formatLocalDate } from '@/utils/dates';
 import { PublicRequestStatusBadge } from '@/features/publicRequests/components';
+import {
+  buildPublicRequestSort,
+  getEffectivePublicRequestDateRange,
+  getNextPublicRequestTableSort,
+  getPublicRequestTableManualSort,
+  type PublicRequestTableManualSort,
+  type PublicRequestTableSortField,
+} from '@/features/publicRequests/utils/list-sorting';
+
+type SimpleDateRangeFilter = 'all' | 'today' | 'next7days' | 'thisMonth';
+
+function toLocalDateParam(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
+}
+
+function addDays(baseDate: Date, days: number): Date {
+  const nextDate = new Date(baseDate);
+  nextDate.setDate(nextDate.getDate() + days);
+  return nextDate;
+}
+
+function getNext7DaysRange() {
+  const today = new Date();
+
+  return {
+    startDate: toLocalDateParam(today),
+    endDate: toLocalDateParam(addDays(today, 7)),
+  };
+}
+
+function getCurrentMonthRange() {
+  const today = new Date();
+  const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+  const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+
+  return {
+    startDate: toLocalDateParam(firstDayOfMonth),
+    endDate: toLocalDateParam(lastDayOfMonth),
+  };
+}
+
+function getSimpleDateRangeValue(filters: PublicRequestFilters): SimpleDateRangeFilter {
+  const today = toLocalDateParam(new Date());
+  const next7daysRange = getNext7DaysRange();
+  const currentMonthRange = getCurrentMonthRange();
+  const { startDate, endDate } = getEffectivePublicRequestDateRange(filters);
+
+  if (startDate === today && endDate === today) {
+    return 'today';
+  }
+
+  if (
+    startDate === next7daysRange.startDate &&
+    endDate === next7daysRange.endDate
+  ) {
+    return 'next7days';
+  }
+
+  if (
+    startDate === currentMonthRange.startDate &&
+    endDate === currentMonthRange.endDate
+  ) {
+    return 'thisMonth';
+  }
+
+  return 'all';
+}
+
+interface SortableHeaderProps {
+  field: PublicRequestTableSortField;
+  label: string;
+  sort: PublicRequestTableManualSort | null;
+  onSort: (field: PublicRequestTableSortField) => void;
+  title?: string;
+}
+
+function SortableHeader({
+  field,
+  label,
+  sort,
+  onSort,
+  title,
+}: SortableHeaderProps) {
+  const sortState = sort?.field === field ? sort.order : null;
+  const Icon = sortState === 'asc' ? ArrowUp : sortState === 'desc' ? ArrowDown : ArrowUpDown;
+  const ariaSort =
+    sortState === 'asc'
+      ? 'ascending'
+      : sortState === 'desc'
+      ? 'descending'
+      : 'none';
+
+  return (
+    <th scope="col" aria-sort={ariaSort} className="pb-3 pr-4">
+      <button
+        type="button"
+        onClick={() => onSort(field)}
+        className={cn(
+          'group inline-flex items-center gap-2 text-left transition-colors hover:text-foreground',
+          sortState ? 'text-foreground' : 'text-muted-foreground'
+        )}
+        title={title ?? `Ordenar por ${label.toLowerCase()}`}
+      >
+        <span>{label}</span>
+        <Icon
+          className={cn(
+            'h-4 w-4 flex-shrink-0 transition-opacity',
+            sortState ? 'opacity-100' : 'opacity-50 group-hover:opacity-80'
+          )}
+        />
+      </button>
+    </th>
+  );
+}
 
 export function PublicRequestsListPage() {
   const navigate = useNavigate();
@@ -27,14 +159,21 @@ export function PublicRequestsListPage() {
     requests,
     filters,
     pagination,
+    sort,
     loading,
     errors,
     fetchRequests,
     setFilters,
     setPagination,
+    setSort,
   } = usePublicRequestsStore();
 
   const [searchValue, setSearchValue] = useState(filters.search || '');
+  const [manualSort, setManualSort] = useState<PublicRequestTableManualSort | null>(() =>
+    getPublicRequestTableManualSort(sort)
+  );
+
+  const statusFilterKey = filters.status?.join(',') || '';
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -50,15 +189,83 @@ export function PublicRequestsListPage() {
   }, [filters.search, searchValue, setFilters]);
 
   useEffect(() => {
-    fetchRequests();
-  }, [fetchRequests, filters.search, pagination.page, pagination.pageSize]);
+    void fetchRequests();
+  }, [
+    fetchRequests,
+    filters.search,
+    filters.startDate,
+    filters.endDate,
+    statusFilterKey,
+    pagination.page,
+    pagination.pageSize,
+    sort,
+  ]);
 
   const handleRefresh = () => {
-    fetchRequests();
+    void fetchRequests();
   };
 
   const handleView = (requestId: number) => {
     navigate(`/solicitudes/${requestId}`);
+  };
+
+  const handleStatusFilterChange = (value: string) => {
+    if (value === 'all') {
+      setFilters({ status: undefined });
+      return;
+    }
+
+    setFilters({ status: [value as PublicRequestStatus] });
+  };
+
+  const handleDateRangeFilterChange = (value: string) => {
+    const today = toLocalDateParam(new Date());
+    const next7daysRange = getNext7DaysRange();
+    const currentMonthRange = getCurrentMonthRange();
+
+    if (value === 'all') {
+      setFilters({
+        startDate: undefined,
+        endDate: undefined,
+        dateFrom: undefined,
+        dateTo: undefined,
+      });
+      return;
+    }
+
+    if (value === 'today') {
+      setFilters({
+        startDate: today,
+        endDate: today,
+        dateFrom: today,
+        dateTo: today,
+      });
+      return;
+    }
+
+    if (value === 'thisMonth') {
+      setFilters({
+        startDate: currentMonthRange.startDate,
+        endDate: currentMonthRange.endDate,
+        dateFrom: currentMonthRange.startDate,
+        dateTo: currentMonthRange.endDate,
+      });
+      return;
+    }
+
+    setFilters({
+      startDate: next7daysRange.startDate,
+      endDate: next7daysRange.endDate,
+      dateFrom: next7daysRange.startDate,
+      dateTo: next7daysRange.endDate,
+    });
+  };
+
+  const handleSortChange = (field: PublicRequestTableSortField) => {
+    const nextManualSort = getNextPublicRequestTableSort(manualSort, field);
+
+    setManualSort(nextManualSort);
+    setSort(buildPublicRequestSort(nextManualSort));
   };
 
   const currentPageLabel = pagination.totalPages === 0 ? 0 : pagination.page + 1;
@@ -90,6 +297,38 @@ export function PublicRequestsListPage() {
                 className="pl-10"
               />
             </div>
+
+            <Select
+              value={filters.status?.[0] || 'all'}
+              onValueChange={handleStatusFilterChange}
+            >
+              <SelectTrigger className="w-full md:w-[180px]">
+                <SelectValue placeholder="Todos los estados" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los estados</SelectItem>
+                {PUBLIC_REQUEST_STATUSES.map((status) => (
+                  <SelectItem key={status} value={status}>
+                    {getRequestStatusLabel(status)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={getSimpleDateRangeValue(filters)}
+              onValueChange={handleDateRangeFilterChange}
+            >
+              <SelectTrigger className="w-full md:w-[180px]">
+                <SelectValue placeholder="Todas las fechas" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="today">Hoy</SelectItem>
+                <SelectItem value="next7days">Próximos 7 días</SelectItem>
+                <SelectItem value="thisMonth">Este mes</SelectItem>
+                <SelectItem value="all">Todas las fechas</SelectItem>
+              </SelectContent>
+            </Select>
 
             <Select
               value={String(pagination.pageSize)}
@@ -151,7 +390,7 @@ export function PublicRequestsListPage() {
             <div className="py-14 text-center">
               <p className="font-medium">No hay solicitudes para mostrar.</p>
               <p className="text-sm text-muted-foreground">
-                Ajustá la búsqueda o refrescá la bandeja para volver a consultar.
+                Ajustá los filtros, la búsqueda o refrescá la bandeja para volver a consultar.
               </p>
             </div>
           ) : (
@@ -160,12 +399,34 @@ export function PublicRequestsListPage() {
                 <table className="w-full">
                   <thead className="border-b">
                     <tr className="text-left text-sm font-medium text-muted-foreground">
-                      <th className="pb-3 pr-4">Fecha y horario</th>
-                      <th className="pb-3 pr-4">Evento / Solicitud</th>
-                      <th className="pb-3 pr-4">Ubicación</th>
-                      <th className="pb-3 pr-4">Solicitante</th>
-                      <th className="pb-3 pr-4">Estado</th>
-                      <th className="pb-3">Acciones</th>
+                      <SortableHeader
+                        field="date"
+                        label="Fecha y horario"
+                        sort={manualSort}
+                        onSort={handleSortChange}
+                        title="Click para alternar entre ascendente, descendente y el orden por defecto."
+                      />
+                      <SortableHeader
+                        field="name"
+                        label="Evento / Solicitud"
+                        sort={manualSort}
+                        onSort={handleSortChange}
+                      />
+                      <SortableHeader
+                        field="location"
+                        label="Ubicación"
+                        sort={manualSort}
+                        onSort={handleSortChange}
+                      />
+                      <th scope="col" className="pb-3 pr-4">Solicitante</th>
+                      <SortableHeader
+                        field="status"
+                        label="Estado"
+                        sort={manualSort}
+                        onSort={handleSortChange}
+                        title="Ascendente: Recibido, En revisión, Rechazado, Convertido."
+                      />
+                      <th scope="col" className="pb-3">Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -239,15 +500,9 @@ function RequestTableRow({ request, onView }: RequestRowProps) {
     >
       <td className="py-4 pr-4">
         <div className="space-y-0.5">
-          <div className="font-semibold">
-            {formatLocalDate(request.date, {
-              day: 'numeric',
-              month: 'short',
-              year: 'numeric',
-            })}
-          </div>
+          <div className="font-semibold">{formatShortLocalDate(request.date)}</div>
           <div className="text-sm text-muted-foreground">
-            {request.scheduleFrom} - {request.scheduleTo}
+            {request.scheduleFrom} – {request.scheduleTo}
           </div>
         </div>
       </td>
@@ -308,13 +563,9 @@ function RequestMobileCard({ request, onView }: RequestRowProps) {
           <div className="space-y-1">
             <div className="font-semibold">{request.name}</div>
             <div className="text-sm text-muted-foreground">
-              {formatLocalDate(request.date, {
-                day: 'numeric',
-                month: 'short',
-                year: 'numeric',
-              })}
+              {formatShortLocalDate(request.date)}
               {' · '}
-              {request.scheduleFrom} - {request.scheduleTo}
+              {request.scheduleFrom} – {request.scheduleTo}
             </div>
           </div>
           <PublicRequestStatusBadge status={request.status} className="shrink-0" />
