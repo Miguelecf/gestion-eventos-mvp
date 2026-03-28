@@ -1,5 +1,18 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Plus, Search, RefreshCcw, Eye, Edit, Trash, AlertTriangle, Building2, MapPin } from 'lucide-react';
+import {
+  Plus,
+  Search,
+  RefreshCcw,
+  Eye,
+  Edit,
+  Trash,
+  AlertTriangle,
+  Building2,
+  MapPin,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useEventsStore } from '@/store';
 import { eventsApi } from '@/services/api';
@@ -8,6 +21,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { formatShortLocalDate } from '@/utils/dates';
 import {
   Dialog,
   DialogContent,
@@ -25,18 +39,21 @@ import {
   getPriorityBadgeVariant,
   getPriorityLabel,
 } from '@/features/events/utils/status-helpers';
+import {
+  buildEventSortConfig,
+  getEventTableManualSort,
+  getNextEventTableSort,
+  sortEvents,
+  type EventTableManualSort,
+  type EventTableSortField,
+} from '@/features/events/utils/list-sorting';
 import { getEditBlockReason } from '@/features/events/utils/edit-event';
+import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import type { Event, EventFilters, SortConfig } from '@/models/event';
+import type { Event, EventFilters } from '@/models/event';
 import type { EventStatus } from '@/models/event-status';
 
 type SimpleDateRangeFilter = 'all' | 'today' | 'next7days' | 'thisMonth';
-
-const PRIORITY_ORDER: Record<Event['priority'], number> = {
-  LOW: 0,
-  MEDIUM: 1,
-  HIGH: 2,
-};
 
 function toLocalDateParam(date: Date): string {
   const year = date.getFullYear();
@@ -133,68 +150,51 @@ function matchesEventFilters(event: Event, filters: EventFilters): boolean {
   return true;
 }
 
-function getSortableEventValue(event: Event, field: string): boolean | number | string {
-  switch (field) {
-    case 'date':
-      return event.date;
-    case 'scheduleFrom':
-      return event.scheduleFrom;
-    case 'scheduleTo':
-      return event.scheduleTo;
-    case 'priority':
-      return PRIORITY_ORDER[event.priority] ?? -1;
-    case 'createdOn':
-      return event.createdOn ?? event.createdAt;
-    case 'createdAt':
-      return event.createdAt;
-    case 'name':
-      return event.name.toLowerCase();
-    default: {
-      const value = (event as unknown as Record<string, unknown>)[field];
-      if (typeof value === 'string') return value.toLowerCase();
-      if (typeof value === 'number' || typeof value === 'boolean') return value;
-      return '';
-    }
-  }
+interface SortableHeaderProps {
+  field: EventTableSortField;
+  label: string;
+  sort: EventTableManualSort | null;
+  onSort: (field: EventTableSortField) => void;
+  title?: string;
 }
 
-function compareEventValues(
-  left: boolean | number | string,
-  right: boolean | number | string
-): number {
-  if (typeof left === 'number' && typeof right === 'number') {
-    return left - right;
-  }
+function SortableHeader({
+  field,
+  label,
+  sort,
+  onSort,
+  title,
+}: SortableHeaderProps) {
+  const sortState = sort?.field === field ? sort.order : null;
+  const Icon = sortState === 'asc' ? ArrowUp : sortState === 'desc' ? ArrowDown : ArrowUpDown;
+  const ariaSort =
+    sortState === 'asc'
+      ? 'ascending'
+      : sortState === 'desc'
+      ? 'descending'
+      : 'none';
 
-  if (typeof left === 'boolean' && typeof right === 'boolean') {
-    return Number(left) - Number(right);
-  }
-
-  return String(left).localeCompare(String(right), 'es-AR', {
-    numeric: true,
-    sensitivity: 'base',
-  });
-}
-
-function sortEvents(events: Event[], sorts: SortConfig[]): Event[] {
-  if (!sorts.length) {
-    return events;
-  }
-
-  return [...events].sort((leftEvent, rightEvent) => {
-    for (const sort of sorts) {
-      const comparison = compareEventValues(
-        getSortableEventValue(leftEvent, sort.field),
-        getSortableEventValue(rightEvent, sort.field)
-      );
-
-      if (comparison !== 0) {
-        return sort.order === 'desc' ? -comparison : comparison;
-      }
-    }
-
-    return 0;
-  });
+  return (
+    <th scope="col" aria-sort={ariaSort} className="pb-3 pr-4">
+      <button
+        type="button"
+        onClick={() => onSort(field)}
+        className={cn(
+          'group inline-flex items-center gap-2 text-left transition-colors hover:text-foreground',
+          sortState ? 'text-foreground' : 'text-muted-foreground'
+        )}
+        title={title ?? `Ordenar por ${label.toLowerCase()}`}
+      >
+        <span>{label}</span>
+        <Icon
+          className={cn(
+            'h-4 w-4 flex-shrink-0 transition-opacity',
+            sortState ? 'opacity-100' : 'opacity-50 group-hover:opacity-80'
+          )}
+        />
+      </button>
+    </th>
+  );
 }
 
 export function ListPage() {
@@ -205,10 +205,14 @@ export function ListPage() {
     sort,
     loading,
     setFilters,
+    setSort,
     deleteEvent,
   } = useEventsStore();
 
   const [searchQuery, setSearchQuery] = useState(filters.search || '');
+  const [manualSort, setManualSort] = useState<EventTableManualSort | null>(() =>
+    getEventTableManualSort(sort)
+  );
   const [allEvents, setAllEvents] = useState<Event[]>([]);
   const [listLoading, setListLoading] = useState(true);
   const [listError, setListError] = useState<string | null>(null);
@@ -353,11 +357,6 @@ export function ListPage() {
     }
   };
 
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr + 'T00:00:00');
-    return date.toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: 'numeric' });
-  };
-
   const getAudienceTypeLabel = (audienceType: string) => {
     const labels: Record<string, string> = {
       ESTUDIANTES: 'Estudiantes',
@@ -367,6 +366,14 @@ export function ListPage() {
       AUTORIDADES: 'Autoridades',
     };
     return labels[audienceType] || audienceType;
+  };
+
+  const handleSortChange = (field: EventTableSortField) => {
+    const nextManualSort = getNextEventTableSort(manualSort, field);
+
+    setManualSort(nextManualSort);
+    setSort(buildEventSortConfig(nextManualSort));
+    setCurrentPage(1);
   };
 
   const getTechSupportLabel = (mode: string | null) => {
@@ -536,15 +543,60 @@ export function ListPage() {
                 <table className="w-full">
                   <thead className="border-b">
                     <tr className="text-left text-sm font-medium text-muted-foreground">
-                      <th className="pb-3 pr-4">Fecha y horario</th>
-                      <th className="pb-3 pr-4">Evento</th>
-                      <th className="pb-3 pr-4">Ubicación</th>
-                      <th className="pb-3 pr-4">Departamento</th>
-                      <th className="pb-3 pr-4">Estado</th>
-                      <th className="pb-3 pr-4">Prioridad</th>
-                      <th className="pb-3 pr-4">Técnica</th>
-                      <th className="pb-3 pr-4">Tipo</th>
-                      <th className="pb-3">Acciones</th>
+                      <SortableHeader
+                        field="date"
+                        label="Fecha y horario"
+                        sort={manualSort}
+                        onSort={handleSortChange}
+                        title="Click para alternar entre ascendente, descendente y el orden por defecto."
+                      />
+                      <SortableHeader
+                        field="name"
+                        label="Evento"
+                        sort={manualSort}
+                        onSort={handleSortChange}
+                      />
+                      <SortableHeader
+                        field="location"
+                        label="Ubicación"
+                        sort={manualSort}
+                        onSort={handleSortChange}
+                      />
+                      <SortableHeader
+                        field="department"
+                        label="Departamento"
+                        sort={manualSort}
+                        onSort={handleSortChange}
+                      />
+                      <SortableHeader
+                        field="status"
+                        label="Estado"
+                        sort={manualSort}
+                        onSort={handleSortChange}
+                        title="Ascendente: Solicitado, En revisión, Reservado, Aprobado, Rechazado."
+                      />
+                      <SortableHeader
+                        field="priority"
+                        label="Prioridad"
+                        sort={manualSort}
+                        onSort={handleSortChange}
+                        title="Ascendente: Baja, Media, Alta. El tercer click restaura el orden por defecto."
+                      />
+                      <SortableHeader
+                        field="technique"
+                        label="Técnica"
+                        sort={manualSort}
+                        onSort={handleSortChange}
+                        title="Ascendente: sin técnica, solo montaje, con técnica, acompañamiento completo."
+                      />
+                      <SortableHeader
+                        field="type"
+                        label="Tipo"
+                        sort={manualSort}
+                        onSort={handleSortChange}
+                        title="Ascendente: Interno, Público."
+                      />
+                      <th scope="col" className="pb-3">Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -557,7 +609,7 @@ export function ListPage() {
                         {/* Fecha y horario */}
                         <td className="py-4 pr-4">
                           <div className="space-y-0.5">
-                            <div className="font-semibold">{formatDate(event.date)}</div>
+                            <div className="font-semibold">{formatShortLocalDate(event.date)}</div>
                             <div className="text-sm text-muted-foreground">
                               {event.scheduleFrom} – {event.scheduleTo}
                             </div>
@@ -723,7 +775,7 @@ export function ListPage() {
                       {/* Info principal */}
                       <div className="text-sm space-y-2">
                         <div className="flex items-center gap-2">
-                          <span className="font-medium">{formatDate(event.date)}</span>
+                          <span className="font-medium">{formatShortLocalDate(event.date)}</span>
                           <span className="text-muted-foreground">
                             {event.scheduleFrom} – {event.scheduleTo}
                           </span>

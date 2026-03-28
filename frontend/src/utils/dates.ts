@@ -33,3 +33,33 @@ export function formatLocalDate(
   return date.toLocaleDateString('es-AR', options);
 }
 
+/**
+ * Formatea una fecha local "YYYY-MM-DD" en formato numérico corto.
+ *
+ * @example
+ * formatShortLocalDate("2026-03-28") // "28/03/2026"
+ */
+export function formatShortLocalDate(dateString: string): string {
+  return formatLocalDate(dateString, {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+}
+
+/**
+ * Devuelve una clave numérica estable para ordenar por fecha y hora reales.
+ * Usa la fecha local del evento y la combina con el horario indicado.
+ */
+export function getLocalDateTimeSortValue(
+  dateString: string,
+  timeString: string = '00:00'
+): number {
+  const date = parseLocalDate(dateString);
+  const [hours = 0, minutes = 0] = timeString.split(':').map(Number);
+
+  date.setHours(hours, minutes, 0, 0);
+
+  return date.getTime();
+}
+
