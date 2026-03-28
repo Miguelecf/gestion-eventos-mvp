@@ -3,8 +3,8 @@ SET time_zone = '+00:00';
 
 SET @now = NOW(6);
 SET @today = CURDATE();
-SET @start_time = ADDTIME(CURTIME(), '01:00:00'); -- arranca en ~1h para disparar alerta de proximidad
-SET @end_time = ADDTIME(@start_time, '01:30:00');
+SET @start_time = '10:00:00';
+SET @end_time = '11:30:00';
 
 -- Reutilizamos datos existentes
 SET @u_full = (SELECT id FROM users WHERE username = 'admin.full');

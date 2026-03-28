@@ -104,6 +104,24 @@ export interface EventStats {
 }
 
 /**
+ * ConfiguraciÃ³n de ordenamiento para listados
+ */
+export interface SortConfig {
+  field: string;
+  order: 'asc' | 'desc';
+}
+
+/**
+ * Estado de paginaciÃ³n para listados de eventos
+ */
+export interface PaginationState {
+  page: number;
+  pageSize: 10 | 20 | 50 | 100;
+  total: number;
+  totalPages: number;
+}
+
+/**
  * Disponibilidad de espacio
  */
 export interface SpaceAvailability {

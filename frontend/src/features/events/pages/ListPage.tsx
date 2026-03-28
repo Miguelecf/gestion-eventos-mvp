@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Plus, Search, RefreshCcw, Eye, Edit, Trash, AlertTriangle, Building2, MapPin } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useEventsStore } from '@/store';
+import { eventsApi } from '@/services/api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,39 +27,221 @@ import {
 } from '@/features/events/utils/status-helpers';
 import { getEditBlockReason } from '@/features/events/utils/edit-event';
 import { toast } from 'sonner';
-import type { Event } from '@/models/event';
+import type { Event, EventFilters, SortConfig } from '@/models/event';
 import type { EventStatus } from '@/models/event-status';
+
+type SimpleDateRangeFilter = 'all' | 'today' | 'next7days' | 'thisMonth';
+
+const PRIORITY_ORDER: Record<Event['priority'], number> = {
+  LOW: 0,
+  MEDIUM: 1,
+  HIGH: 2,
+};
+
+function toLocalDateParam(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
+}
+
+function addDays(baseDate: Date, days: number): Date {
+  const nextDate = new Date(baseDate);
+  nextDate.setDate(nextDate.getDate() + days);
+  return nextDate;
+}
+
+function getNext7DaysRange() {
+  const today = new Date();
+
+  return {
+    startDate: toLocalDateParam(today),
+    endDate: toLocalDateParam(addDays(today, 7)),
+  };
+}
+
+function getCurrentMonthRange() {
+  const today = new Date();
+  const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+  const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+
+  return {
+    startDate: toLocalDateParam(firstDayOfMonth),
+    endDate: toLocalDateParam(lastDayOfMonth),
+  };
+}
+
+function getEffectiveDateRange(filters: EventFilters) {
+  return {
+    startDate: filters.startDate ?? filters.dateFrom,
+    endDate: filters.endDate ?? filters.dateTo,
+  };
+}
+
+function getSimpleDateRangeValue(filters: EventFilters): SimpleDateRangeFilter {
+  const today = toLocalDateParam(new Date());
+  const next7daysRange = getNext7DaysRange();
+  const currentMonthRange = getCurrentMonthRange();
+  const { startDate, endDate } = getEffectiveDateRange(filters);
+
+  if (startDate === today && endDate === today) {
+    return 'today';
+  }
+
+  if (
+    startDate === next7daysRange.startDate &&
+    endDate === next7daysRange.endDate
+  ) {
+    return 'next7days';
+  }
+
+  if (
+    startDate === currentMonthRange.startDate &&
+    endDate === currentMonthRange.endDate
+  ) {
+    return 'thisMonth';
+  }
+
+  return 'all';
+}
+
+function matchesEventFilters(event: Event, filters: EventFilters): boolean {
+  const search = filters.search?.trim().toLowerCase();
+  const { startDate, endDate } = getEffectiveDateRange(filters);
+
+  if (search && !event.name.toLowerCase().includes(search)) {
+    return false;
+  }
+
+  if (filters.status?.length && !filters.status.includes(event.status)) {
+    return false;
+  }
+
+  if (filters.internal !== undefined && event.internal !== filters.internal) {
+    return false;
+  }
+
+  if (startDate && event.date < startDate) {
+    return false;
+  }
+
+  if (endDate && event.date > endDate) {
+    return false;
+  }
+
+  return true;
+}
+
+function getSortableEventValue(event: Event, field: string): boolean | number | string {
+  switch (field) {
+    case 'date':
+      return event.date;
+    case 'scheduleFrom':
+      return event.scheduleFrom;
+    case 'scheduleTo':
+      return event.scheduleTo;
+    case 'priority':
+      return PRIORITY_ORDER[event.priority] ?? -1;
+    case 'createdOn':
+      return event.createdOn ?? event.createdAt;
+    case 'createdAt':
+      return event.createdAt;
+    case 'name':
+      return event.name.toLowerCase();
+    default: {
+      const value = (event as unknown as Record<string, unknown>)[field];
+      if (typeof value === 'string') return value.toLowerCase();
+      if (typeof value === 'number' || typeof value === 'boolean') return value;
+      return '';
+    }
+  }
+}
+
+function compareEventValues(
+  left: boolean | number | string,
+  right: boolean | number | string
+): number {
+  if (typeof left === 'number' && typeof right === 'number') {
+    return left - right;
+  }
+
+  if (typeof left === 'boolean' && typeof right === 'boolean') {
+    return Number(left) - Number(right);
+  }
+
+  return String(left).localeCompare(String(right), 'es-AR', {
+    numeric: true,
+    sensitivity: 'base',
+  });
+}
+
+function sortEvents(events: Event[], sorts: SortConfig[]): Event[] {
+  if (!sorts.length) {
+    return events;
+  }
+
+  return [...events].sort((leftEvent, rightEvent) => {
+    for (const sort of sorts) {
+      const comparison = compareEventValues(
+        getSortableEventValue(leftEvent, sort.field),
+        getSortableEventValue(rightEvent, sort.field)
+      );
+
+      if (comparison !== 0) {
+        return sort.order === 'desc' ? -comparison : comparison;
+      }
+    }
+
+    return 0;
+  });
+}
 
 export function ListPage() {
   const navigate = useNavigate();
   
   const {
-    events,
-    pagination,
     filters,
+    sort,
     loading,
-    errors,
-    fetchEvents,
     setFilters,
-    setPage,
-    setPageSize,
     deleteEvent,
   } = useEventsStore();
 
   const [searchQuery, setSearchQuery] = useState(filters.search || '');
+  const [allEvents, setAllEvents] = useState<Event[]>([]);
+  const [listLoading, setListLoading] = useState(true);
+  const [listError, setListError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState<10 | 20 | 50>(20);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [eventToDelete, setEventToDelete] = useState<Event | null>(null);
 
-  // Carga inicial
+  const loadEvents = useCallback(async () => {
+    setListLoading(true);
+    setListError(null);
+
+    try {
+      const nextEvents = await eventsApi.listActive();
+      setAllEvents(nextEvents);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'No se pudieron cargar los eventos';
+      setListError(message);
+    } finally {
+      setListLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
-    fetchEvents();
-  }, [fetchEvents]);
+    void loadEvents();
+  }, [loadEvents]);
 
   // Debounce búsqueda
   useEffect(() => {
     const timer = setTimeout(() => {
       if (searchQuery !== filters.search) {
         setFilters({ search: searchQuery });
+        setCurrentPage(1);
       }
     }, 500);
 
@@ -71,6 +254,8 @@ export function ListPage() {
     } else {
       setFilters({ status: [value as EventStatus] });
     }
+
+    setCurrentPage(1);
   };
 
   const handleTypeFilterChange = (value: string) => {
@@ -79,6 +264,55 @@ export function ListPage() {
     } else {
       setFilters({ internal: value === 'internal' });
     }
+
+    setCurrentPage(1);
+  };
+
+  const handleDateRangeFilterChange = (value: string) => {
+    const today = toLocalDateParam(new Date());
+    const next7daysRange = getNext7DaysRange();
+    const currentMonthRange = getCurrentMonthRange();
+
+    if (value === 'all') {
+      setFilters({
+        startDate: undefined,
+        endDate: undefined,
+        dateFrom: undefined,
+        dateTo: undefined,
+      });
+      setCurrentPage(1);
+      return;
+    }
+
+    if (value === 'today') {
+      setFilters({
+        startDate: today,
+        endDate: today,
+        dateFrom: today,
+        dateTo: today,
+      });
+      setCurrentPage(1);
+      return;
+    }
+
+    if (value === 'thisMonth') {
+      setFilters({
+        startDate: currentMonthRange.startDate,
+        endDate: currentMonthRange.endDate,
+        dateFrom: currentMonthRange.startDate,
+        dateTo: currentMonthRange.endDate,
+      });
+      setCurrentPage(1);
+      return;
+    }
+
+    setFilters({
+      startDate: next7daysRange.startDate,
+      endDate: next7daysRange.endDate,
+      dateFrom: next7daysRange.startDate,
+      dateTo: next7daysRange.endDate,
+    });
+    setCurrentPage(1);
   };
 
   const handleDeleteClick = (event: Event, e: React.MouseEvent) => {
@@ -110,6 +344,7 @@ export function ListPage() {
     const success = await deleteEvent(eventToDelete.id);
     
     if (success) {
+      await loadEvents();
       toast.success('Evento eliminado correctamente');
       setDeleteDialogOpen(false);
       setEventToDelete(null);
@@ -142,6 +377,24 @@ export function ListPage() {
     };
     return labels[mode] || 'Con técnica';
   };
+
+  const filteredEvents = sortEvents(
+    allEvents.filter((event) => matchesEventFilters(event, filters)),
+    sort
+  );
+  const totalEvents = filteredEvents.length;
+  const totalPages = totalEvents === 0 ? 0 : Math.ceil(totalEvents / pageSize);
+  const safePage = totalPages === 0 ? 1 : Math.min(currentPage, totalPages);
+  const paginatedEvents = filteredEvents.slice(
+    (safePage - 1) * pageSize,
+    (safePage - 1) * pageSize + pageSize
+  );
+
+  useEffect(() => {
+    if (safePage !== currentPage) {
+      setCurrentPage(safePage);
+    }
+  }, [currentPage, safePage]);
 
   return (
     <div className="container mx-auto py-6 space-y-6">
@@ -185,7 +438,7 @@ export function ListPage() {
               onValueChange={handleStatusFilterChange}
             >
               <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Estado" />
+                <SelectValue placeholder="Todos los estados" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos los estados</SelectItem>
@@ -208,34 +461,49 @@ export function ListPage() {
               }
               onValueChange={handleTypeFilterChange}
             >
-              <SelectTrigger className="w-[150px]">
-                <SelectValue placeholder="Tipo" />
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Todos los tipos" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="all">Todos los tipos</SelectItem>
                 <SelectItem value="internal">Internos</SelectItem>
                 <SelectItem value="public">Públicos</SelectItem>
               </SelectContent>
             </Select>
 
-            {/* Botón Refrescar */}
+            {/* Filtro Fecha */}
+            <Select
+              value={getSimpleDateRangeValue(filters)}
+              onValueChange={handleDateRangeFilterChange}
+            >
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Todas las fechas" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="today">Hoy</SelectItem>
+                <SelectItem value="next7days">Próximos 7 días</SelectItem>
+                <SelectItem value="thisMonth">Este mes</SelectItem>
+                <SelectItem value="all">Todas las fechas</SelectItem>
+              </SelectContent>
+            </Select>
+
             <Button
               variant="outline"
               size="icon"
-              onClick={() => fetchEvents(true)}
-              disabled={loading.events}
+              onClick={() => void loadEvents()}
+              disabled={listLoading}
             >
-              <RefreshCcw className={`w-4 h-4 ${loading.events ? 'animate-spin' : ''}`} />
+              <RefreshCcw className={`w-4 h-4 ${listLoading ? 'animate-spin' : ''}`} />
             </Button>
           </div>
         </CardContent>
       </Card>
 
       {/* Error */}
-      {errors.events && (
+      {listError && (
         <Card className="border-destructive">
           <CardContent className="pt-6">
-            <p className="text-sm text-destructive">{errors.events}</p>
+            <p className="text-sm text-destructive">{listError}</p>
           </CardContent>
         </Card>
       )}
@@ -247,17 +515,17 @@ export function ListPage() {
             <div>
               <CardTitle>Eventos Registrados</CardTitle>
               <CardDescription>
-                {pagination.total} eventos en total
+                {totalEvents} eventos en total
               </CardDescription>
             </div>
           </div>
         </CardHeader>
         <CardContent>
-          {loading.events && events.length === 0 ? (
+          {listLoading && allEvents.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               Cargando eventos...
             </div>
-          ) : events.length === 0 ? (
+          ) : paginatedEvents.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               No se encontraron eventos con los filtros aplicados
             </div>
@@ -280,7 +548,7 @@ export function ListPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {events.map((event) => (
+                    {paginatedEvents.map((event) => (
                       <tr
                         key={event.id}
                         className="border-b last:border-0 hover:bg-muted/50 cursor-pointer"
@@ -434,7 +702,7 @@ export function ListPage() {
 
               {/* Cards Mobile */}
               <div className="md:hidden space-y-4">
-                {events.map((event) => (
+                {paginatedEvents.map((event) => (
                   <Card
                     key={event.id}
                     className="cursor-pointer hover:bg-muted/50"
@@ -552,13 +820,16 @@ export function ListPage() {
               {/* Paginación */}
               <div className="flex items-center justify-between pt-4 mt-4 border-t">
                 <div className="text-sm text-muted-foreground">
-                  Página {pagination.page} de {pagination.totalPages} · {pagination.total} eventos
+                  Página {safePage} de {totalPages} · {totalEvents} eventos
                 </div>
 
                 <div className="flex items-center gap-2">
                   <Select
-                    value={String(pagination.pageSize)}
-                    onValueChange={(v) => setPageSize(Number(v) as 10 | 20 | 50)}
+                    value={String(pageSize)}
+                    onValueChange={(value) => {
+                      setPageSize(Number(value) as 10 | 20 | 50);
+                      setCurrentPage(1);
+                    }}
                   >
                     <SelectTrigger className="w-[100px]">
                       <SelectValue />
@@ -573,16 +844,16 @@ export function ListPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setPage(pagination.page - 1)}
-                    disabled={pagination.page === 1 || loading.events}
+                    onClick={() => setCurrentPage((page) => Math.max(page - 1, 1))}
+                    disabled={safePage === 1 || listLoading}
                   >
                     Anterior
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setPage(pagination.page + 1)}
-                    disabled={pagination.page >= pagination.totalPages || loading.events}
+                    onClick={() => setCurrentPage((page) => Math.min(page + 1, totalPages))}
+                    disabled={safePage >= totalPages || listLoading}
                   >
                     Siguiente
                   </Button>
