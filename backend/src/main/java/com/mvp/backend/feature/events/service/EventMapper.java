@@ -2,6 +2,7 @@ package com.mvp.backend.feature.events.service;
 
 import com.mvp.backend.feature.catalogs.model.Department;
 import com.mvp.backend.feature.catalogs.model.Space;
+import com.mvp.backend.feature.events.dto.EventOriginType;
 import com.mvp.backend.feature.events.dto.EventResponseDto;
 import com.mvp.backend.feature.events.model.Event;
 import com.mvp.backend.feature.users.model.User;
@@ -9,6 +10,10 @@ import com.mvp.backend.feature.users.model.User;
 public class EventMapper {
 
     public static EventResponseDto toDto(Event e) {
+        return toDto(e, null, null);
+    }
+
+    public static EventResponseDto toDto(Event e, EventOriginType originType, Long originRequestId) {
         return new EventResponseDto(
                 e.getId(),
                 e.getDate(),
@@ -46,7 +51,9 @@ public class EventMapper {
                 e.getCreatedAt(),
                 e.getUpdatedAt(),
                 toUserRef(e.getCreatedBy()),
-                toUserRef(e.getLastModifiedBy())
+                toUserRef(e.getLastModifiedBy()),
+                originType,
+                originRequestId
         );
     }
 

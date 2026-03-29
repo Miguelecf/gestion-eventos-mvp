@@ -85,8 +85,8 @@ export const ENDPOINTS = {
   INTERNAL_PRIORITY_DECISIONS: '/internal/priority/decisions', // POST
 
   // ================ CAPACIDAD TÉCNICA (internal) ================
-  INTERNAL_TECH_CAPACITY: '/internal/tech/capacity', // GET ?date=yyyy-MM-dd
-  INTERNAL_TECH_EVENTS: '/internal/tech/events',     // GET ?date=yyyy-MM-dd
+  INTERNAL_TECH_CAPACITY: '/api/tech/capacity', // GET ?date=yyyy-MM-dd
+  INTERNAL_TECH_EVENTS: '/api/tech/events',     // GET ?date=yyyy-MM-dd
 
   // ================ CATÁLOGOS ================
   CATALOG_SPACES: '/api/catalogs/spaces',

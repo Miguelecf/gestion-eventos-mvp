@@ -7,7 +7,6 @@ import type {
   EventRequestStatusResponse,
   EventStatus,
   PublicEventRequestPayload,
-  PublicSpaceListItem,
   SpaceOccupancyResponse,
 } from "./types/backend.types";
 import type { PageResponse, SpringPageResponse } from "./types/pagination.types";
@@ -28,6 +27,36 @@ import {
 export interface PublicSpacesFilters {
   publishableOnly?: boolean;
 }
+
+export interface PublicSpaceOption {
+  id: number;
+  value: number;
+  name: string;
+  label: string;
+  capacity: number | null;
+  location: string | null;
+  active: boolean;
+  publishable: boolean;
+}
+
+type PublicSpaceScalar = number | string | null | undefined;
+
+type RawPublicSpaceListItem = {
+  id?: PublicSpaceScalar;
+  value?: PublicSpaceScalar;
+  name?: string | null;
+  label?: string | null;
+  capacity?: PublicSpaceScalar;
+  location?: string | null;
+  active?: boolean | null;
+  publishable?: boolean | null;
+};
+
+type PublicSpacesResponse =
+  | RawPublicSpaceListItem[]
+  | {
+      content?: RawPublicSpaceListItem[];
+    };
 
 export interface ChangeAdminRequestStatusInput {
   newStatus: Extract<PublicRequestStatus, "EN_REVISION" | "RECHAZADO">;
@@ -188,6 +217,76 @@ function normalizeRequestCollection(
   return Array.isArray(data.content) ? data.content : [];
 }
 
+function normalizeInteger(value: PublicSpaceScalar): number | null {
+  if (typeof value === "number") {
+    return Number.isInteger(value) && value > 0 ? value : null;
+  }
+
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value);
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+  }
+
+  return null;
+}
+
+function normalizeCapacity(value: PublicSpaceScalar): number | null {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
+}
+
+function normalizeText(...values: Array<string | null | undefined>): string | null {
+  for (const value of values) {
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      if (trimmed.length > 0) {
+        return trimmed;
+      }
+    }
+  }
+
+  return null;
+}
+
+function normalizePublicSpacesResponse(data: PublicSpacesResponse): RawPublicSpaceListItem[] {
+  if (Array.isArray(data)) {
+    return data;
+  }
+
+  return Array.isArray(data.content) ? data.content : [];
+}
+
+function adaptPublicSpaceOption(space: RawPublicSpaceListItem): PublicSpaceOption | null {
+  const id = normalizeInteger(space.id ?? space.value);
+  if (id === null) {
+    return null;
+  }
+
+  const name = normalizeText(space.name, space.label) ?? `Espacio ${id}`;
+  const capacity = normalizeCapacity(space.capacity);
+  const label =
+    normalizeText(space.label) ?? (capacity === null ? name : `${name} - Capacidad: ${capacity}`);
+
+  return {
+    id,
+    value: id,
+    name,
+    label,
+    capacity,
+    location: normalizeText(space.location),
+    active: space.active !== false,
+    publishable: space.publishable !== false,
+  };
+}
+
 export async function listAdminRequests(
   params: PublicRequestsQueryParams = {}
 ): Promise<PageResponse<PublicEventRequest>> {
@@ -284,16 +383,20 @@ export async function checkPublicAvailability(
 
 export async function getPublicSpaces(
   filters?: PublicSpacesFilters
-): Promise<PublicSpaceListItem[]> {
+): Promise<PublicSpaceOption[]> {
   const params = new URLSearchParams();
 
   if (filters?.publishableOnly !== false) {
     params.append("publishableOnly", "true");
   }
 
-  return await httpClient.get<PublicSpaceListItem[]>(
+  const response = await httpClient.get<PublicSpacesResponse>(
     `${ENDPOINTS.CATALOG_SPACES_PUBLIC}${params.toString() ? `?${params.toString()}` : ""}`
   );
+
+  return normalizePublicSpacesResponse(response)
+    .map(adaptPublicSpaceOption)
+    .filter((space): space is PublicSpaceOption => space !== null);
 }
 
 export async function getSpaceMonthlyOccupancy(

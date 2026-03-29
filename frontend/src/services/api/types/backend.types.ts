@@ -78,11 +78,25 @@ export type CommentVisibility = typeof CommentVisibility[keyof typeof CommentVis
  * Tipos de Acciones de Auditoría
  */
 export const AuditActionType = {
-  STATUS_CHANGE: 'STATUS_CHANGE',
-  FIELD_CHANGE: 'FIELD_CHANGE',
-  COMMENT: 'COMMENT'
+  STATUS: 'STATUS',
+  SCHEDULE_CHANGE: 'SCHEDULE_CHANGE',
+  FIELD_UPDATE: 'FIELD_UPDATE',
+  REPROGRAM: 'REPROGRAM',
+  TECH_CAPACITY_REJECT: 'TECH_CAPACITY_REJECT',
+  SPACE_CONFLICT: 'SPACE_CONFLICT',
+  PRIORITY_CONFLICT: 'PRIORITY_CONFLICT',
+  COMMENT_CREATED: 'COMMENT_CREATED',
+  COMMENT_UPDATED: 'COMMENT_UPDATED',
+  COMMENT_DELETED: 'COMMENT_DELETED',
+  INTERNAL_TOGGLED: 'INTERNAL_TOGGLED',
 } as const;
 export type AuditActionType = typeof AuditActionType[keyof typeof AuditActionType];
+
+export const EventOriginType = {
+  MANUAL: 'MANUAL',
+  PUBLIC_REQUEST: 'PUBLIC_REQUEST',
+} as const;
+export type EventOriginType = typeof EventOriginType[keyof typeof EventOriginType];
 
 /**
  * Estado de Solicitudes Públicas
@@ -170,6 +184,8 @@ export interface BackendEventDTO {
     lastName: string;
     email: string;
   } | null;
+  originType?: EventOriginType | null;
+  originRequestId?: number | null;
 }
 
 export interface BackendPriorityConflictSummary {
@@ -277,12 +293,20 @@ export interface BackendCommentDTO {
   id: number;
   body: string;
   visibility: CommentVisibility;
-  authorId: number;
-  authorUsername: string;
-  authorName: string;
-  authorLastName: string;
+  author: {
+    id: number;
+    name: string;
+  } | null;
   createdAt: string;         // ISO 8601
   updatedAt: string;         // ISO 8601
+  editedBy?: {
+    id: number;
+    name: string;
+  } | null;
+  authorId?: number;
+  authorUsername?: string;
+  authorName?: string;
+  authorLastName?: string;
 }
 
 /**
@@ -291,13 +315,16 @@ export interface BackendCommentDTO {
  */
 export interface BackendCommentsPage {
   eventId: number;
-  comments: BackendCommentDTO[];
-  page: {
+  items?: BackendCommentDTO[];
+  comments?: BackendCommentDTO[];
+  page: number | {
     number: number;
     size: number;
     totalElements: number;
     totalPages: number;
   };
+  size?: number;
+  total?: number;
 }
 
 /**
@@ -322,15 +349,27 @@ export interface BackendUpdateCommentDTO {
  */
 export interface BackendAuditEntryDTO {
   id: number;
-  actionType: AuditActionType;
+  type?: AuditActionType;
+  actionType?: AuditActionType;
+  field?: string | null;
   fromValue: string | null;
   toValue: string | null;
   details: string | null;
-  actorId: number;
-  actorUsername: string;
-  actorName: string;
-  actorLastName: string;
-  timestamp: string;         // ISO 8601
+  reason?: string | null;
+  note?: string | null;
+  at?: string;               // ISO 8601
+  timestamp?: string;        // ISO 8601 legacy
+  actor?: {
+    id: number;
+    username: string;
+    name: string;
+    lastName: string;
+    email: string;
+  } | null;
+  actorId?: number;
+  actorUsername?: string;
+  actorName?: string;
+  actorLastName?: string;
 }
 
 /**
@@ -341,8 +380,10 @@ export interface BackendAuditPage {
   eventId: number;
   totalElements: number;
   totalPages: number;
-  currentPage: number;
-  pageSize: number;
+  currentPage?: number;
+  pageSize?: number;
+  page?: number;
+  size?: number;
   entries: BackendAuditEntryDTO[];
 }
 
@@ -397,9 +438,13 @@ export interface BackendSpaceAvailabilityResponse {
  */
 export interface BackendTechnicalCapacityResponse {
   date: string;              // yyyy-MM-dd
-  maxCapacity: number;
+  blockMinutes?: number;
+  defaultSlots?: number;
+  maxCapacity?: number;
   blocks: Array<{
-    time: string;            // HH:mm
+    from?: string;           // HH:mm
+    to?: string;             // HH:mm
+    time?: string;           // HH:mm legacy
     used: number;
     available: number;
   }>;

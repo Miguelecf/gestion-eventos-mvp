@@ -7,7 +7,13 @@
  * ===================================================================
  */
 
-import type { EventStatus, Priority, TechSupportMode, AudienceType } from '@/services/api/types/backend.types';
+import type {
+  EventStatus,
+  Priority,
+  TechSupportMode,
+  AudienceType,
+  EventOriginType,
+} from '@/services/api/types/backend.types';
 import type { Space } from './space';
 import type { Department } from './department';
 
@@ -58,6 +64,8 @@ export interface Event {
   updatedAt: string;          // ISO 8601
   createdBy: User | null;
   lastModifiedBy: User | null;
+  originType?: EventOriginType | null;
+  originRequestId?: number | null;
   
   // Propiedades adicionales del frontend
   spaceId?: number;
@@ -72,7 +80,7 @@ export interface Event {
 export type EventPriority = 'BAJA' | 'MEDIA' | 'ALTA' | 'CRITICA';
 
 // Re-exportar tipos del backend
-export type { EventStatus, Priority, TechSupportMode, AudienceType };
+export type { EventStatus, Priority, TechSupportMode, AudienceType, EventOriginType };
 
 /**
  * Filtros para búsqueda de eventos

@@ -68,7 +68,9 @@ public record EventResponseDto(
         Instant updatedAt,
 
         UserRef createdBy,
-        UserRef lastModifiedBy
+        UserRef lastModifiedBy,
+        EventOriginType originType,
+        Long originRequestId
 ) {
 
     // ---- Proyecciones livianas para anidar en la respuesta

@@ -1,17 +1,16 @@
 /**
  * ===================================================================
- * SELECTOR DE ESPACIOS PÚBLICOS
+ * SELECTOR DE ESPACIOS PUBLICOS
  * ===================================================================
- * Selector dropdown para espacios disponibles en solicitudes públicas.
- * Solo muestra espacios con `publishable = true`.
+ * Selector dropdown para espacios disponibles en solicitudes publicas.
  * ===================================================================
  */
 
 import * as React from 'react';
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { publicRequestsApi } from '@/services/api';
-import type { PublicSpaceListItem } from '@/services/api';
+import type { PublicSpaceOption } from '@/services/api/publicRequests.api';
 
 export interface PublicSpaceSelectProps {
   value?: number | null;
@@ -37,25 +36,40 @@ const PublicSpaceSelect = React.forwardRef<HTMLSelectElement, PublicSpaceSelectP
     },
     ref
   ) => {
-    const [spaces, setSpaces] = useState<PublicSpaceListItem[]>([]);
+    const [spaces, setSpaces] = useState<PublicSpaceOption[]>([]);
     const [loading, setLoading] = useState(true);
     const [loadError, setLoadError] = useState<string | null>(null);
 
-    // Cargar espacios públicos al montar
     useEffect(() => {
+      let cancelled = false;
+
       publicRequestsApi
         .getPublicSpaces({ publishableOnly: true })
         .then((data) => {
-          // Filtrar solo activos
-          const activeSpaces = data.filter((space) => space.active);
-          setSpaces(activeSpaces);
+          if (cancelled) {
+            return;
+          }
+
+          setSpaces(data);
           setLoadError(null);
         })
         .catch((err) => {
-          console.error('Error cargando espacios públicos:', err);
+          if (cancelled) {
+            return;
+          }
+
+          console.error('Error cargando espacios publicos:', err);
           setLoadError('No se pudieron cargar los espacios disponibles');
         })
-        .finally(() => setLoading(false));
+        .finally(() => {
+          if (!cancelled) {
+            setLoading(false);
+          }
+        });
+
+      return () => {
+        cancelled = true;
+      };
     }, []);
 
     return (
@@ -80,23 +94,20 @@ const PublicSpaceSelect = React.forwardRef<HTMLSelectElement, PublicSpaceSelectP
           </option>
           {!loadError &&
             spaces.map((space) => (
-              <option key={space.id} value={space.id}>
-                {space.name}
-                {space.capacity ? ` - Capacidad: ${space.capacity}` : ''}
+              <option key={space.value} value={space.value}>
+                {space.label}
               </option>
             ))}
         </select>
 
-        {/* Mensaje de error de carga */}
         {loadError && (
-          <p className="text-xs text-red-600 mt-1" role="alert">
+          <p className="mt-1 text-xs text-red-600" role="alert">
             {loadError}
           </p>
         )}
 
-        {/* Información adicional */}
         {!loading && !loadError && spaces.length === 0 && (
-          <p className="text-xs text-muted-foreground mt-1">
+          <p className="mt-1 text-xs text-muted-foreground">
             No hay espacios disponibles en este momento
           </p>
         )}

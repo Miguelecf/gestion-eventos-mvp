@@ -13,6 +13,7 @@
 
 import type { EventStatus } from '@/models/event-status';
 import { EVENT_STATUS_METADATA } from '@/models/event-status';
+import type { AudienceType } from '@/models/event';
 
 /**
  * Obtiene la variante de badge para un estado
@@ -322,4 +323,16 @@ export function getPriorityLabel(priority: Priority): string {
   };
 
   return labels[priority] || priority;
+}
+
+export function getAudienceTypeLabel(audienceType: AudienceType): string {
+  const labels: Record<AudienceType, string> = {
+    ESTUDIANTES: 'Estudiantes',
+    COMUNIDAD: 'Comunidad',
+    MIXTO: 'Mixto',
+    DOCENTES: 'Docentes',
+    AUTORIDADES: 'Autoridades',
+  };
+
+  return labels[audienceType] || audienceType;
 }

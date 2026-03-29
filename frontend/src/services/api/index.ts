@@ -33,6 +33,7 @@ export {
   Priority,
   TechSupportMode,
   AudienceType,
+  EventOriginType,
   UserRole,
   CommentVisibility,
   AuditActionType,

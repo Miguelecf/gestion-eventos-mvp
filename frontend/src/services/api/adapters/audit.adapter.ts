@@ -2,226 +2,321 @@
  * ===================================================================
  * ADAPTADOR DE AUDITORÍA
  * ===================================================================
- * Transforma BackendAuditEntryDTO ↔ AuditEntry (modelo del frontend)
- * Maneja conversiones de fechas y estructura de datos de auditoría
+ * Transforma BackendAuditEntryDTO <-> AuditEntry (modelo del frontend)
+ * Alineado con HistoryType del backend actual.
  * ===================================================================
  */
 
-import type { 
-  BackendAuditEntryDTO, 
+import type {
+  BackendAuditEntryDTO,
   BackendAuditPage,
-  AuditActionType 
+  AuditActionType,
 } from '../types/backend.types';
 import type { PageResponse } from '../types/pagination.types';
 
-// ==================== TIPOS DEL FRONTEND ====================
-
-/**
- * Modelo de entrada de auditoría para el frontend
- */
 export interface AuditEntry {
   id: number;
   actionType: AuditActionType;
+  field: string | null;
   fromValue: string | null;
   toValue: string | null;
   details: string | null;
+  reason: string | null;
+  note: string | null;
   actor: {
     id: number;
-    username: string;
-    fullName: string; // name + lastName combinados
-  };
-  timestamp: Date; // Convertido a Date para facilitar operaciones
-  // Campos calculados para la UI
-  description: string; // Descripción legible del cambio
-  icon: string; // Icono representativo de la acción
-  color: string; // Color CSS para el badge
+    username: string | null;
+    fullName: string;
+    email: string | null;
+  } | null;
+  timestamp: Date;
+  description: string;
+  icon: string;
+  color: string;
 }
 
-// ==================== ADAPTADORES PRINCIPALES ====================
+function parseJsonDetails(details: string | null): Record<string, unknown> | null {
+  if (!details) {
+    return null;
+  }
 
-/**
- * Adapta BackendAuditEntryDTO (del backend) a AuditEntry (modelo frontend)
- * 
- * @param backendEntry - DTO recibido del backend
- * @returns AuditEntry - Modelo normalizado del frontend con campos calculados
- * 
- * @example
- * const backendEntry = await fetch('/api/audit/123');
- * const entry = adaptAuditEntryFromBackend(backendEntry);
- * // entry.description === 'cambió el estado de SOLICITADO a APROBADO'
- * // entry.actor.fullName === 'Juan Pérez'
- */
+  try {
+    const parsed = JSON.parse(details);
+    return typeof parsed === 'object' && parsed !== null
+      ? (parsed as Record<string, unknown>)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function getNestedObject(value: unknown): Record<string, unknown> | null {
+  return typeof value === 'object' && value !== null
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function getCommentVisibilityLabel(value: unknown): string | null {
+  switch (value) {
+    case 'INTERNAL':
+      return 'Interno';
+    case 'PUBLIC':
+      return 'Publico';
+    default:
+      return null;
+  }
+}
+
+function normalizeActionType(entry: BackendAuditEntryDTO): AuditActionType {
+  const actionType = entry.type ?? entry.actionType;
+
+  if (!actionType) {
+    throw new Error(`Entrada de auditoría ${entry.id} sin tipo`);
+  }
+
+  return actionType;
+}
+
+function normalizeTimestamp(entry: BackendAuditEntryDTO): Date {
+  const rawValue = entry.at ?? entry.timestamp;
+
+  if (!rawValue) {
+    throw new Error(`Entrada de auditoría ${entry.id} sin fecha`);
+  }
+
+  return new Date(rawValue);
+}
+
+function normalizeActor(entry: BackendAuditEntryDTO): AuditEntry['actor'] {
+  if (entry.actor) {
+    return {
+      id: entry.actor.id,
+      username: entry.actor.username,
+      fullName: `${entry.actor.name} ${entry.actor.lastName}`.trim(),
+      email: entry.actor.email,
+    };
+  }
+
+  if (
+    entry.actorId === undefined &&
+    !entry.actorUsername &&
+    !entry.actorName &&
+    !entry.actorLastName
+  ) {
+    return null;
+  }
+
+  return {
+    id: entry.actorId ?? 0,
+    username: entry.actorUsername ?? null,
+    fullName: `${entry.actorName ?? ''} ${entry.actorLastName ?? ''}`.trim() || 'Usuario desconocido',
+    email: null,
+  };
+}
+
+function describeFieldUpdate(entry: BackendAuditEntryDTO): string {
+  const field = entry.field ?? 'un campo';
+
+  if (field === 'ceremonial_ok') {
+    return entry.toValue === 'true'
+      ? 'otorgó conformidad ceremonial'
+      : 'revocó conformidad ceremonial';
+  }
+
+  if (field === 'technical_ok') {
+    return entry.toValue === 'true'
+      ? 'otorgó conformidad técnica'
+      : 'revocó conformidad técnica';
+  }
+
+  return `actualizó ${field}`;
+}
+
+function describeComment(entry: BackendAuditEntryDTO, actionType: AuditActionType): string {
+  const payload = parseJsonDetails(entry.details);
+  const nextPayload = getNestedObject(payload?.next);
+  const prevPayload = getNestedObject(payload?.prev);
+  const nextBody = nextPayload?.body;
+  const prevBody = prevPayload?.body;
+
+  switch (actionType) {
+    case 'COMMENT_CREATED':
+      return typeof nextBody === 'string' ? `agregó comentario: "${nextBody}"` : 'agregó un comentario';
+    case 'COMMENT_UPDATED':
+      return typeof prevBody === 'string' && typeof nextBody === 'string'
+        ? `editó comentario`
+        : 'editó un comentario';
+    case 'COMMENT_DELETED':
+      return typeof prevBody === 'string' ? 'eliminó un comentario' : 'eliminó comentario';
+    default:
+      return 'gestionó un comentario';
+  }
+}
+
+function normalizeCommentDetails(entry: BackendAuditEntryDTO): string | null {
+  const payload = parseJsonDetails(entry.details);
+
+  if (!payload) {
+    return entry.details;
+  }
+
+  const nextPayload = getNestedObject(payload.next);
+  const prevPayload = getNestedObject(payload.prev);
+  const visibility = getCommentVisibilityLabel(
+    nextPayload?.visibility ?? prevPayload?.visibility
+  );
+
+  if (visibility) {
+    return `Visibilidad: ${visibility}`;
+  }
+
+  return null;
+}
+
+function describeInternalToggle(entry: BackendAuditEntryDTO): string {
+  const payload = parseJsonDetails(entry.details);
+  const prev = payload?.prev;
+  const next = payload?.next;
+
+  if (typeof prev === 'boolean' && typeof next === 'boolean') {
+    return next ? 'marcó el evento como interno' : 'quitó la marca de evento interno';
+  }
+
+  return 'cambió la visibilidad interna';
+}
+
+function generateAuditDescription(entry: BackendAuditEntryDTO): string {
+  const actionType = normalizeActionType(entry);
+
+  switch (actionType) {
+    case 'STATUS':
+      return `cambió el estado de ${entry.fromValue ?? 'N/A'} a ${entry.toValue ?? 'N/A'}`;
+    case 'SCHEDULE_CHANGE':
+      return 'actualizó agenda/horario';
+    case 'FIELD_UPDATE':
+      return describeFieldUpdate(entry);
+    case 'REPROGRAM':
+      return 'reprogramó el evento';
+    case 'TECH_CAPACITY_REJECT':
+      return 'registró rechazo por capacidad técnica';
+    case 'SPACE_CONFLICT':
+      return 'registró conflicto de espacio';
+    case 'PRIORITY_CONFLICT':
+      return 'registró conflicto de prioridad';
+    case 'COMMENT_CREATED':
+    case 'COMMENT_UPDATED':
+    case 'COMMENT_DELETED':
+      return describeComment(entry, actionType);
+    case 'INTERNAL_TOGGLED':
+      return describeInternalToggle(entry);
+    default:
+      return 'realizó una acción';
+  }
+}
+
+function getAuditIcon(actionType: AuditActionType): string {
+  const iconMap: Record<AuditActionType, string> = {
+    STATUS: 'arrow-right-circle',
+    SCHEDULE_CHANGE: 'calendar-range',
+    FIELD_UPDATE: 'edit',
+    REPROGRAM: 'refresh-cw',
+    TECH_CAPACITY_REJECT: 'cpu',
+    SPACE_CONFLICT: 'map-pin-off',
+    PRIORITY_CONFLICT: 'alert-triangle',
+    COMMENT_CREATED: 'message-square-plus',
+    COMMENT_UPDATED: 'message-square-more',
+    COMMENT_DELETED: 'message-square-x',
+    INTERNAL_TOGGLED: 'eye-off',
+  };
+
+  return iconMap[actionType] || 'circle';
+}
+
+function getAuditColor(actionType: AuditActionType): string {
+  const colorMap: Record<AuditActionType, string> = {
+    STATUS: 'bg-blue-100 text-blue-800',
+    SCHEDULE_CHANGE: 'bg-sky-100 text-sky-800',
+    FIELD_UPDATE: 'bg-amber-100 text-amber-800',
+    REPROGRAM: 'bg-orange-100 text-orange-800',
+    TECH_CAPACITY_REJECT: 'bg-red-100 text-red-800',
+    SPACE_CONFLICT: 'bg-rose-100 text-rose-800',
+    PRIORITY_CONFLICT: 'bg-fuchsia-100 text-fuchsia-800',
+    COMMENT_CREATED: 'bg-emerald-100 text-emerald-800',
+    COMMENT_UPDATED: 'bg-emerald-100 text-emerald-800',
+    COMMENT_DELETED: 'bg-neutral-100 text-neutral-800',
+    INTERNAL_TOGGLED: 'bg-slate-100 text-slate-800',
+  };
+
+  return colorMap[actionType] || 'bg-gray-100 text-gray-800';
+}
+
+function normalizeDetails(
+  entry: BackendAuditEntryDTO,
+  actionType: AuditActionType
+): string | null {
+  switch (actionType) {
+    case 'COMMENT_CREATED':
+    case 'COMMENT_UPDATED':
+    case 'COMMENT_DELETED':
+      return normalizeCommentDetails(entry);
+    default:
+      return entry.details;
+  }
+}
+
 export function adaptAuditEntryFromBackend(backendEntry: BackendAuditEntryDTO): AuditEntry {
-  const timestamp = new Date(backendEntry.timestamp);
+  const actionType = normalizeActionType(backendEntry);
 
   return {
     id: backendEntry.id,
-    actionType: backendEntry.actionType,
+    actionType,
+    field: backendEntry.field ?? null,
     fromValue: backendEntry.fromValue,
     toValue: backendEntry.toValue,
-    details: backendEntry.details,
-    
-    // Actor: combinar datos individuales en objeto estructurado
-    actor: {
-      id: backendEntry.actorId,
-      username: backendEntry.actorUsername,
-      fullName: `${backendEntry.actorName} ${backendEntry.actorLastName}`.trim()
-    },
-
-    // Fecha: convertir ISO 8601 string a Date object
-    timestamp,
-
-    // Campos calculados para UI
+    details: normalizeDetails(backendEntry, actionType),
+    reason: backendEntry.reason ?? null,
+    note: backendEntry.note ?? null,
+    actor: normalizeActor(backendEntry),
+    timestamp: normalizeTimestamp(backendEntry),
     description: generateAuditDescription(backendEntry),
-    icon: getAuditIcon(backendEntry.actionType),
-    color: getAuditColor(backendEntry.actionType)
+    icon: getAuditIcon(actionType),
+    color: getAuditColor(actionType),
   };
 }
 
-/**
- * Adapta múltiples entradas de auditoría del backend
- * 
- * @param backendEntries - Array de DTOs del backend
- * @returns Array de modelos AuditEntry del frontend
- * 
- * @example
- * const page = await fetch('/api/audit/123');
- * const entries = adaptAuditEntriesFromBackend(page.entries);
- */
 export function adaptAuditEntriesFromBackend(
   backendEntries: BackendAuditEntryDTO[]
 ): AuditEntry[] {
   return backendEntries.map(adaptAuditEntryFromBackend);
 }
 
-/**
- * Adapta página de auditoría del backend a formato normalizado
- * 
- * @param backendPage - Respuesta de paginación del backend
- * @returns PageResponse con entradas de auditoría adaptadas
- * 
- * @example
- * const backendPage = await fetch('/api/audit/123?page=0');
- * const page = adaptAuditPageFromBackend(backendPage);
- * // page.content = AuditEntry[]
- * // page.page.number = 0
- */
 export function adaptAuditPageFromBackend(
   backendPage: BackendAuditPage
 ): PageResponse<AuditEntry> {
+  const pageNumber = backendPage.currentPage ?? backendPage.page ?? 0;
+  const pageSize = backendPage.pageSize ?? backendPage.size ?? backendPage.entries.length;
+
   return {
     content: adaptAuditEntriesFromBackend(backendPage.entries),
     page: {
-      number: backendPage.currentPage,
-      size: backendPage.pageSize,
+      number: pageNumber,
+      size: pageSize,
       totalElements: backendPage.totalElements,
-      totalPages: backendPage.totalPages
+      totalPages: backendPage.totalPages,
     },
-    first: backendPage.currentPage === 0,
-    last: backendPage.currentPage === backendPage.totalPages - 1,
-    empty: backendPage.entries.length === 0
+    first: pageNumber === 0,
+    last: backendPage.totalPages === 0 || pageNumber >= backendPage.totalPages - 1,
+    empty: backendPage.entries.length === 0,
   };
 }
 
-// ==================== HELPERS DE DESCRIPCIÓN ====================
-
-/**
- * Genera descripción legible en español de un cambio de auditoría
- * 
- * @param entry - Entrada de auditoría del backend
- * @returns Descripción en español del cambio
- * 
- * @example
- * generateAuditDescription({
- *   actionType: 'STATUS_CHANGE',
- *   fromValue: 'SOLICITADO',
- *   toValue: 'APROBADO',
- *   details: null
- * });
- * // => "cambió el estado de SOLICITADO a APROBADO"
- */
-function generateAuditDescription(entry: BackendAuditEntryDTO): string {
-  switch (entry.actionType) {
-    case 'STATUS_CHANGE':
-      return `cambió el estado de ${entry.fromValue || 'N/A'} a ${entry.toValue || 'N/A'}`;
-    
-    case 'FIELD_CHANGE':
-      if (entry.details) {
-        return `modificó ${entry.details}`;
-      }
-      return `actualizó un campo de ${entry.fromValue || 'vacío'} a ${entry.toValue || 'vacío'}`;
-    
-    case 'COMMENT':
-      return `agregó un comentario${entry.details ? `: "${entry.details}"` : ''}`;
-    
-    default:
-      return 'realizó una acción';
-  }
-}
-
-/**
- * Obtiene el icono representativo de una acción de auditoría
- * 
- * @param actionType - Tipo de acción
- * @returns Nombre del icono (para librerías como lucide-react)
- * 
- * @example
- * const icon = getAuditIcon('STATUS_CHANGE');
- * // => 'arrow-right-circle'
- * <ArrowRightCircle className="h-4 w-4" />
- */
-function getAuditIcon(actionType: AuditActionType): string {
-  const iconMap: Record<AuditActionType, string> = {
-    STATUS_CHANGE: 'arrow-right-circle',
-    FIELD_CHANGE: 'edit',
-    COMMENT: 'message-square'
-  };
-
-  return iconMap[actionType] || 'circle';
-}
-
-/**
- * Obtiene el color CSS asociado a una acción de auditoría
- * 
- * @param actionType - Tipo de acción
- * @returns Clase CSS de color
- * 
- * @example
- * const color = getAuditColor('STATUS_CHANGE');
- * // => 'bg-blue-100 text-blue-800'
- * <Badge className={color}>Cambio de estado</Badge>
- */
-function getAuditColor(actionType: AuditActionType): string {
-  const colorMap: Record<AuditActionType, string> = {
-    STATUS_CHANGE: 'bg-blue-100 text-blue-800',
-    FIELD_CHANGE: 'bg-yellow-100 text-yellow-800',
-    COMMENT: 'bg-green-100 text-green-800'
-  };
-
-  return colorMap[actionType] || 'bg-gray-100 text-gray-800';
-}
-
-// ==================== HELPERS DE AGRUPACIÓN ====================
-
-/**
- * Agrupa entradas de auditoría por fecha (día)
- * 
- * @param entries - Array de entradas de auditoría
- * @returns Map con entradas agrupadas por fecha (yyyy-MM-dd)
- * 
- * @example
- * const grouped = groupAuditEntriesByDate(entries);
- * grouped.forEach((entries, date) => {
- *   console.log(`${date}: ${entries.length} cambios`);
- * });
- */
 export function groupAuditEntriesByDate(
   entries: AuditEntry[]
 ): Map<string, AuditEntry[]> {
   const grouped = new Map<string, AuditEntry[]>();
 
-  entries.forEach(entry => {
-    const dateKey = entry.timestamp.toISOString().split('T')[0]; // yyyy-MM-dd
+  entries.forEach((entry) => {
+    const dateKey = entry.timestamp.toISOString().split('T')[0];
     const existing = grouped.get(dateKey) || [];
     grouped.set(dateKey, [...existing, entry]);
   });
@@ -229,22 +324,12 @@ export function groupAuditEntriesByDate(
   return grouped;
 }
 
-/**
- * Agrupa entradas de auditoría por tipo de acción
- * 
- * @param entries - Array de entradas de auditoría
- * @returns Map con entradas agrupadas por tipo de acción
- * 
- * @example
- * const grouped = groupAuditEntriesByAction(entries);
- * const statusChanges = grouped.get('STATUS_CHANGE') || [];
- */
 export function groupAuditEntriesByAction(
   entries: AuditEntry[]
 ): Map<AuditActionType, AuditEntry[]> {
   const grouped = new Map<AuditActionType, AuditEntry[]>();
 
-  entries.forEach(entry => {
+  entries.forEach((entry) => {
     const existing = grouped.get(entry.actionType) || [];
     grouped.set(entry.actionType, [...existing, entry]);
   });
@@ -252,22 +337,16 @@ export function groupAuditEntriesByAction(
   return grouped;
 }
 
-/**
- * Agrupa entradas de auditoría por actor
- * 
- * @param entries - Array de entradas de auditoría
- * @returns Map con entradas agrupadas por ID de actor
- * 
- * @example
- * const grouped = groupAuditEntriesByActor(entries);
- * const userChanges = grouped.get(userId) || [];
- */
 export function groupAuditEntriesByActor(
   entries: AuditEntry[]
 ): Map<number, AuditEntry[]> {
   const grouped = new Map<number, AuditEntry[]>();
 
-  entries.forEach(entry => {
+  entries.forEach((entry) => {
+    if (!entry.actor) {
+      return;
+    }
+
     const existing = grouped.get(entry.actor.id) || [];
     grouped.set(entry.actor.id, [...existing, entry]);
   });
@@ -275,82 +354,28 @@ export function groupAuditEntriesByActor(
   return grouped;
 }
 
-// ==================== HELPERS DE FILTRADO ====================
-
-/**
- * Filtra entradas de auditoría por tipo de acción
- * 
- * @param entries - Array de entradas de auditoría
- * @param actionTypes - Tipos de acción a incluir
- * @returns Array filtrado de entradas
- * 
- * @example
- * const statusChanges = filterAuditEntriesByAction(
- *   entries,
- *   ['STATUS_CHANGE']
- * );
- */
 export function filterAuditEntriesByAction(
   entries: AuditEntry[],
   actionTypes: AuditActionType[]
 ): AuditEntry[] {
-  return entries.filter(entry => actionTypes.includes(entry.actionType));
+  return entries.filter((entry) => actionTypes.includes(entry.actionType));
 }
 
-/**
- * Filtra entradas de auditoría por rango de fechas
- * 
- * @param entries - Array de entradas de auditoría
- * @param startDate - Fecha inicial (inclusive)
- * @param endDate - Fecha final (inclusive)
- * @returns Array filtrado de entradas
- * 
- * @example
- * const lastWeek = filterAuditEntriesByDateRange(
- *   entries,
- *   new Date('2025-01-01'),
- *   new Date('2025-01-07')
- * );
- */
 export function filterAuditEntriesByDateRange(
   entries: AuditEntry[],
   startDate: Date,
   endDate: Date
 ): AuditEntry[] {
-  return entries.filter(entry => {
-    return entry.timestamp >= startDate && entry.timestamp <= endDate;
-  });
+  return entries.filter((entry) => entry.timestamp >= startDate && entry.timestamp <= endDate);
 }
 
-/**
- * Filtra entradas de auditoría por actor
- * 
- * @param entries - Array de entradas de auditoría
- * @param actorId - ID del actor
- * @returns Array filtrado de entradas
- * 
- * @example
- * const myChanges = filterAuditEntriesByActor(entries, currentUser.id);
- */
 export function filterAuditEntriesByActor(
   entries: AuditEntry[],
   actorId: number
 ): AuditEntry[] {
-  return entries.filter(entry => entry.actor.id === actorId);
+  return entries.filter((entry) => entry.actor?.id === actorId);
 }
 
-// ==================== HELPERS DE FORMATO ====================
-
-/**
- * Obtiene el tiempo relativo desde una acción de auditoría
- * 
- * @param entry - Entrada de auditoría
- * @returns String con tiempo relativo (ej: "hace 2 horas")
- * 
- * @example
- * <span>{getAuditEntryAge(entry)}</span>
- * // "hace 2 horas"
- */
 export function getAuditEntryAge(entry: AuditEntry): string {
   const now = new Date();
   const diffMs = now.getTime() - entry.timestamp.getTime();
@@ -362,79 +387,60 @@ export function getAuditEntryAge(entry: AuditEntry): string {
   if (diffMins < 60) return `hace ${diffMins} minuto${diffMins > 1 ? 's' : ''}`;
   if (diffHours < 24) return `hace ${diffHours} hora${diffHours > 1 ? 's' : ''}`;
   if (diffDays < 7) return `hace ${diffDays} día${diffDays > 1 ? 's' : ''}`;
-  
-  // Más de 7 días: mostrar fecha
-  return entry.timestamp.toLocaleDateString('es-AR', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  });
+
+  return formatAuditEntryDate(entry);
 }
 
-/**
- * Formatea la fecha de una entrada de auditoría
- * 
- * @param entry - Entrada de auditoría
- * @returns String con fecha formateada
- * 
- * @example
- * formatAuditEntryDate(entry);
- * // => "01 ene 2025, 14:30"
- */
 export function formatAuditEntryDate(entry: AuditEntry): string {
   return entry.timestamp.toLocaleDateString('es-AR', {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
     hour: '2-digit',
-    minute: '2-digit'
+    minute: '2-digit',
   });
 }
 
-/**
- * Obtiene un resumen de cambios de auditoría
- * 
- * @param entries - Array de entradas de auditoría
- * @returns Objeto con estadísticas de cambios
- * 
- * @example
- * const summary = getAuditSummary(entries);
- * // {
- * //   total: 10,
- * //   byAction: { STATUS_CHANGE: 3, FIELD_CHANGE: 5, COMMENT: 2 },
- * //   uniqueActors: 2,
- * //   dateRange: { start: Date, end: Date }
- * // }
- */
 export function getAuditSummary(entries: AuditEntry[]): {
   total: number;
   byAction: Record<AuditActionType, number>;
   uniqueActors: number;
   dateRange: { start: Date | null; end: Date | null };
 } {
+  const byAction = Object.values({
+    STATUS: 'STATUS',
+    SCHEDULE_CHANGE: 'SCHEDULE_CHANGE',
+    FIELD_UPDATE: 'FIELD_UPDATE',
+    REPROGRAM: 'REPROGRAM',
+    TECH_CAPACITY_REJECT: 'TECH_CAPACITY_REJECT',
+    SPACE_CONFLICT: 'SPACE_CONFLICT',
+    PRIORITY_CONFLICT: 'PRIORITY_CONFLICT',
+    COMMENT_CREATED: 'COMMENT_CREATED',
+    COMMENT_UPDATED: 'COMMENT_UPDATED',
+    COMMENT_DELETED: 'COMMENT_DELETED',
+    INTERNAL_TOGGLED: 'INTERNAL_TOGGLED',
+  }).reduce((acc, value) => {
+    acc[value as AuditActionType] = 0;
+    return acc;
+  }, {} as Record<AuditActionType, number>);
+
   if (entries.length === 0) {
     return {
       total: 0,
-      byAction: { STATUS_CHANGE: 0, FIELD_CHANGE: 0, COMMENT: 0 },
+      byAction,
       uniqueActors: 0,
-      dateRange: { start: null, end: null }
+      dateRange: { start: null, end: null },
     };
   }
 
-  const byAction: Record<AuditActionType, number> = {
-    STATUS_CHANGE: 0,
-    FIELD_CHANGE: 0,
-    COMMENT: 0
-  };
-
   const actorIds = new Set<number>();
-  const timestamps = entries.map(e => e.timestamp);
+  const timestamps = entries.map((entry) => entry.timestamp.getTime());
 
-  entries.forEach(entry => {
-    byAction[entry.actionType]++;
-    actorIds.add(entry.actor.id);
+  entries.forEach((entry) => {
+    byAction[entry.actionType] = (byAction[entry.actionType] ?? 0) + 1;
+    if (entry.actor) {
+      actorIds.add(entry.actor.id);
+    }
   });
 
   return {
@@ -442,27 +448,25 @@ export function getAuditSummary(entries: AuditEntry[]): {
     byAction,
     uniqueActors: actorIds.size,
     dateRange: {
-      start: new Date(Math.min(...timestamps.map(d => d.getTime()))),
-      end: new Date(Math.max(...timestamps.map(d => d.getTime())))
-    }
+      start: new Date(Math.min(...timestamps)),
+      end: new Date(Math.max(...timestamps)),
+    },
   };
 }
 
-/**
- * Obtiene etiqueta en español para tipo de acción
- * 
- * @param actionType - Tipo de acción
- * @returns Etiqueta en español
- * 
- * @example
- * getActionTypeLabel('STATUS_CHANGE');
- * // => 'Cambio de estado'
- */
 export function getActionTypeLabel(actionType: AuditActionType): string {
   const labelMap: Record<AuditActionType, string> = {
-    STATUS_CHANGE: 'Cambio de estado',
-    FIELD_CHANGE: 'Modificación de campo',
-    COMMENT: 'Comentario'
+    STATUS: 'Cambio de estado',
+    SCHEDULE_CHANGE: 'Cambio de agenda',
+    FIELD_UPDATE: 'Actualización de campo',
+    REPROGRAM: 'Reprogramación',
+    TECH_CAPACITY_REJECT: 'Rechazo por capacidad técnica',
+    SPACE_CONFLICT: 'Conflicto de espacio',
+    PRIORITY_CONFLICT: 'Conflicto de prioridad',
+    COMMENT_CREATED: 'Comentario creado',
+    COMMENT_UPDATED: 'Comentario editado',
+    COMMENT_DELETED: 'Comentario eliminado',
+    INTERNAL_TOGGLED: 'Visibilidad interna',
   };
 
   return labelMap[actionType] || actionType;

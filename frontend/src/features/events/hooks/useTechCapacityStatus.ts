@@ -89,7 +89,7 @@ export function useTechCapacityStatus(
 
       try {
         const response = await httpClient.get<TechCapacityResponse>(
-          `/internal/tech/capacity?date=${date}`
+          `/api/tech/capacity?date=${date}`
         );
 
         if (cancelled) return;
@@ -103,14 +103,12 @@ export function useTechCapacityStatus(
 
         // Filtrar bloques que se solapan con el horario del evento
         const relevantBlocks = response.blocks.filter((block) => {
-          const [blockHour, blockMinute] = block.from.split(':').map(Number);
-          const blockStartMinutes = blockHour * 60 + blockMinute;
+          const [blockStartHour, blockStartMinute] = block.from.split(':').map(Number);
+          const [blockEndHour, blockEndMinute] = block.to.split(':').map(Number);
+          const blockStartMinutes = blockStartHour * 60 + blockStartMinute;
+          const blockEndMinutes = blockEndHour * 60 + blockEndMinute;
 
-          // El bloque se solapa si empieza durante el evento
-          return (
-            blockStartMinutes >= eventStartMinutes &&
-            blockStartMinutes < eventEndMinutes
-          );
+          return blockStartMinutes < eventEndMinutes && blockEndMinutes > eventStartMinutes;
         });
 
         // Filtrar bloques saturados (available === 0)
@@ -123,11 +121,11 @@ export function useTechCapacityStatus(
         if (cancelled) return;
 
         // ✅ Degradación silenciosa: no mostrar error si es de permisos
-        if (err.status === 401 || err.status === 403) {
+        if (err?.status === 401 || err?.status === 403) {
           console.warn('[TechCapacity] Usuario sin permisos, omitiendo indicador');
         } else {
           console.error('[TechCapacity] Error al cargar capacidad técnica:', err);
-          setError(err.message || 'Error al cargar capacidad técnica');
+          setError(err?.message || 'Error al cargar capacidad técnica');
         }
 
         setIsSaturated(false);

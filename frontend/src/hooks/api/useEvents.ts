@@ -16,7 +16,7 @@ import {
   type ChangeStatusInput,
   handleApiError,
   logError,
-  type ApiError as UtilsApiError
+  type ApiErrorUtil as UtilsApiError
 } from '@/services/api';
 import type { Event } from '@/models/event';
 import type { PageResponse } from '@/services/api/types';

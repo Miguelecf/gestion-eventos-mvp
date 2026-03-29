@@ -12,6 +12,8 @@ import java.util.Optional;
 public interface EventRequestRepository extends JpaRepository<EventRequest, Long> {
     Optional<EventRequest> findByTrackingUuid(String trackingUuid);
 
+    Optional<EventRequest> findByConvertedEvent_Id(Long eventId);
+
     boolean existsByTrackingUuid(String trackingUuid);
 
     List<EventRequest> findByActiveTrue();

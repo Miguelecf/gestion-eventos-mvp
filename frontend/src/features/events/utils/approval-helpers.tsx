@@ -9,6 +9,9 @@
 
 import { Badge } from '@/components/ui/badge';
 import type { TechSupportMode } from '@/models/event';
+import type { AuditEntry } from '@/services/api/adapters';
+
+export type ApprovalType = 'ceremonial' | 'technical';
 
 /**
  * Convierte los códigos de backend de aprobaciones faltantes a etiquetas españolas
@@ -105,6 +108,31 @@ export function ApprovalBadge({ type, approved, className = '' }: ApprovalBadgeP
       </Badge>
     </div>
   );
+}
+
+export function isApprovalAuditEntry(entry: AuditEntry): boolean {
+  return entry.actionType === 'FIELD_UPDATE'
+    && (entry.field === 'ceremonial_ok' || entry.field === 'technical_ok');
+}
+
+export function getApprovalTypeFromEntry(entry: AuditEntry): ApprovalType | null {
+  if (entry.field === 'ceremonial_ok') {
+    return 'ceremonial';
+  }
+
+  if (entry.field === 'technical_ok') {
+    return 'technical';
+  }
+
+  return null;
+}
+
+export function getApprovalTypeLabel(type: ApprovalType): string {
+  return type === 'ceremonial' ? 'Ceremonial' : 'Técnica';
+}
+
+export function getApprovalDecisionLabel(entry: AuditEntry): string {
+  return entry.toValue === 'true' ? 'Aprobó' : 'Revocó';
 }
 
 /**

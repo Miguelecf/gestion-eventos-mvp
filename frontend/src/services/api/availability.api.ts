@@ -60,6 +60,8 @@ export interface AvailabilityResult {
  */
 export interface TechCapacityBlock {
   time: string; // HH:mm
+  from: string; // HH:mm
+  to: string; // HH:mm
   used: number;
   available: number;
   utilizationPercent: number;
@@ -295,18 +297,25 @@ export async function getTechCapacity(
     `${ENDPOINTS.INTERNAL_TECH_CAPACITY}?date=${normalizedDate}`
   );
 
+  const maxCapacity = response.maxCapacity ?? response.defaultSlots ?? 0;
+
   // Adaptar bloques con cálculos adicionales
   const blocks: TechCapacityBlock[] = response.blocks.map(block => {
-    const utilizationPercent = response.maxCapacity > 0 
-      ? Math.round((block.used / response.maxCapacity) * 100)
+    const time = block.time ?? block.from ?? '00:00';
+    const from = block.from ?? time;
+    const to = block.to ?? time;
+    const utilizationPercent = maxCapacity > 0 
+      ? Math.round((block.used / maxCapacity) * 100)
       : 0;
     
     return {
-      time: block.time,
+      time,
+      from,
+      to,
       used: block.used,
       available: block.available,
       utilizationPercent,
-      isOverCapacity: block.used > response.maxCapacity
+      isOverCapacity: block.available === 0
     };
   });
 
@@ -326,7 +335,7 @@ export async function getTechCapacity(
 
   return {
     date: response.date,
-    maxCapacity: response.maxCapacity,
+    maxCapacity,
     blocks,
     summary: {
       totalUsed,
@@ -436,7 +445,7 @@ export async function hasTechCapacity(
   
   // Filtrar bloques en el rango horario del evento
   const eventBlocks = capacity.blocks.filter(block => {
-    return block.time >= scheduleFrom && block.time < scheduleTo;
+    return block.from < scheduleTo && block.to > scheduleFrom;
   });
 
   // Verificar que ninguno esté sobre capacidad

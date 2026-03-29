@@ -282,7 +282,7 @@ const createAuditStore: StateCreator<AuditStore> = (set, get) => ({
     const headers = ['Fecha', 'Usuario', 'Acción', 'Detalles'];
     const rows = entries.map(entry => [
       new Date(entry.timestamp).toLocaleString(),
-      entry.actor.fullName,
+      entry.actor?.fullName || 'Sistema',
       entry.actionType,
       entry.details || ''
     ]);

@@ -9,7 +9,7 @@
  * ===================================================================
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { eventStatusApi } from '@/services/api/event-status.api';
 import type {
   EventStatus,
@@ -102,6 +102,7 @@ export function useEventStatusManager(
   const [error, setError] = useState<string | null>(null);
   const [statusState, setStatusState] = useState<EventStatusState | null>(null);
   const [lastChangeResult, setLastChangeResult] = useState<ChangeStatusResult | null>(null);
+  const loadingRef = useRef(false);
 
   /**
    * Carga el estado del evento desde el backend
@@ -110,11 +111,12 @@ export function useEventStatusManager(
     if (!eventId) return;
 
     // ✅ FIX: Evitar múltiples llamadas simultáneas
-    if (loading) {
+    if (loadingRef.current) {
       console.log('[useEventStatusManager] Carga ya en progreso, saltando...');
       return;
     }
 
+    loadingRef.current = true;
     setLoading(true);
     setError(null);
     
@@ -133,9 +135,10 @@ export function useEventStatusManager(
         onError(errorMessage);
       }
     } finally {
+      loadingRef.current = false;
       setLoading(false);
     }
-  }, [eventId, onError, loading]);
+  }, [eventId, onError]);
 
   /**
    * Efecto de auto-carga al montar el componente

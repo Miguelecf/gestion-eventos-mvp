@@ -92,10 +92,10 @@ export async function getAuditHistory(
     size: size.toString()
   });
 
-  if (actionType) queryParams.append('actionType', actionType);
-  if (actorId) queryParams.append('actorId', actorId.toString());
-  if (startDate) queryParams.append('startDate', startDate);
-  if (endDate) queryParams.append('endDate', endDate);
+  if (actionType) queryParams.append('action', actionType);
+  void actorId;
+  void startDate;
+  void endDate;
 
   const backendPage = await httpClient.get<BackendAuditPage>(
     `/api/audit/${eventId}?${queryParams.toString()}`
@@ -130,10 +130,7 @@ export async function getAllAuditHistory(
     size: '1000' // Tamaño grande para obtener todos
   });
 
-  if (filters?.actionType) queryParams.append('actionType', filters.actionType);
-  if (filters?.actorId) queryParams.append('actorId', filters.actorId.toString());
-  if (filters?.startDate) queryParams.append('startDate', filters.startDate);
-  if (filters?.endDate) queryParams.append('endDate', filters.endDate);
+  if (filters?.actionType) queryParams.set('action', filters.actionType);
 
   const backendPage = await httpClient.get<BackendAuditPage>(
     `/api/audit/${eventId}?${queryParams.toString()}`
@@ -163,7 +160,7 @@ export async function getStatusChanges(
 ): Promise<PageResponse<AuditEntry>> {
   return getAuditHistory(eventId, {
     ...params,
-    actionType: 'STATUS_CHANGE'
+    actionType: 'STATUS'
   });
 }
 
@@ -184,7 +181,7 @@ export async function getFieldChanges(
 ): Promise<PageResponse<AuditEntry>> {
   return getAuditHistory(eventId, {
     ...params,
-    actionType: 'FIELD_CHANGE'
+    actionType: 'FIELD_UPDATE'
   });
 }
 
@@ -203,10 +200,16 @@ export async function getAuditComments(
   eventId: number,
   params: Omit<GetAuditHistoryParams, 'actionType'> = {}
 ): Promise<PageResponse<AuditEntry>> {
-  return getAuditHistory(eventId, {
-    ...params,
-    actionType: 'COMMENT'
-  });
+  const history = await getAuditHistory(eventId, params);
+  const commentEntries = history.content.filter((entry) =>
+    ['COMMENT_CREATED', 'COMMENT_UPDATED', 'COMMENT_DELETED'].includes(entry.actionType)
+  );
+
+  return {
+    ...history,
+    content: commentEntries,
+    empty: commentEntries.length === 0,
+  };
 }
 
 /**
@@ -371,10 +374,7 @@ export async function exportAudit(
   const queryParams = new URLSearchParams();
   queryParams.append('format', format);
 
-  if (filters?.actionType) queryParams.append('actionType', filters.actionType);
-  if (filters?.actorId) queryParams.append('actorId', filters.actorId.toString());
-  if (filters?.startDate) queryParams.append('startDate', filters.startDate);
-  if (filters?.endDate) queryParams.append('endDate', filters.endDate);
+  if (filters?.actionType) queryParams.set('action', filters.actionType);
 
   const response = await fetch(
     `/api/audit/${eventId}/export?${queryParams.toString()}`,

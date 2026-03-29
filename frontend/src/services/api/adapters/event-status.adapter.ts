@@ -212,7 +212,7 @@ export function adaptChangeStatusFromBackend(
  * isTransitionAllowed('EN_REVISION', 'APROBADO', allowed) // false
  */
 export function isTransitionAllowed(
-  from: EventStatus,
+  _from: EventStatus,
   to: EventStatus,
   allowedTransitions: EventStatus[]
 ): boolean {
@@ -246,6 +246,7 @@ export function requiresReason(to: EventStatus): boolean {
  * // "¿Confirmar aprobación del evento?"
  */
 export function getTransitionMessage(from: EventStatus, to: EventStatus): string {
+  void from;
   const messages: Partial<Record<EventStatus, string>> = {
     APROBADO: '¿Confirmar aprobación del evento?',
     RECHAZADO: '¿Rechazar este evento? Debe proporcionar un motivo.',

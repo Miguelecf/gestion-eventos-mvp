@@ -15,6 +15,7 @@ import com.mvp.backend.feature.priority.model.PriorityConflict;
 import com.mvp.backend.feature.priority.service.PriorityConflictService;
 import com.mvp.backend.feature.notifications.event.EventCreatedEmailEvent;
 import com.mvp.backend.feature.notifications.event.EventRescheduledEmailEvent;
+import com.mvp.backend.feature.requests.repository.EventRequestRepository;
 import org.springframework.context.ApplicationEventPublisher;
 import com.mvp.backend.feature.tech.exception.TechCapacityExceededException;
 import com.mvp.backend.feature.tech.service.TechCapacityService;
@@ -61,6 +62,7 @@ public class EventService {
     private final PriorityPolicy priorityPolicy;
     private final TechCapacityService techCapacityService;
     private final PriorityConflictService priorityConflictService;
+    private final EventRequestRepository eventRequestRepository;
     private final ApplicationEventPublisher eventPublisher;
 
     /* ---------- Commands ---------- */
@@ -383,7 +385,8 @@ public class EventService {
 
     @Transactional(readOnly = true)
     public EventResponseDto getById(Long id) {
-        return eventRepository.findById(id).map(EventMapper::toDto)
+        return eventRepository.findById(id)
+                .map(this::toDetailDto)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Event not found"));
     }
 
@@ -538,5 +541,17 @@ public class EventService {
                 conflict.getFromTime(),
                 conflict.getToTime(),
                 conflict.getDisplacedEvent().isRequiresRebooking());
+    }
+
+    private EventResponseDto toDetailDto(Event event) {
+        Long originRequestId = eventRequestRepository.findByConvertedEvent_Id(event.getId())
+                .map(request -> request.getId())
+                .orElse(null);
+
+        EventOriginType originType = originRequestId != null
+                ? EventOriginType.PUBLIC_REQUEST
+                : EventOriginType.MANUAL;
+
+        return EventMapper.toDto(event, originType, originRequestId);
     }
 }

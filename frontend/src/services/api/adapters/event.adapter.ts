@@ -90,6 +90,8 @@ export function adaptEventFromBackend(backendEvent: BackendEventDTO): Event {
       lastName: backendEvent.lastModifiedBy.lastName,
       email: backendEvent.lastModifiedBy.email
     } : null,
+    originType: backendEvent.originType ?? null,
+    originRequestId: backendEvent.originRequestId ?? null,
 
     // Campos adicionales de conveniencia para el frontend
     spaceId: backendEvent.space?.id,

@@ -36,6 +36,7 @@ interface UseEventCommentsReturn extends UseEventCommentsState {
   loadMoreComments: () => Promise<void>;
   refreshComments: () => Promise<void>;
   hasMore: boolean;
+  clearError: () => void;
 }
 
 // ==================== HOOK PRINCIPAL ====================
@@ -113,6 +114,7 @@ export function useEventComments(
         const params: GetCommentsParams = {
           page,
           size: pageSize,
+          sort: sortOrder,
         };
 
         const result = await commentsApi.getComments(eventId, params);
@@ -137,7 +139,7 @@ export function useEventComments(
         }));
       }
     },
-    [eventId, pageSize]
+    [eventId, pageSize, sortOrder]
   );
 
   /**
@@ -310,5 +312,6 @@ export function useEventComments(
     loadMoreComments,
     refreshComments,
     hasMore,
+    clearError: () => setState(prev => ({ ...prev, error: null })),
   };
 }

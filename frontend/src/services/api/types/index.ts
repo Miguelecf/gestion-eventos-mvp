@@ -30,6 +30,7 @@ export {
   Priority,
   TechSupportMode,
   AudienceType,
+  EventOriginType,
   UserRole,
   CommentVisibility,
   AuditActionType,
@@ -40,6 +41,8 @@ export {
 
 export type {
   BackendEventDTO,
+  BackendEventCreateResult,
+  BackendEventUpdateResult,
   BackendCreateEventDTO,
   BackendUpdateEventDTO,
   BackendStatusChangeResponse,

@@ -21,10 +21,12 @@ import {
   adaptCommentForCreate,
   adaptCommentForUpdate,
   validateCommentBody,
-  type Comment,
-  type CreateCommentInput,
-  type UpdateCommentInput
 } from './adapters';
+import type {
+  Comment,
+  CreateCommentInput,
+  UpdateCommentInput,
+} from './adapters/comment.adapter';
 
 // Re-exportar tipos para que estén disponibles desde este módulo
 export type { CreateCommentInput, UpdateCommentInput, Comment };
@@ -38,6 +40,7 @@ export interface GetCommentsParams {
   page?: number;
   size?: number;
   visibility?: CommentVisibility; // Filtrar por visibilidad
+  sort?: 'ASC' | 'DESC';
 }
 
 /**
@@ -77,7 +80,7 @@ export async function getComments(
   eventId: number,
   params: GetCommentsParams = {}
 ): Promise<PageResponse<Comment>> {
-  const { page = 0, size = 10, visibility } = params;
+  const { page = 0, size = 10, visibility, sort } = params;
 
   const queryParams = new URLSearchParams({
     page: page.toString(),
@@ -86,6 +89,10 @@ export async function getComments(
 
   if (visibility) {
     queryParams.append('visibility', visibility);
+  }
+
+  if (sort) {
+    queryParams.append('sort', `createdAt,${sort.toLowerCase()}`);
   }
 
   // ✅ FIX: Usar ENDPOINTS.COMMENTS() que ya incluye el eventId
@@ -298,7 +305,11 @@ export async function getCommentsCount(
     `${ENDPOINTS.COMMENTS(eventId)}?${queryParams.toString()}`
   );
 
-  return backendPage.page.totalElements;
+  if (typeof backendPage.page === 'object') {
+    return backendPage.page.totalElements;
+  }
+
+  return backendPage.total ?? 0;
 }
 
 /**

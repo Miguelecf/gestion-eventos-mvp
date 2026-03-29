@@ -1,245 +1,259 @@
-/**
- * ===================================================================
- * PÁGINA DE DETALLE DEL EVENTO
- * ===================================================================
- * Pantalla completa para visualizar y gestionar un evento individual
- * 
- * Características:
- * - Carga automática del evento por ID desde URL
- * - Encabezado con breadcrumbs, título, estado e indicadores
- * - Layout de 2 columnas: info del evento + panel de estado/acciones
- * - Sección de comentarios internos con CRUD completo
- * - Gestión de cambios de estado con validaciones del backend
- * - Botón de edición con validación de permisos
- * 
- * Endpoints utilizados:
- * - GET /api/events/{id} - Obtener datos del evento
- * - GET /api/events/{id}/status - Estado actual + transiciones permitidas
- * - POST /api/events/{id}/status - Cambiar estado
- * - GET /api/events/{eventId}/comments - Listar comentarios
- * - POST /api/events/{eventId}/comments - Crear comentario
- * ===================================================================
- */
-
-import { useCallback, useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { toast } from 'sonner';
-
-// Hooks
-import { useEvents } from '@/hooks/api';
-import { useEventStatusManager } from '@/features/events/hooks/useEventStatusManager';
-import { useEventComments } from '@/features/events/hooks/useEventComments';
-
-// Utilities
 import {
-  getStatusBadgeVariant,
-  getStatusLabel,
-  getStatusDescription,
-  canEditEvent,
-} from '@/features/events/utils/status-helpers';
-import { getEditBlockReason } from '@/features/events/utils/edit-event';
-import { formatLocalDate } from '@/utils/dates';
-
-// Types
-import type { Event } from '@/models/event';
-import type { EventStatus } from '@/models/event-status';
-
-// Components
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type FormEvent,
+} from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { toast } from 'sonner';
+import { AppBreadcrumbs } from '@/components/breadcrumbs';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
-import { AppBreadcrumbs } from '@/components/breadcrumbs';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogDescription, 
-  DialogFooter, 
-  DialogHeader, 
-  DialogTitle 
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-
-// Approval Workflow Utilities
+import { Separator } from '@/components/ui/separator';
+import { useEvents } from '@/hooks/api';
+import type { Event, User } from '@/models/event';
+import type { EventStatus } from '@/models/event-status';
+import type { Comment } from '@/services/api/comments.api';
+import { formatLocalDate } from '@/utils/dates';
+import { EventApprovalHistory } from '@/features/events/components/EventApprovalHistory';
+import { EventAuditSection } from '@/features/events/components/EventAuditSection';
+import { EventOperationalCard } from '@/features/events/components/EventOperationalCard';
+import { EventOriginCard } from '@/features/events/components/EventOriginCard';
+import { EventSectionErrorState } from '@/features/events/components/EventSectionErrorState';
+import { useEventAudit } from '@/features/events/hooks/useEventAudit';
+import { useEventComments } from '@/features/events/hooks/useEventComments';
+import { useEventPermissions } from '@/features/events/hooks/useEventPermissions';
+import { useEventStatusManager } from '@/features/events/hooks/useEventStatusManager';
+import { useTechCapacityStatus } from '@/features/events/hooks/useTechCapacityStatus';
 import {
   ApprovalBadge,
   formatMissingApprovals,
-  formatBuffers,
-  getTechSupportModeLabel,
   getApprovalStatusMessage,
   shouldShowApprovalIndicators,
 } from '@/features/events/utils/approval-helpers';
-import { useTechCapacityStatus } from '@/features/events/hooks/useTechCapacityStatus';
+import { getEditBlockReason } from '@/features/events/utils/edit-event';
+import {
+  canEditEvent as canEditEventForStatus,
+  getAudienceTypeLabel,
+  getPriorityLabel,
+  getStatusBadgeVariant,
+  getStatusDescription,
+  getStatusLabel,
+} from '@/features/events/utils/status-helpers';
+
+interface EventLoadOptions {
+  keepCurrent?: boolean;
+}
 
 export function DetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const parsedEventId = id ? parseInt(id, 10) : NaN;
+  const parsedEventId = id ? Number.parseInt(id, 10) : Number.NaN;
   const isInvalidEventId = !id || Number.isNaN(parsedEventId);
   const eventId = isInvalidEventId ? 0 : parsedEventId;
 
-  // ============ ESTADO LOCAL ============
   const [event, setEvent] = useState<Event | null>(null);
+  const [hasAttemptedInitialLoad, setHasAttemptedInitialLoad] = useState(false);
   const [showStatusDialog, setShowStatusDialog] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState<EventStatus | null>(null);
   const [statusReason, setStatusReason] = useState('');
-  
-  // ✅ NUEVO: Estado para aprobaciones pendientes (solo en memoria)
-  const [pendingApprovalInfo, setPendingApprovalInfo] = useState<{
-    missing: string[];
-  } | null>(null);
-  
-  // ✅ NUEVO: Estado para historial de aprobaciones colapsable
   const [showApprovalHistory, setShowApprovalHistory] = useState(false);
+  const [pendingApprovalInfo, setPendingApprovalInfo] = useState<{ missing: string[] } | null>(null);
 
-  // ============ HOOKS ESPECIALIZADOS ============
-  const { fetchEventById, loading: loadingEvent } = useEvents();
+  const {
+    fetchEventById,
+    loading: loadingEvent,
+    error: eventError,
+    clearError: clearEventError,
+  } = useEvents();
+
+  const permissions = useEventPermissions(event);
+  const canManageWorkflow = permissions.canManageStatus || permissions.canApprove;
 
   const {
     currentStatus,
     allowedTransitions,
-    canChangeTo,
-    requiresReasonFor,
     changeStatus,
-    changing,
+    changing: changingStatus,
     refetch: refetchStatus,
+    requiresReasonFor,
+    getTransitionMessageFor,
     error: statusError,
+    clearError: clearStatusError,
   } = useEventStatusManager({
     eventId,
-    autoLoad: !isInvalidEventId,
-    onStatusChange: (result) => {
-      // ✅ NUEVO: Manejar aprobación pendiente
-      if (result.approvalPending) {
-        setPendingApprovalInfo({ missing: result.missingApprovals });
-        toast.warning('Aprobación parcial registrada', {
-          description: `Faltan: ${formatMissingApprovals(result.missingApprovals)}`,
-        });
-      } else {
-        setPendingApprovalInfo(null);
-        toast.success(`Estado cambiado exitosamente`, {
-          description: `Nuevo estado: ${getStatusLabel(result.newStatus)}`,
-        });
-      }
-      
-      setShowStatusDialog(false);
-      setStatusReason('');
-      
-      // ✅ NUEVO: Recargar AMBOS: evento Y estado
-      loadEvent();
-      refetchStatus();
-    },
-    onError: (error) => {
-      // ✅ FIX: Solo mostrar toast para errores que NO sean de permisos
-      if (!error.includes('permisos')) {
-        toast.error('Error al cambiar estado', {
-          description: error,
-        });
-      }
-    },
+    autoLoad: !isInvalidEventId && canManageWorkflow,
   });
 
   const {
     comments,
     loading: loadingComments,
-    submitting,
+    error: commentsError,
+    submitting: submittingComment,
     addComment,
     deleteComment,
-    hasMore,
+    hasMore: hasMoreComments,
     loadMoreComments,
-  } = useEventComments(eventId, { autoLoad: !isInvalidEventId });
+    refreshComments,
+    clearError: clearCommentsError,
+  } = useEventComments(eventId, {
+    autoLoad: !isInvalidEventId && permissions.canViewComments,
+    sortOrder: 'DESC',
+  });
 
-  // ✅ NUEVO: Hook para verificar capacidad técnica
+  const {
+    entries: auditEntries,
+    approvalEntries,
+    loading: loadingAudit,
+    error: auditError,
+    hasMore: hasMoreAudit,
+    refreshAudit,
+    loadMoreAudit,
+    clearError: clearAuditError,
+  } = useEventAudit(eventId, {
+    autoLoad: !isInvalidEventId && permissions.canViewAudit,
+  });
+
   const {
     isSaturated: techCapacitySaturated,
+    loading: loadingTechCapacity,
+    error: techCapacityError,
     saturatedBlocks,
   } = useTechCapacityStatus(
-    event?.date || null,
-    event?.scheduleFrom || null,
-    event?.scheduleTo || null,
-    event?.requiresTech === true
+    event?.date ?? null,
+    event?.scheduleFrom ?? null,
+    event?.scheduleTo ?? null,
+    Boolean(event?.requiresTech) && permissions.isOperativeRole
   );
 
-  // ============ CARGA INICIAL ============
-  const loadEvent = useCallback(async () => {
+  const displayStatus = currentStatus ?? event?.status ?? null;
+  const showApprovals = Boolean(event && shouldShowApprovalIndicators(displayStatus ?? event.status));
+  const canEditCurrentEvent = Boolean(event && canEditEventForStatus(event.status));
+
+  const eventErrorState = useMemo(() => {
     if (isInvalidEventId) {
-      return;
+      return {
+        title: 'ID de evento invalido',
+        message: 'La URL no contiene un identificador numerico valido para abrir este evento.',
+        isNotFound: false,
+      };
     }
+
+    if (!hasAttemptedInitialLoad || loadingEvent || event) {
+      return null;
+    }
+
+    if (eventError?.statusCode === 404) {
+      return {
+        title: 'Evento no encontrado',
+        message: 'El evento solicitado no existe o ya no esta disponible.',
+        isNotFound: true,
+      };
+    }
+
+    return {
+      title: 'No se pudo cargar el evento',
+      message: eventError?.message || 'Ocurrio un error al cargar el detalle del evento.',
+      isNotFound: false,
+    };
+  }, [event, eventError?.message, eventError?.statusCode, hasAttemptedInitialLoad, isInvalidEventId, loadingEvent]);
+
+  const loadEvent = useCallback(async (options: EventLoadOptions = {}) => {
+    const { keepCurrent = false } = options;
+
+    if (isInvalidEventId) {
+      setHasAttemptedInitialLoad(true);
+      return false;
+    }
+
+    clearEventError();
 
     const data = await fetchEventById(eventId);
+    setHasAttemptedInitialLoad(true);
+
     if (data) {
       setEvent(data);
-    } else {
-      toast.error('Evento no encontrado', {
-        description: 'No se pudo cargar la información del evento',
-      });
-      navigate('/events');
+      return true;
     }
-  }, [eventId, fetchEventById, isInvalidEventId, navigate]);
+
+    if (!keepCurrent) {
+      setEvent(null);
+    }
+
+    return false;
+  }, [clearEventError, eventId, fetchEventById, isInvalidEventId]);
+
+  const refreshAuditIfVisible = useCallback(async () => {
+    if (!permissions.canViewAudit) {
+      return;
+    }
+
+    await refreshAudit();
+  }, [permissions.canViewAudit, refreshAudit]);
 
   useEffect(() => {
     if (isInvalidEventId) {
-      toast.error('ID de evento inválido');
-      navigate('/events');
+      setHasAttemptedInitialLoad(true);
+      setEvent(null);
       return;
     }
 
-    loadEvent();
-  }, [isInvalidEventId, loadEvent, navigate]);
+    setHasAttemptedInitialLoad(false);
+    setEvent(null);
+    void loadEvent();
+  }, [isInvalidEventId, loadEvent]);
 
-  // ✅ FIX: Manejar error de permisos una sola vez (no mostrar toast repetido)
-  useEffect(() => {
-    if (statusError) {
-      if (statusError.includes('permisos')) {
-        console.warn('[DetailPage] Sin permisos para gestionar estado:', statusError);
-        // No mostrar toast, solo log en consola
-      }
+  const handleRetryEventLoad = useCallback(() => {
+    setHasAttemptedInitialLoad(false);
+    setEvent(null);
+    void loadEvent();
+  }, [loadEvent]);
+
+  const handleNavigateToRequest = useCallback((requestId: number) => {
+    navigate(`/solicitudes/${requestId}`);
+  }, [navigate]);
+
+  const handleStatusDialogChange = useCallback((open: boolean) => {
+    setShowStatusDialog(open);
+
+    if (!open) {
+      setSelectedStatus(null);
+      setStatusReason('');
+      clearStatusError();
     }
-  }, [statusError]);
+  }, [clearStatusError]);
 
-  // ✅ NUEVO: Limpiar estado de aprobación pendiente al desmontar
-  useEffect(() => {
-    return () => {
-      setPendingApprovalInfo(null);
-    };
-  }, []);
-
-  // ============ HANDLERS ============
-  const handleEditClick = () => {
-    if (!event) return;
-
-    if (!canEditEvent(event.status)) {
-      toast.error('No se puede editar', {
-        description: getEditBlockReason(event.status),
-      });
-      return;
-    }
-
-    navigate(`/events/${eventId}/edit`);
-  };
-
-  const handleStatusChangeRequest = (targetStatus: EventStatus) => {
-    if (!canChangeTo(targetStatus)) {
-      toast.error('Transición no permitida');
-      return;
-    }
-
+  const handleOpenStatusDialog = useCallback((targetStatus: EventStatus) => {
+    clearStatusError();
     setSelectedStatus(targetStatus);
+    setStatusReason('');
     setShowStatusDialog(true);
-  };
+  }, [clearStatusError]);
 
-  const handleStatusChangeConfirm = async () => {
-    if (!selectedStatus) return;
+  const handleConfirmStatusChange = useCallback(async () => {
+    if (!selectedStatus) {
+      return;
+    }
 
-    const needsReason = requiresReasonFor(selectedStatus);
-    if (needsReason && !statusReason.trim()) {
-      toast.error('Se requiere un motivo para este cambio de estado');
+    if (requiresReasonFor(selectedStatus) && !statusReason.trim()) {
+      toast.error('Debes ingresar un motivo para esta transicion.');
       return;
     }
 
@@ -248,190 +262,219 @@ export function DetailPage() {
       reason: statusReason.trim() || undefined,
     });
 
-    if (result) {
-      setSelectedStatus(null);
+    if (!result) {
+      return;
     }
-  };
 
-  const handleCommentSubmit = async (body: string) => {
+    if (result.approvalPending) {
+      setPendingApprovalInfo({ missing: result.missingApprovals });
+      toast.warning('Se registro una aprobacion parcial.', {
+        description: `Faltan: ${formatMissingApprovals(result.missingApprovals)}`,
+      });
+    } else {
+      setPendingApprovalInfo(null);
+      toast.success('Estado actualizado.', {
+        description: `Nuevo estado: ${getStatusLabel(result.newStatus)}`,
+      });
+    }
+
+    setSelectedStatus(null);
+    setStatusReason('');
+    setShowStatusDialog(false);
+
+    await Promise.all([
+      loadEvent({ keepCurrent: true }),
+      refreshAuditIfVisible(),
+    ]);
+  }, [
+    changeStatus,
+    loadEvent,
+    refreshAuditIfVisible,
+    requiresReasonFor,
+    selectedStatus,
+    statusReason,
+  ]);
+
+  const handleCommentSubmit = useCallback(async (body: string) => {
     const success = await addComment(body);
-    if (success) {
-      toast.success('Comentario agregado');
-    }
-    return success;
-  };
 
-  const handleCommentDelete = async (commentId: number) => {
-    if (!confirm('¿Estás seguro de que deseas eliminar este comentario?')) {
+    if (!success) {
+      return false;
+    }
+
+    toast.success('Comentario agregado.');
+    await refreshAuditIfVisible();
+    return true;
+  }, [addComment, refreshAuditIfVisible]);
+
+  const handleCommentDelete = useCallback(async (commentId: number) => {
+    const confirmed = window.confirm('Eliminar este comentario?');
+
+    if (!confirmed) {
       return;
     }
 
     const success = await deleteComment(commentId);
-    if (success) {
-      toast.success('Comentario eliminado');
-    }
-  };
 
-  // ============ RENDER: LOADING ============
-  if (loadingEvent || !event) {
+    if (!success) {
+      return;
+    }
+
+    toast.success('Comentario eliminado.');
+    await refreshAuditIfVisible();
+  }, [deleteComment, refreshAuditIfVisible]);
+
+  const handleCommentRetry = useCallback(async () => {
+    clearCommentsError();
+    await refreshComments();
+  }, [clearCommentsError, refreshComments]);
+
+  const handleAuditRetry = useCallback(async () => {
+    clearAuditError();
+    await refreshAudit();
+  }, [clearAuditError, refreshAudit]);
+
+  if (!hasAttemptedInitialLoad && loadingEvent) {
     return (
       <div className="container mx-auto py-6">
-        <div className="flex items-center justify-center h-64">
+        <div className="flex min-h-[18rem] items-center justify-center">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-            <p className="text-muted-foreground">Cargando evento...</p>
+            <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-b-2 border-primary" />
+            <p className="text-sm text-muted-foreground">Cargando evento...</p>
           </div>
         </div>
       </div>
     );
   }
 
-  // ============ RENDER: PÁGINA COMPLETA ============
+  if (eventErrorState) {
+    return (
+      <div className="container mx-auto py-6 space-y-6">
+        <AppBreadcrumbs />
+        <Card>
+          <CardHeader>
+            <CardTitle>{eventErrorState.title}</CardTitle>
+            <CardDescription>{eventErrorState.message}</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-3">
+            {!isInvalidEventId ? (
+              <Button type="button" onClick={handleRetryEventLoad}>
+                Reintentar
+              </Button>
+            ) : null}
+            <Button type="button" variant="outline" onClick={() => navigate('/events')}>
+              Volver a eventos
+            </Button>
+            {eventErrorState.isNotFound ? (
+              <Button type="button" variant="ghost" onClick={() => navigate(-1)}>
+                Volver atras
+              </Button>
+            ) : null}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!event) {
+    return null;
+  }
+
   return (
     <div className="container mx-auto py-6 space-y-6">
-      {/* ============ ENCABEZADO ============ */}
       <div className="space-y-4">
-        {/* Breadcrumbs */}
         <AppBreadcrumbs />
 
-        {/* Título y Acciones */}
-        <div className="flex items-start justify-between">
-          <div className="space-y-1">
-            <h1 className="text-3xl font-bold tracking-tight">{event.name}</h1>
-            <p className="text-muted-foreground">
-              Evento #{event.id} · Creado el {new Date(event.createdAt).toLocaleDateString('es-AR')}
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-3xl font-bold tracking-tight">{event.name}</h1>
+              {displayStatus ? (
+                <Badge variant={getStatusBadgeVariant(displayStatus)} className="text-sm">
+                  {getStatusLabel(displayStatus)}
+                </Badge>
+              ) : null}
+            </div>
+
+            <p className="text-sm text-muted-foreground">
+              Evento #{event.id} - Creado el {formatDateTime(event.createdAt)}
             </p>
+
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="outline">{event.internal ? 'Interno' : 'Publico'}</Badge>
+              {event.requiresTech ? <Badge variant="outline">Requiere tecnica</Badge> : null}
+              {event.requiresRebooking ? (
+                <Badge variant="outline" className="border-red-200 bg-red-50 text-red-600">
+                  Requiere reprogramacion
+                </Badge>
+              ) : null}
+              <Badge variant="outline">{getPriorityLabel(event.priority)}</Badge>
+              <Badge variant="outline">{getAudienceTypeLabel(event.audienceType)}</Badge>
+            </div>
           </div>
 
-          {/* Botón Editar */}
-          <Button
-            variant="outline"
-            onClick={handleEditClick}
-            title={canEditEvent(event.status) ? 'Editar evento' : 'Ver motivo de bloqueo'}
-          >
-            ✏️ Editar Evento
-          </Button>
+          <div className="flex flex-wrap gap-3">
+            {permissions.canUpdateEvent ? (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={!canEditCurrentEvent}
+                title={canEditCurrentEvent ? 'Editar evento' : getEditBlockReason(event.status)}
+                onClick={() => navigate(`/events/${event.id}/edit`)}
+              >
+                Editar evento
+              </Button>
+            ) : null}
+            <Button type="button" variant="outline" onClick={() => navigate('/events')}>
+              Volver
+            </Button>
+          </div>
         </div>
 
-        {/* Badges de Estado e Indicadores */}
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* ✅ FIX: Validación defensiva para evitar crash si currentStatus es undefined */}
-          {(currentStatus || event.status) && (
-            <Badge 
-              variant={getStatusBadgeVariant(currentStatus || event.status)} 
-              className="text-sm px-3 py-1"
-            >
-              {getStatusLabel(currentStatus || event.status)}
-            </Badge>
-          )}
-          
-          {event.internal && (
-            <Badge variant="outline" className="text-sm">
-              🏢 Evento Interno
-            </Badge>
-          )}
-          
-          {!event.internal && (
-            <Badge variant="outline" className="text-sm">
-              🌐 Evento Público
-            </Badge>
-          )}
-          
-          {event.requiresTech && (
-            <Badge variant="outline" className="text-sm">
-              🔧 Requiere Soporte Técnico
-            </Badge>
-          )}
+        {pendingApprovalInfo ? (
+          <Alert>
+            <AlertTitle>Aprobacion parcial registrada</AlertTitle>
+            <AlertDescription className="flex w-full items-start justify-between gap-3">
+              <p>Faltan: {formatMissingApprovals(pendingApprovalInfo.missing)}</p>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setPendingApprovalInfo(null)}
+              >
+                Cerrar
+              </Button>
+            </AlertDescription>
+          </Alert>
+        ) : null}
 
-          <Badge variant="default" className="text-sm">
-            {event.priority}
-          </Badge>
-          
-          {/* ✅ NUEVO: Badge de reprogramación (arriba, discreto) */}
-          {event.requiresRebooking && (
-            <Badge variant="outline" className="text-sm bg-red-50 text-red-600 border-red-200">
-              🔄 Reprogramación
-            </Badge>
-          )}
-        </div>
-
-        {/* Datos Clave Resumidos */}
         <Card>
           <CardContent className="pt-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="space-y-1">
-                <p className="text-sm font-medium text-muted-foreground">📅 Fecha y Horario</p>
-                <p className="text-base font-semibold">
-                  {formatLocalDate(event.date, {
-                    weekday: 'long',
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric',
-                  })}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  {event.scheduleFrom} - {event.scheduleTo}
-                </p>
-                
-                {/* ✅ NUEVO: Mostrar buffers */}
-                {formatBuffers(event.bufferBeforeMin, event.bufferAfterMin) && (
-                  <p className="text-xs text-muted-foreground">
-                    {formatBuffers(event.bufferBeforeMin, event.bufferAfterMin)}
-                  </p>
-                )}
-                
-                {/* ✅ NUEVO: Mostrar horario técnico y modo cuando requiresTech */}
-                {event.requiresTech && (
-                  <div className="mt-2 space-y-1">
-                    {event.technicalSchedule && (
-                      <p className="text-xs text-muted-foreground">
-                        ⚙️ Horario técnico: {event.technicalSchedule}
-                      </p>
-                    )}
-                    {event.techSupportMode && (
-                      <p className="text-xs text-muted-foreground">
-                        🔧 Soporte: {getTechSupportModeLabel(event.techSupportMode)}
-                      </p>
-                    )}
-                  </div>
-                )}
-                
-                {/* ✅ NUEVO: Badge de reprogramación (contextual, descriptivo) */}
-                {event.requiresRebooking && (
-                  <Badge variant="outline" className="text-xs mt-2">
-                    ⚠️ Requiere reprogramación
-                  </Badge>
-                )}
-                
-                {/* ✅ NUEVO: Badge de capacidad técnica saturada */}
-                {event.requiresTech && techCapacitySaturated && saturatedBlocks.length > 0 && (
-                  <Badge variant="outline" className="text-xs mt-2 bg-red-50 text-red-600 border-red-200">
-                    ⚠️ Capacidad técnica colmada ({saturatedBlocks.map(b => b.from).join(', ')})
-                  </Badge>
-                )}
-              </div>
-
-              <div className="space-y-1">
-                <p className="text-sm font-medium text-muted-foreground">📍 Espacio Asignado</p>
-                <p className="text-base font-semibold">
-                  {event.space?.name || event.freeLocation || 'Sin asignar'}
-                </p>
-                {event.space?.capacity && (
-                  <p className="text-sm text-muted-foreground">
-                    Capacidad: {event.space.capacity} personas
-                  </p>
-                )}
-              </div>
-
-              <div className="space-y-1">
-                <p className="text-sm font-medium text-muted-foreground">🏛️ Área Organizadora</p>
-                <p className="text-base font-semibold">
-                  {event.department?.name || event.requestingArea || 'No especificada'}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  {event.audienceType}
-                </p>
-              </div>
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+              <InfoField
+                label="Fecha"
+                value={formatLocalDate(event.date, {
+                  weekday: 'long',
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric',
+                })}
+                description={`${event.scheduleFrom} - ${event.scheduleTo}`}
+              />
+              <InfoField
+                label="Espacio"
+                value={event.space?.name || event.freeLocation || 'Sin asignar'}
+                description={
+                  event.space?.capacity
+                    ? `Capacidad: ${event.space.capacity} personas`
+                    : undefined
+                }
+              />
+              <InfoField
+                label="Area organizadora"
+                value={event.department?.name || event.requestingArea || 'No especificada'}
+                description={event.createdBy ? `Creado por ${formatUserName(event.createdBy)}` : undefined}
+              />
             </div>
           </CardContent>
         </Card>
@@ -439,405 +482,330 @@ export function DetailPage() {
 
       <Separator />
 
-      {/* ============ CUERPO: 2 COLUMNAS ============ */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* ============ COLUMNA IZQUIERDA (2/3) ============ */}
-        <div className="lg:col-span-2 space-y-6">
-          
-          {/* Información General */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="space-y-6 lg:col-span-2">
           <Card>
             <CardHeader>
-              <CardTitle>Información del Evento</CardTitle>
-              <CardDescription>Detalles generales y descripción</CardDescription>
+              <CardTitle>Informacion del evento</CardTitle>
+              <CardDescription>Resumen funcional y datos de contacto</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Descripción */}
-              {event.observations && (
-                <div className="space-y-2">
-                  <h3 className="text-sm font-semibold">Descripción</h3>
-                  <p className="text-sm text-muted-foreground leading-relaxed">
-                    {event.observations}
-                  </p>
-                </div>
-              )}
+              {event.observations ? (
+                <ContentBlock title="Observaciones" value={event.observations} />
+              ) : null}
 
-              {/* Grid de Datos */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <p className="text-sm font-medium">Prioridad</p>
-                  <Badge variant="default">{event.priority}</Badge>
-                </div>
-
-                <div className="space-y-1">
-                  <p className="text-sm font-medium">Tipo de Audiencia</p>
-                  <p className="text-sm text-muted-foreground">{event.audienceType}</p>
-                </div>
-
-                {event.contactName && (
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium">Responsable</p>
-                    <p className="text-sm text-muted-foreground">{event.contactName}</p>
-                  </div>
-                )}
-
-                {event.contactEmail && (
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium">Email de Contacto</p>
-                    <a 
-                      href={`mailto:${event.contactEmail}`}
-                      className="text-sm text-primary hover:underline"
-                    >
-                      {event.contactEmail}
-                    </a>
-                  </div>
-                )}
-
-                {event.contactPhone && (
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium">Teléfono</p>
-                    <a 
-                      href={`tel:${event.contactPhone}`}
-                      className="text-sm text-primary hover:underline"
-                    >
-                      {event.contactPhone}
-                    </a>
-                  </div>
-                )}
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <InfoField label="Prioridad" value={getPriorityLabel(event.priority)} />
+                <InfoField label="Audiencia" value={getAudienceTypeLabel(event.audienceType)} />
+                {event.requestingArea ? (
+                  <InfoField label="Area solicitante" value={event.requestingArea} />
+                ) : null}
+                {event.department?.name ? (
+                  <InfoField label="Departamento" value={event.department.name} />
+                ) : null}
+                {event.contactName ? (
+                  <InfoField label="Contacto" value={event.contactName} />
+                ) : null}
+                {event.contactEmail ? (
+                  <InfoField label="Email" value={event.contactEmail} />
+                ) : null}
+                {event.contactPhone ? (
+                  <InfoField label="Telefono" value={event.contactPhone} />
+                ) : null}
               </div>
 
-              {/* Requisitos Técnicos */}
-              {event.requirements && (
-                <div className="space-y-2">
-                  <h3 className="text-sm font-semibold">Requisitos Técnicos</h3>
-                  <p className="text-sm text-muted-foreground leading-relaxed">
-                    {event.requirements}
-                  </p>
-                </div>
-              )}
+              {event.requirements ? (
+                <ContentBlock title="Requerimientos" value={event.requirements} />
+              ) : null}
 
-              {/* Cobertura */}
-              {event.coverage && (
-                <div className="space-y-2">
-                  <h3 className="text-sm font-semibold">Cobertura Solicitada</h3>
-                  <p className="text-sm text-muted-foreground leading-relaxed">
-                    {event.coverage}
-                  </p>
-                </div>
-              )}
+              {event.coverage ? (
+                <ContentBlock title="Cobertura" value={event.coverage} />
+              ) : null}
             </CardContent>
           </Card>
 
-        </div>
-
-        {/* ============ COLUMNA DERECHA (1/3) ============ */}
-        <div className="space-y-6">
-          
-          {/* ✅ NUEVO: Conformidades Requeridas */}
-          {shouldShowApprovalIndicators(event.status) && (
+          {permissions.canViewAudit ? (
             <Card>
               <CardHeader>
-                <CardTitle>Conformidades Requeridas</CardTitle>
-                <CardDescription>Estado de aprobaciones administrativas</CardDescription>
+                <CardTitle>Historial del evento</CardTitle>
+                <CardDescription>
+                  Acciones registradas, cambios de estado, comentarios y decisiones operativas
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <EventAuditSection
+                  entries={auditEntries}
+                  loading={loadingAudit}
+                  error={auditError}
+                  hasMore={hasMoreAudit}
+                  onRetry={handleAuditRetry}
+                  onLoadMore={loadMoreAudit}
+                />
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {permissions.canViewComments ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Comentarios internos</CardTitle>
+                <CardDescription>Notas y conversaciones administrativas del evento</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {/* Indicadores de aprobación */}
+                {permissions.canCreateComment ? (
+                  <CommentForm onSubmit={handleCommentSubmit} submitting={submittingComment} />
+                ) : null}
+
+                {permissions.canCreateComment ? <Separator /> : null}
+
+                {commentsError && comments.length > 0 ? (
+                  <EventSectionErrorState
+                    title="No se pudieron refrescar los comentarios"
+                    message={commentsError}
+                    onRetry={handleCommentRetry}
+                  />
+                ) : null}
+
+                {commentsError && comments.length === 0 ? (
+                  <EventSectionErrorState
+                    title="No se pudieron cargar los comentarios"
+                    message={commentsError}
+                    onRetry={handleCommentRetry}
+                  />
+                ) : loadingComments && comments.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Cargando comentarios...</p>
+                ) : comments.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    No hay comentarios internos registrados todavia.
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {comments.map((comment) => (
+                      <CommentItem
+                        key={comment.id}
+                        comment={comment}
+                        canDelete={permissions.canManageComment(comment)}
+                        deleting={submittingComment}
+                        onDelete={() => handleCommentDelete(comment.id)}
+                      />
+                    ))}
+                  </div>
+                )}
+
+                {hasMoreComments ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    disabled={loadingComments}
+                    onClick={loadMoreComments}
+                  >
+                    {loadingComments ? 'Cargando...' : 'Cargar mas comentarios'}
+                  </Button>
+                ) : null}
+              </CardContent>
+            </Card>
+          ) : null}
+        </div>
+
+        <div className="space-y-6">
+          {showApprovals ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Conformidades</CardTitle>
+                <CardDescription>Estado actual e historial de aprobaciones del evento</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <ApprovalBadge type="ceremonial" approved={event.ceremonialOk} />
                   <ApprovalBadge type="technical" approved={event.technicalOk} />
                 </div>
 
-                {/* Mensaje de estado */}
                 <p className="text-sm text-muted-foreground">
                   {getApprovalStatusMessage(event.ceremonialOk, event.technicalOk)}
                 </p>
 
-                {/* ✅ NUEVO: Historial de aprobaciones colapsable */}
-                <Collapsible open={showApprovalHistory} onOpenChange={setShowApprovalHistory}>
-                  <Separator className="my-4" />
-                  <CollapsibleTrigger asChild>
-                    <Button variant="ghost" size="sm" className="w-full justify-between">
-                      <span className="text-xs">Historial de Aprobaciones</span>
-                      <span className="text-xs">{showApprovalHistory ? '▲' : '▼'}</span>
-                    </Button>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent className="mt-3">
-                    <div className="text-xs text-muted-foreground space-y-2">
-                      <p>Próximamente: historial detallado de cambios en conformidades.</p>
-                      {/* TODO: Integrar con audit log filtrado por ceremonialOk/technicalOk */}
-                    </div>
-                  </CollapsibleContent>
-                </Collapsible>
+                {permissions.canViewAudit ? (
+                  <Collapsible open={showApprovalHistory} onOpenChange={setShowApprovalHistory}>
+                    <Separator />
+                    <CollapsibleTrigger asChild>
+                      <Button type="button" variant="ghost" className="w-full justify-between px-0">
+                        <span>Historial de aprobaciones</span>
+                        <span>{showApprovalHistory ? 'Ocultar' : 'Ver detalle'}</span>
+                      </Button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="pt-3">
+                      <EventApprovalHistory
+                        entries={approvalEntries}
+                        loading={loadingAudit}
+                        error={auditError}
+                        hasMore={hasMoreAudit}
+                        onRetry={handleAuditRetry}
+                        onLoadMore={loadMoreAudit}
+                      />
+                    </CollapsibleContent>
+                  </Collapsible>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    El historial de aprobaciones solo esta disponible para perfiles operativos.
+                  </p>
+                )}
               </CardContent>
             </Card>
-          )}
-          
-          {/* ✅ NUEVO: Alert de aprobación pendiente */}
-          {pendingApprovalInfo && (
-            <Alert>
-              <AlertDescription>
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="font-semibold text-sm">Aprobación parcial registrada</p>
-                    <p className="text-xs mt-1">
-                      Faltan: {formatMissingApprovals(pendingApprovalInfo.missing)}
-                    </p>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setPendingApprovalInfo(null)}
-                    className="h-6 w-6 p-0"
-                  >
-                    ✕
-                  </Button>
-                </div>
-              </AlertDescription>
-            </Alert>
-          )}
-          
-          {/* Estado y Acciones */}
+          ) : null}
+
           <Card>
             <CardHeader>
-              <CardTitle>Estado y Acciones</CardTitle>
-              <CardDescription>Gestión del estado del evento</CardDescription>
+              <CardTitle>Estado y acciones</CardTitle>
+              <CardDescription>Estado funcional actual del evento</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Estado Actual */}
               <div className="space-y-2">
-                <Label className="text-sm font-medium">Estado Actual</Label>
-                <div className="flex items-center gap-2">
-                  <Badge 
-                    variant={getStatusBadgeVariant(currentStatus || event.status)}
-                    className="text-base px-4 py-2"
-                  >
-                    {getStatusLabel(currentStatus || event.status)}
-                  </Badge>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {getStatusDescription(currentStatus || event.status)}
-                </p>
+                <Label className="text-sm font-medium">Estado actual</Label>
+                {displayStatus ? (
+                  <>
+                    <Badge variant={getStatusBadgeVariant(displayStatus)} className="text-sm">
+                      {getStatusLabel(displayStatus)}
+                    </Badge>
+                    <p className="text-sm text-muted-foreground">
+                      {getStatusDescription(displayStatus)}
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Sin informacion de estado.</p>
+                )}
               </div>
 
-              {/* Transiciones Permitidas */}
-              {allowedTransitions.length > 0 && (
+              {!showStatusDialog && statusError ? (
+                <EventSectionErrorState
+                  title="No se pudo cargar el flujo de estados"
+                  message={statusError}
+                  onRetry={() => {
+                    clearStatusError();
+                    void refetchStatus();
+                  }}
+                />
+              ) : null}
+
+              {canManageWorkflow ? (
                 <>
                   <Separator />
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">Cambiar Estado a:</Label>
+                  {allowedTransitions.length > 0 ? (
                     <div className="space-y-2">
-                      {allowedTransitions.map((status) => {
-                        // ✅ NUEVO: Label personalizado para APROBADO
-                        const buttonLabel =
-                          status === 'APROBADO'
-                            ? 'Aprobar (requiere 2 OK)'
-                            : getStatusLabel(status);
-
-                        return (
-                          <div key={status} className="space-y-1">
-                            <Button
-                              variant="outline"
-                              className="w-full justify-start"
-                              disabled={changing || !canChangeTo(status)}
-                              onClick={() => handleStatusChangeRequest(status)}
-                            >
-                              <span className="mr-2">→</span>
-                              {buttonLabel}
-                            </Button>
-                            
-                            {/* ✅ NUEVO: Helper text para RESERVADO */}
-                            {status === 'RESERVADO' && (
-                              <p className="text-xs text-muted-foreground ml-1">
-                                Reservar bloquea el espacio antes de la aprobación final
-                              </p>
-                            )}
-                          </div>
-                        );
-                      })}
+                      <Label className="text-sm font-medium">Cambiar estado</Label>
+                      {allowedTransitions.map((targetStatus) => (
+                        <Button
+                          key={targetStatus}
+                          type="button"
+                          variant="outline"
+                          className="w-full justify-start"
+                          disabled={changingStatus}
+                          onClick={() => handleOpenStatusDialog(targetStatus)}
+                        >
+                          {targetStatus === 'APROBADO'
+                            ? 'Aprobar (requiere conformidades)'
+                            : getStatusLabel(targetStatus)}
+                        </Button>
+                      ))}
                     </div>
-                  </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      No hay transiciones disponibles para tu perfil o para el estado actual.
+                    </p>
+                  )}
                 </>
-              )}
-
-              {allowedTransitions.length === 0 && (
-                <p className="text-xs text-muted-foreground">
-                  No hay transiciones disponibles desde el estado actual.
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Tu perfil no puede gestionar cambios de estado desde esta pantalla.
                 </p>
               )}
             </CardContent>
           </Card>
 
-          {/* Metadata */}
+          <EventOriginCard
+            event={event}
+            canNavigateToRequest={permissions.canReadPublicRequest}
+            onNavigateToRequest={handleNavigateToRequest}
+          />
+
+          <EventOperationalCard
+            event={event}
+            techCapacitySaturated={techCapacitySaturated}
+            saturatedBlocks={saturatedBlocks}
+          />
+
+          {techCapacityError && permissions.isOperativeRole ? (
+            <EventSectionErrorState
+              title="No se pudo cargar la capacidad tecnica"
+              message={techCapacityError}
+            />
+          ) : null}
+
           <Card>
             <CardHeader>
-              <CardTitle>Información del Sistema</CardTitle>
+              <CardTitle>Informacion del sistema</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="space-y-1">
-                <p className="text-xs font-medium text-muted-foreground">Fecha de Creación</p>
-                <p className="text-sm">
-                  {new Date(event.createdAt).toLocaleString('es-AR', {
-                    dateStyle: 'short',
-                    timeStyle: 'short',
-                  })}
-                </p>
-              </div>
-
-              <div className="space-y-1">
-                <p className="text-xs font-medium text-muted-foreground">Última Actualización</p>
-                <p className="text-sm">
-                  {new Date(event.updatedAt).toLocaleString('es-AR', {
-                    dateStyle: 'short',
-                    timeStyle: 'short',
-                  })}
-                </p>
-              </div>
-
-              {event.createdBy && (
-                <div className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground">Creado por</p>
-                  <p className="text-sm">
-                    {event.createdBy.name} {event.createdBy.lastName}
-                  </p>
-                </div>
-              )}
-
-              {event.lastModifiedBy && (
-                <div className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground">Modificado por</p>
-                  <p className="text-sm">
-                    {event.lastModifiedBy.name} {event.lastModifiedBy.lastName}
-                  </p>
-                </div>
-              )}
+            <CardContent className="space-y-4">
+              <InfoField label="Creado" value={formatDateTime(event.createdAt)} />
+              <InfoField label="Ultima actualizacion" value={formatDateTime(event.updatedAt)} />
+              {event.createdBy ? (
+                <InfoField label="Creado por" value={formatUserName(event.createdBy)} />
+              ) : null}
+              {event.lastModifiedBy ? (
+                <InfoField label="Ultima modificacion por" value={formatUserName(event.lastModifiedBy)} />
+              ) : null}
+              {loadingTechCapacity && event.requiresTech && permissions.isOperativeRole ? (
+                <p className="text-xs text-muted-foreground">Actualizando capacidad tecnica...</p>
+              ) : null}
             </CardContent>
           </Card>
-
         </div>
       </div>
 
-      {/* ============ COMENTARIOS INTERNOS (ANCHO COMPLETO) ============ */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Comentarios Internos</CardTitle>
-          <CardDescription>
-            Conversaciones y notas internas sobre este evento
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Formulario para nuevo comentario */}
-          <CommentForm onSubmit={handleCommentSubmit} submitting={submitting} />
-
-          <Separator />
-
-          {/* Lista de comentarios */}
-          {loadingComments && comments.length === 0 ? (
-            <div className="text-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
-              <p className="text-sm text-muted-foreground">Cargando comentarios...</p>
-            </div>
-          ) : comments.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-muted-foreground">
-                No hay comentarios aún. Sé el primero en comentar.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {comments.map((comment) => (
-                <CommentItem
-                  key={comment.id}
-                  comment={comment}
-                  onDelete={() => handleCommentDelete(comment.id)}
-                />
-              ))}
-            </div>
-          )}
-
-          {/* Botón cargar más */}
-          {hasMore && (
-            <Button
-              variant="outline"
-              className="w-full"
-              onClick={loadMoreComments}
-              disabled={loadingComments}
-            >
-              {loadingComments ? 'Cargando...' : 'Cargar más comentarios'}
-            </Button>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* ============ DIALOGS ============ */}
-      
-      {/* Dialog de Confirmación de Cambio de Estado */}
-      <Dialog open={showStatusDialog} onOpenChange={setShowStatusDialog}>
+      <Dialog open={showStatusDialog} onOpenChange={handleStatusDialogChange}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Cambiar Estado del Evento</DialogTitle>
+            <DialogTitle>Cambiar estado del evento</DialogTitle>
             <DialogDescription>
-              {selectedStatus && (
-                <>
-                  Vas a cambiar el estado de{' '}
-                  <strong>{getStatusLabel(currentStatus || event.status)}</strong> a{' '}
-                  <strong>{getStatusLabel(selectedStatus)}</strong>.
-                  
-                  {/* ✅ NUEVO: Texto educativo para APROBADO */}
-                  {selectedStatus === 'APROBADO' && (
-                    <>
-                      <br /><br />
-                      Esta acción registra tu OK (según tu rol). Si falta el otro OK, 
-                      el evento quedará <em>pendiente</em>.
-                    </>
-                  )}
-                </>
-              )}
+              {selectedStatus && displayStatus ? getTransitionMessageFor(selectedStatus) : 'Confirma la accion.'}
             </DialogDescription>
           </DialogHeader>
 
-          {selectedStatus && requiresReasonFor(selectedStatus) && (
+          {selectedStatus ? (
             <div className="space-y-2">
-              <Label htmlFor="reason">Motivo del cambio *</Label>
-              <Input
-                id="reason"
-                placeholder="Ingresa el motivo de este cambio de estado"
+              <Label htmlFor="status-reason">
+                {requiresReasonFor(selectedStatus) ? 'Motivo *' : 'Motivo (opcional)'}
+              </Label>
+              <textarea
+                id="status-reason"
                 value={statusReason}
-                onChange={(e) => setStatusReason(e.target.value)}
-                disabled={changing}
+                onChange={(event) => setStatusReason(event.target.value)}
+                disabled={changingStatus}
+                placeholder="Detalla el motivo o contexto de este cambio"
+                className="min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               />
-              <p className="text-xs text-muted-foreground">
-                Este campo es obligatorio para este cambio de estado.
-              </p>
+              {requiresReasonFor(selectedStatus) ? (
+                <p className="text-xs text-muted-foreground">
+                  Este cambio exige un motivo para quedar auditado correctamente.
+                </p>
+              ) : null}
             </div>
-          )}
+          ) : null}
 
-          {selectedStatus && !requiresReasonFor(selectedStatus) && (
-            <div className="space-y-2">
-              <Label htmlFor="reason-optional">Motivo del cambio (opcional)</Label>
-              <Input
-                id="reason-optional"
-                placeholder="Opcionalmente, agrega un comentario sobre este cambio"
-                value={statusReason}
-                onChange={(e) => setStatusReason(e.target.value)}
-                disabled={changing}
-              />
-            </div>
-          )}
+          {statusError ? (
+            <EventSectionErrorState
+              title="No se pudo completar el cambio"
+              message={statusError}
+              onRetry={handleConfirmStatusChange}
+            />
+          ) : null}
 
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setShowStatusDialog(false);
-                setStatusReason('');
-                setSelectedStatus(null);
-              }}
-              disabled={changing}
-            >
+            <Button type="button" variant="outline" onClick={() => handleStatusDialogChange(false)} disabled={changingStatus}>
               Cancelar
             </Button>
-            <Button onClick={handleStatusChangeConfirm} disabled={changing}>
-              {changing ? 'Procesando...' : 'Confirmar Cambio'}
+            <Button type="button" onClick={handleConfirmStatusChange} disabled={changingStatus}>
+              {changingStatus ? 'Procesando...' : 'Confirmar cambio'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -846,13 +814,31 @@ export function DetailPage() {
   );
 }
 
-// ============================================================
-// COMPONENTES AUXILIARES
-// ============================================================
+interface InfoFieldProps {
+  label: string;
+  value: string;
+  description?: string;
+}
 
-/**
- * Formulario para crear un nuevo comentario
- */
+function InfoField({ label, value, description }: InfoFieldProps) {
+  return (
+    <div className="space-y-1">
+      <p className="text-xs font-medium text-muted-foreground">{label}</p>
+      <p className="text-sm">{value}</p>
+      {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
+    </div>
+  );
+}
+
+function ContentBlock({ title, value }: { title: string; value: string }) {
+  return (
+    <div className="space-y-2">
+      <h3 className="text-sm font-semibold">{title}</h3>
+      <p className="whitespace-pre-wrap text-sm text-muted-foreground">{value}</p>
+    </div>
+  );
+}
+
 interface CommentFormProps {
   onSubmit: (body: string) => Promise<boolean>;
   submitting: boolean;
@@ -861,123 +847,101 @@ interface CommentFormProps {
 function CommentForm({ onSubmit, submitting }: CommentFormProps) {
   const [body, setBody] = useState('');
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = useCallback(async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
 
-    if (!body.trim()) {
-      toast.error('El comentario no puede estar vacío');
+    const trimmedBody = body.trim();
+
+    if (!trimmedBody) {
+      toast.error('El comentario no puede estar vacio.');
       return;
     }
 
-    const success = await onSubmit(body.trim());
+    const success = await onSubmit(trimmedBody);
+
     if (success) {
       setBody('');
     }
-  };
+  }, [body, onSubmit]);
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
       <div className="space-y-2">
-        <Label htmlFor="new-comment">Nuevo Comentario</Label>
+        <Label htmlFor="event-comment">Nuevo comentario</Label>
         <textarea
-          id="new-comment"
+          id="event-comment"
           value={body}
-          onChange={(e) => setBody(e.target.value)}
-          placeholder="Escribe tu comentario aquí..."
-          className="w-full min-h-[100px] px-3 py-2 text-sm rounded-md border border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
+          onChange={(event) => setBody(event.target.value)}
+          placeholder="Escribe un comentario interno"
           disabled={submitting}
+          className="min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
         />
       </div>
       <Button type="submit" disabled={submitting || !body.trim()}>
-        {submitting ? (
-          <>
-            <span className="animate-spin mr-2">⏳</span>
-            Publicando...
-          </>
-        ) : (
-          <>
-            💬 Publicar Comentario
-          </>
-        )}
+        {submitting ? 'Publicando...' : 'Publicar comentario'}
       </Button>
     </form>
   );
 }
 
-/**
- * Componente para mostrar un comentario individual
- */
 interface CommentItemProps {
-  comment: {
-    id: number;
-    body: string;
-    createdAt: string;
-    updatedAt: string;
-    author: {
-      id: number;
-      username: string;
-      fullName: string;
-    };
-    isPublic: boolean;
-    isEdited: boolean;
-  };
+  comment: Comment;
+  canDelete: boolean;
+  deleting: boolean;
   onDelete: () => void;
 }
 
-function CommentItem({ comment, onDelete }: CommentItemProps) {
-  const isEdited = comment.isEdited;
-  const createdDate = new Date(comment.createdAt);
-  const updatedDate = new Date(comment.updatedAt);
-
+function CommentItem({ comment, canDelete, deleting, onDelete }: CommentItemProps) {
   return (
-    <div className="border rounded-lg p-4 space-y-3 hover:bg-accent/50 transition-colors">
-      {/* Header: Autor + Fecha + Acciones */}
-      <div className="flex items-start justify-between">
+    <div className="space-y-3 rounded-lg border p-4">
+      <div className="flex items-start justify-between gap-3">
         <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <p className="font-semibold text-sm">{comment.author.fullName}</p>
-            <Badge variant="outline" className="text-xs">
-              @{comment.author.username}
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm font-semibold">{comment.author.fullName}</p>
+            {comment.author.username ? (
+              <Badge variant="outline" className="text-[10px]">
+                @{comment.author.username}
+              </Badge>
+            ) : null}
+            <Badge variant="outline" className="text-[10px]">
+              {comment.visibility === 'INTERNAL' ? 'Interno' : 'Publico'}
             </Badge>
           </div>
           <p className="text-xs text-muted-foreground">
-            {createdDate.toLocaleString('es-AR', {
-              dateStyle: 'medium',
-              timeStyle: 'short',
-            })}
-            {isEdited && (
-              <span className="ml-2 italic">
-                (editado el{' '}
-                {updatedDate.toLocaleString('es-AR', {
-                  dateStyle: 'short',
-                  timeStyle: 'short',
-                })})
-              </span>
-            )}
+            {formatDateTime(comment.createdAt)}
+            {comment.isEdited && comment.updatedAt ? ` - Editado ${formatDateTime(comment.updatedAt)}` : ''}
+            {comment.editedBy ? ` - por ${comment.editedBy.fullName}` : ''}
           </p>
         </div>
 
-        {/* Botón eliminar (solo para admins o autor) */}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onDelete}
-          className="text-muted-foreground hover:text-destructive"
-        >
-          🗑️
-        </Button>
+        {canDelete ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={deleting}
+            onClick={onDelete}
+            className="text-muted-foreground hover:text-destructive"
+          >
+            Eliminar
+          </Button>
+        ) : null}
       </div>
 
-      {/* Cuerpo del comentario */}
-      <p className="text-sm leading-relaxed whitespace-pre-wrap">{comment.body}</p>
-
-      {/* Badge de visibilidad */}
-      {!comment.isPublic && (
-        <Badge variant="outline" className="text-xs">
-          🔒 Solo Interno
-        </Badge>
-      )}
+      <p className="whitespace-pre-wrap text-sm text-muted-foreground">{comment.body}</p>
     </div>
   );
 }
 
+function formatDateTime(date: string | Date): string {
+  const value = typeof date === 'string' ? new Date(date) : date;
+
+  return value.toLocaleString('es-AR', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  });
+}
+
+function formatUserName(user: User): string {
+  return [user.name, user.lastName].filter(Boolean).join(' ').trim() || user.username;
+}

@@ -92,5 +92,10 @@ export {
   getActionTypeLabel
 } from './audit.adapter';
 
-// Re-export types from audit adapter
+// Re-export types from adapters
+export type {
+  Comment,
+  CreateCommentInput,
+  UpdateCommentInput,
+} from './comment.adapter';
 export type { AuditEntry } from './audit.adapter';

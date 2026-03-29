@@ -94,7 +94,7 @@ export const errorInterceptor = async (error: AxiosError): Promise<never> => {
     // Si el backend retorna AvailabilityConflictResponse (con isAvailable, conflicts, etc.),
     // lo agregamos al ApiError para que pueda ser extraído posteriormente
     if (payload?.isAvailable !== undefined && payload.conflicts !== undefined) {
-      apiError.details = data;
+      apiError.details = data as Record<string, any>;
     }
   }
 

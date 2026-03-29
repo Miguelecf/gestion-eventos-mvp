@@ -17,7 +17,6 @@ import type {
 } from '@/models/event-status';
 import type {
   BackendEventStatusResponse,
-  BackendChangeStatusRequest,
   BackendStatusChangeResponse,
 } from './types/backend.types';
 import {

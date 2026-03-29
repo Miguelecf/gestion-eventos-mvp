@@ -16,7 +16,7 @@ export function useCan() {
 }
 
 // Hook adicional para verificar ownership de eventos
-export function useCanAccessEvent(event: { createdBy?: string }) {
+export function useCanAccessEvent(event: { createdBy?: string | { id?: number | null } | null }) {
   const can = useCan();
   const userId = useAppStore(state => state.userId);
   
@@ -27,7 +27,13 @@ export function useCanAccessEvent(event: { createdBy?: string }) {
   const canApprove = can('approveCeremonial', 'Event') || can('approveTechnical', 'Event');
   
   // Para ROLE_USUARIO: debe ser el creador
-  const isOwner = event.createdBy === userId;
+  const ownerId =
+    typeof event.createdBy === 'string'
+      ? event.createdBy
+      : event.createdBy?.id != null
+        ? String(event.createdBy.id)
+        : null;
+  const isOwner = ownerId !== null && ownerId === userId;
   const roles = useAppStore(state => state.roles);
   const isUserRole = roles.includes('ROLE_USUARIO');
   
