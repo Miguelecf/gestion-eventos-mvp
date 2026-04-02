@@ -230,7 +230,7 @@ export function CalendarPage() {
               slotDuration="00:30:00"
               allDaySlot={false}
               nowIndicator={true}
-              loading={(isLoading) => {
+              loading={(_isLoading) => {
                 // FullCalendar callback - no action needed as we handle loading state separately
               }}
               eventContent={renderEventContent}

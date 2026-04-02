@@ -9,7 +9,7 @@
 
 import type { Event } from '@/models/event';
 import type { BackendEventDTO } from './types/backend.types';
-import { adaptEventFromBackend, adaptEventsFromBackend } from './adapters/event.adapter';
+import { adaptEventsFromBackend } from './adapters/event.adapter';
 
 /**
  * Obtiene la lista de eventos públicos activos

@@ -45,7 +45,9 @@ const SpaceSelect = React.forwardRef<HTMLSelectElement, SpaceSelectProps>(
           <option value="">{loading ? "Cargando..." : placeholder}</option>
           {spaces.map((space) => (
             <option key={space.id} value={space.id}>
-              {space.name} - {space.location} (Cap: {space.capacity})
+              {space.location
+                ? `${space.name} - ${space.location} (Cap: ${space.capacity})`
+                : (space.label ?? `${space.name} (Cap: ${space.capacity})`)}
             </option>
           ))}
         </select>

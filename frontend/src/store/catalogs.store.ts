@@ -23,6 +23,7 @@ import {
   type DepartmentFilters,
   type CreateDepartmentInput,
   type UpdateDepartmentInput,
+  type MakeDecisionParams,
   handleApiError,
   logError
 } from '@/services/api';
@@ -124,7 +125,11 @@ export interface CatalogsStore {
   fetchSpaces: () => Promise<void>;
   fetchDepartments: () => Promise<void>;
   fetchConflicts: (eventId: number) => Promise<void>;
-  makeDecision: (conflictId: number, decision: 'APROBAR' | 'RECHAZAR', reason?: string) => Promise<boolean>;
+  makeDecision: (
+    conflictCode: string,
+    decision: MakeDecisionParams['decision'],
+    target: MakeDecisionParams['target']
+  ) => Promise<boolean>;
   submitPublicRequest: (input: PublicEventRequestInput) => Promise<PublicRequestResult | null>;
   clearErrors: () => void;
   reset: () => void;
@@ -524,14 +529,14 @@ const createCatalogsStore: StateCreator<CatalogsStore> = (set, get) => ({
     }
   },
   
-  makeDecision: async (conflictId: number, decision: 'APROBAR' | 'RECHAZAR', reason?: string) => {
+  makeDecision: async (conflictCode, decision, target) => {
     set((state) => ({
       loading: { ...state.loading, decision: true },
       errors: { ...state.errors, decision: null },
     }));
     
     try {
-      await catalogsApi.makeDecision({ conflictId, decision: decision as any, reason });
+      await catalogsApi.makeDecision({ conflictCode, decision, target });
       set({
         loading: { ...get().loading, decision: false },
       });
