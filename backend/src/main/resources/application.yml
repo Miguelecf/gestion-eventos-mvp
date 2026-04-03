@@ -1,6 +1,8 @@
 spring:
   application:
     name: backend
+  profiles:
+    default: local
 
   security:
     user:
@@ -8,18 +10,11 @@ spring:
       password: admin123
       roles: ADMIN
 
-  datasource:
-    url: jdbc:mysql://localhost:3306/eventosbd?createDatabaseIfNotExist=true&useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=UTC&useTimezone=false
-    username: root
-    password: root
-    driver-class-name: com.mysql.cj.jdbc.Driver
-
   jpa:
     hibernate:
       ddl-auto: validate # Flyway controla el esquema
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.MySQLDialect # MySQLDialect (MySQL8Dialect está deprecated)
         format_sql: true
     show-sql: true
 
@@ -38,8 +33,6 @@ spring:
     baseline-version: 0
 
   mail:
-    host: ${MAIL_HOST:localhost}
-    port: ${MAIL_PORT:1025}
     username: ${MAIL_USERNAME:}
     password: ${MAIL_PASSWORD:}
     properties:
@@ -48,6 +41,7 @@ spring:
           auth: ${MAIL_SMTP_AUTH:false}
           starttls:
             enable: ${MAIL_SMTP_STARTTLS_ENABLE:false}
+
 server:
   port: 9090
 
@@ -60,12 +54,14 @@ management:
     health:
       probes:
         enabled: true
+
 jwt:
   secret: ${JWT_SECRET:aaee89681dd2ffeec808837802a9fdb19b157c71aea36e1886e42c7b2fe0fd7c}
   access-token:
     expiration: ${JWT_ACCESS_TOKEN_EXPIRATION:900000} # 15 minutes by default
   refresh-token:
     expiration: ${JWT_REFRESH_TOKEN_EXPIRATION:604800000} # 7 days by default
+
 springdoc:
   api-docs:
     path: /api-docs
@@ -75,6 +71,8 @@ springdoc:
     tags-sorter: alpha
 
 app:
+  cors:
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:5173}
   mail:
     from: ${MAIL_FROM:noreply@gestion-eventos.local}
     mock-mode: ${MAIL_MOCK_MODE:true}

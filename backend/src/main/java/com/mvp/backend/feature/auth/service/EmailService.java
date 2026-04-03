@@ -14,42 +14,56 @@ import org.springframework.stereotype.Service;
 public class EmailService {
 
     private final JavaMailSender emailSender;
+
     @Value("${app.mail.from:noreply@gestion-eventos.local}")
     private String from;
+
     @Value("${app.mail.mock-mode:true}")
     private boolean mockMode;
+
     @Value("${app.mail.fail-on-error:true}")
     private boolean failOnError;
 
     public void sendNewPassword(String to, String temporaryPassword) {
+        String subject = "Gestion de Eventos - ALTA DE USUARIO";
+        String textBody = "Hola,\n te informamos que tu usuario ha sido dado de alta y que la contrasenia es: "
+                + temporaryPassword + "\nPor favor, cambiala al iniciar sesion.\nSaludos.";
+        sendInternal(
+                to,
+                subject,
+                textBody,
+                () -> log.info("[MAIL_MOCK] Alta de usuario para {} con password temporal {}", to, temporaryPassword),
+                "No se pudo enviar el email de credenciales");
+    }
+
+    public void send(String to, String subject, String textBody) {
+        sendInternal(
+                to,
+                subject,
+                textBody,
+                () -> log.info("[MAIL_MOCK] Email simulado to={} subject={} body={}", to, subject, textBody),
+                "No se pudo enviar el email");
+    }
+
+    private void sendInternal(String to, String subject, String textBody, Runnable mockLogger, String errorMessage) {
         if (mockMode) {
-            log.info("[MAIL_MOCK] Alta de usuario para {} con password temporal {}", to, temporaryPassword);
+            mockLogger.run();
             return;
         }
 
         SimpleMailMessage message = new SimpleMailMessage();
         message.setFrom(from);
         message.setTo(to);
-        message.setSubject("Gestion de Eventos - ALTA DE USUARIO");
-        message.setText(
-                "Hola,\n te informamos que tu usuario ha sido dado de alta y que la contraseña es: " + temporaryPassword
-                        + "\nPor favor, cambiala al iniciar sesión.\nSaludos.");
+        message.setSubject(subject);
+        message.setText(textBody);
+
         try {
             emailSender.send(message);
         } catch (Exception e) {
             if (failOnError) {
-                throw new EmailDeliveryException("No se pudo enviar el email de credenciales", e);
+                throw new EmailDeliveryException(errorMessage, e);
             }
-            log.error("Fallo al enviar email de credenciales a {}. Se continua por fail-on-error=false", to, e);
+            log.error("Fallo al enviar email a {} con asunto {}. Se continua por fail-on-error=false", to, subject, e);
         }
-    }
-
-    public void send(String to, String subject, String textBody) {
-        SimpleMailMessage message = new SimpleMailMessage();
-        message.setFrom(from);
-        message.setTo(to);
-        message.setSubject(subject);
-        message.setText(textBody);
-        emailSender.send(message);
     }
 }

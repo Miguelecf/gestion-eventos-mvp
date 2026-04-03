@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Instant;
 import java.util.Optional;
 
 import static org.springframework.http.HttpStatus.CONFLICT;
@@ -70,6 +71,6 @@ public class UserService {
 
     @Transactional
     public int updatePassword(Long id, String passwordHash){
-        return userRepository.updatePassword(id, passwordHash);
+        return userRepository.updatePassword(id, passwordHash, Instant.now());
     }
 }

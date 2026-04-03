@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
 import java.util.Optional;
 
 public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificationExecutor<User> {
@@ -35,8 +36,10 @@ public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificat
        set u.password = :password,
            u.mustChangePassword = false,
            u.failedLoginAttempts = 0,
-           u.updatedAt = CURRENT_TIMESTAMP
+           u.updatedAt = :updatedAt
      where u.id = :id
   """)
-    int updatePassword(@Param("id") Long id, @Param("password") String passwordHash);
+    int updatePassword(@Param("id") Long id,
+                       @Param("password") String passwordHash,
+                       @Param("updatedAt") Instant updatedAt);
 }
