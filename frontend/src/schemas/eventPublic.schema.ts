@@ -221,9 +221,14 @@ export const publicEventSchema = z
   );
 
 /**
- * Tipo inferido del schema
+ * Tipo de entrada cruda del formulario
  */
-export type PublicEventFormData = z.infer<typeof publicEventSchema>;
+export type PublicEventFormInput = z.input<typeof publicEventSchema>;
+
+/**
+ * Tipo validado/sanitizado del schema
+ */
+export type PublicEventFormData = z.output<typeof publicEventSchema>;
 
 // ==================== ADAPTADORES PARA API ====================
 

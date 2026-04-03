@@ -158,7 +158,7 @@ export function filterSpacesByCapacity(spaces: Space[], minCapacity: number): Sp
  * ```
  */
 export function filterActiveSpaces(spaces: Space[]): Space[] {
-  return spaces.filter(space => space.isActive);
+  return spaces.filter(space => space.active);
 }
 
 /**
@@ -173,5 +173,5 @@ export function filterActiveSpaces(spaces: Space[]): Space[] {
  * ```
  */
 export function filterActiveDepartments(departments: Department[]): Department[] {
-  return departments.filter(dept => dept.isActive);
+  return departments.filter(dept => dept.active);
 }

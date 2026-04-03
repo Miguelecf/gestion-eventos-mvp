@@ -119,7 +119,7 @@ const createAvailabilityStore: StateCreator<AvailabilityStore> = (set, get) => (
     }
   },
   
-  getSpaceOccupancy: async (spaceId: number, startDate: string, endDate: string) => {
+  getSpaceOccupancy: async (_spaceId: number, _startDate: string, _endDate: string) => {
     set((state) => ({
       loading: { ...state.loading, spaceOccupancy: true },
       errors: { ...state.errors, spaceOccupancy: null },

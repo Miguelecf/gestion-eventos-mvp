@@ -23,6 +23,7 @@ import { toast } from 'sonner';
 // Schema y tipos
 import {
   publicEventSchema,
+  type PublicEventFormInput,
   type PublicEventFormData,
   toPublicEventRequestPayload,
 } from '@/schemas/eventPublic.schema';
@@ -66,7 +67,7 @@ export default function PublicEventForm() {
   const [isCheckingAvailability, setIsCheckingAvailability] = useState(false);
 
   // ========== FORM SETUP ==========
-  const form = useForm<PublicEventFormData>({
+  const form = useForm<PublicEventFormInput, unknown, PublicEventFormData>({
     resolver: zodResolver(publicEventSchema),
     defaultValues: {
       audienceType: 'COMUNIDAD',

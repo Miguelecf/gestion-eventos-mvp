@@ -9,6 +9,7 @@ export interface Space {
   id: number;
   name: string;
   capacity: number;
+  location?: string | null;
   colorHex: string;
   defaultBufferBeforeMin: number;
   defaultBufferAfterMin: number;
