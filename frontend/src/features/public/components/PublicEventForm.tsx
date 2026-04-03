@@ -271,7 +271,7 @@ export default function PublicEventForm() {
    * Handler de cancelar
    */
   const handleCancel = () => {
-    navigate('/public/calendar');
+    navigate('/login', { replace: true });
   };
 
   // ========== RENDER ==========
