@@ -2,7 +2,7 @@ spring:
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/eventosbd?createDatabaseIfNotExist=true&useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=UTC&useTimezone=false}
     username: ${SPRING_DATASOURCE_USERNAME:root}
-    password: ${SPRING_DATASOURCE_PASSWORD:root-grupof12}
+    password: ${SPRING_DATASOURCE_PASSWORD:root}
   mail:
     host: ${MAIL_HOST:localhost}
     port: ${MAIL_PORT:1025}
