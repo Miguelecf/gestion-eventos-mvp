@@ -1,4 +1,4 @@
-import { Link, Outlet } from "react-router-dom";
+import { Outlet } from "react-router-dom";
 import { Moon, Sun } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -18,10 +18,7 @@ export function AuthLayout() {
       <div className="relative z-10 flex min-h-screen flex-col lg:flex-row">
         <section className="flex flex-1 flex-col px-6 py-6 sm:px-10 lg:min-h-screen lg:w-1/2 lg:px-16 xl:px-24">
           <div className="flex items-center justify-between gap-4">
-            <Link
-              to="/public/calendar"
-              className="inline-flex items-center gap-3 rounded-full border border-slate-200/80 bg-white/80 px-4 py-2 backdrop-blur transition hover:border-slate-300 hover:bg-white dark:border-slate-800 dark:bg-slate-900/80 dark:hover:border-slate-700 dark:hover:bg-slate-900"
-            >
+            <div className="inline-flex cursor-default select-none items-center gap-3 rounded-full border border-slate-200/80 bg-white/80 px-4 py-2 backdrop-blur dark:border-slate-800 dark:bg-slate-900/80">
               <img
                 src={logo}
                 alt="Universidad Nacional de Lanus"
@@ -35,7 +32,7 @@ export function AuthLayout() {
                   Universidad Nacional de Lanus
                 </p>
               </div>
-            </Link>
+            </div>
 
             <Button
               variant="ghost"
