@@ -1,27 +1,47 @@
-import { useState, useEffect, type ChangeEvent, type FormEvent } from 'react';
-import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card } from '@/components/ui/card';
-import { useAuth } from '@/features/auth/AuthProvider';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertCircle } from 'lucide-react';
+import { useState, useEffect, type ChangeEvent, type FormEvent } from "react";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { AlertCircle, Eye, EyeOff, LockKeyhole, UserRound } from "lucide-react";
+
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { useAuth } from "@/features/auth/AuthProvider";
+import { PublicAccessPanel } from "@/features/public/components";
+
+type LoginLocationState = {
+  from?: {
+    pathname?: string;
+  };
+};
+
+type LoginError = {
+  response?: {
+    status?: number;
+    data?: {
+      message?: string;
+    };
+  };
+  status?: number;
+  message?: string;
+};
 
 export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const { login, loading, user } = useAuth();
-  
+
   const [formData, setFormData] = useState({
-    username: '',
-    password: ''
+    username: "",
+    password: "",
   });
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
-  const from = (location.state as any)?.from?.pathname || '/dashboard';
-  const sessionExpired = searchParams.get('sessionExpired') === 'true';
+  const from =
+    (location.state as LoginLocationState | null)?.from?.pathname || "/dashboard";
+  const sessionExpired = searchParams.get("sessionExpired") === "true";
   const [loginSuccess, setLoginSuccess] = useState(false);
 
   // Si el usuario ya está autenticado, redirigir
@@ -41,9 +61,9 @@ export function LoginPage() {
 
   const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [name]: value
+      [name]: value,
     }));
 
     if (error) setError(null);
@@ -52,11 +72,11 @@ export function LoginPage() {
   // Validación básica del formulario
   const validateForm = () => {
     if (!formData.username.trim()) {
-      setError('El usuario es requerido');
+      setError("El usuario es requerido");
       return false;
     }
     if (!formData.password) {
-      setError('La contraseña es requerida');
+      setError("La contraseña es requerida");
       return false;
     }
     return true;
@@ -72,28 +92,28 @@ export function LoginPage() {
     setIsSubmitting(true);
 
     try {
-      await login({ 
-        username: formData.username.trim(), 
-        password: formData.password 
+      await login({
+        username: formData.username.trim(),
+        password: formData.password,
       });
-      
+
       // Marcar login exitoso para disparar navegación en useEffect
       setLoginSuccess(true);
-      
-    } catch (err: any) {
-      console.error('Error en login:', err);
-      
+    } catch (err: unknown) {
+      console.error("Error en login:", err);
+      const loginError = err as LoginError;
+      const status = loginError.response?.status ?? loginError.status;
+      const message = loginError.response?.data?.message ?? loginError.message;
+
       // Manejo específico de errores
-      if (err?.response?.status === 401) {
-        setError('Usuario o contraseña incorrectos');
-      } else if (err?.response?.status === 403) {
-        setError('No tienes permisos para acceder');
-      } else if (err?.response?.data?.message) {
-        setError(err.response.data.message);
-      } else if (err.message) {
-        setError(err.message);
+      if (status === 401) {
+        setError("Usuario o contraseña incorrectos");
+      } else if (status === 403) {
+        setError("No tienes permisos para acceder");
+      } else if (message) {
+        setError(message);
       } else {
-        setError('Error de conexión. Verifica tu conexión a internet.');
+        setError("Error de conexión. Verificá tu conexión a internet.");
       }
     } finally {
       setIsSubmitting(false);
@@ -103,17 +123,32 @@ export function LoginPage() {
   const isLoading = loading || isSubmitting;
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-      <Card className="w-full max-w-md p-8 shadow-xl">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Gestión de Eventos</h1>
-          <p className="text-gray-600 mt-2">Inicia sesión en tu cuenta</p>
+    <div className="w-full max-w-lg">
+      <div className="rounded-[2rem] border border-white/70 bg-white/90 p-8 shadow-[0_24px_80px_rgba(15,23,42,0.12)] backdrop-blur dark:border-slate-800 dark:bg-slate-900/85">
+        <div className="mb-8 space-y-6">
+          <div className="space-y-3">
+            <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-slate-500 dark:border-slate-800 dark:bg-slate-800/80 dark:text-slate-400">
+              ACCESO INTERNO
+            </span>
+            <div className="space-y-2">
+              <h1 className="text-3xl font-semibold tracking-tight text-slate-900 dark:text-slate-50 sm:text-4xl">
+                Acceso interno
+              </h1>
+              <p className="text-sm leading-6 text-slate-500 dark:text-slate-400">
+                Ingresá con tu usuario para gestionar eventos y solicitudes.
+              </p>
+            </div>
+          </div>
+
+          <PublicAccessPanel variant="mobile" className="lg:hidden" />
         </div>
 
         {sessionExpired && !error && (
-          <Alert className="mb-6 border-amber-200 bg-amber-50 text-amber-800">
+          <Alert className="mb-6 border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
             <AlertCircle className="h-4 w-4" />
-            <AlertDescription>Tu sesiÃ³n expirÃ³. VolvÃ© a iniciar sesiÃ³n para continuar.</AlertDescription>
+            <AlertDescription>
+              Tu sesión expiró. Volvé a iniciar sesión para continuar.
+            </AlertDescription>
           </Alert>
         )}
 
@@ -125,50 +160,81 @@ export function LoginPage() {
         )}
 
         <form onSubmit={handleLogin} className="space-y-6" noValidate>
-          <div>
-            <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-2">
+          <div className="space-y-2">
+            <label
+              htmlFor="username"
+              className="block text-sm font-medium text-slate-700 dark:text-slate-300"
+            >
               Usuario
             </label>
-            <Input
-              id="username"
-              name="username"
-              type="text"
-              value={formData.username}
-              onChange={handleInputChange}
-              placeholder="Ingresa tu usuario"
-              required
-              disabled={isLoading}
-              autoComplete="username"
-            />
+            <div className="relative">
+              <UserRound className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                id="username"
+                name="username"
+                type="text"
+                value={formData.username}
+                onChange={handleInputChange}
+                placeholder="Ingresá tu usuario"
+                required
+                disabled={isLoading}
+                autoComplete="username"
+                className="h-12 rounded-xl border-slate-200 bg-white pl-11 shadow-none focus-visible:border-slate-400 focus-visible:ring-slate-300/40 dark:border-slate-700 dark:bg-slate-950 dark:focus-visible:border-slate-500"
+              />
+            </div>
           </div>
 
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-              Contraseña
-            </label>
-            <Input
-              id="password"
-              name="password"
-              type="password"
-              value={formData.password}
-              onChange={handleInputChange}
-              placeholder="Ingresa tu contraseña"
-              required
-              disabled={isLoading}
-              autoComplete="current-password"
-            />
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-3">
+              <label
+                htmlFor="password"
+                className="block text-sm font-medium text-slate-700 dark:text-slate-300"
+              >
+                Contraseña
+              </label>
+              <span className="text-xs font-medium text-slate-400">
+                Acceso seguro
+              </span>
+            </div>
+
+            <div className="relative">
+              <LockKeyhole className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                id="password"
+                name="password"
+                type={showPassword ? "text" : "password"}
+                value={formData.password}
+                onChange={handleInputChange}
+                placeholder="Ingresá tu contraseña"
+                required
+                disabled={isLoading}
+                autoComplete="current-password"
+                className="h-12 rounded-xl border-slate-200 bg-white pl-11 pr-12 shadow-none focus-visible:border-slate-400 focus-visible:ring-slate-300/40 dark:border-slate-700 dark:bg-slate-950 dark:focus-visible:border-slate-500"
+              />
+              <button
+                type="button"
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-slate-600 dark:hover:text-slate-200"
+                onClick={() => setShowPassword((prev) => !prev)}
+                aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+              >
+                {showPassword ? (
+                  <EyeOff className="h-4 w-4" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
+              </button>
+            </div>
           </div>
 
           <Button
             type="submit"
-            className="w-full"
+            className="h-12 w-full rounded-xl bg-[#6f1717] text-white shadow-lg shadow-[#6f1717]/20 hover:bg-[#5b1111] dark:bg-[#8f2323] dark:hover:bg-[#a12a2a]"
             disabled={isLoading}
           >
-            {isLoading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
+            {isLoading ? "Ingresando..." : "Ingresar a la plataforma"}
           </Button>
         </form>
-
-      </Card>
+      </div>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { createBrowserRouter, Navigate } from "react-router-dom";
 import AppShell from "./AppShell";
+import { AuthLayout } from "./AuthLayout";
 import { PublicLayout } from "./PublicLayout";
 import { PrivateRoute } from "./PrivateRoute";
 import { RoleRoute } from "./RoleRoute";
@@ -21,13 +22,17 @@ import {
 } from "@/features/public/pages";
 
 export const router = createBrowserRouter([
+  {
+    element: <AuthLayout />,
+    children: [{ path: "/login", element: <LoginPage /> }],
+  },
+
   // ========================
   // Public routes
   // ========================
   {
     element: <PublicLayout />,
     children: [
-      { path: "/login", element: <LoginPage /> },
       { path: "/public/calendar", element: <PublicCalendarPage /> },
       { path: "/solicitud", element: <RequestFormPage /> },
       { path: "/solicitud/confirmacion/:trackingUuid", element: <RequestConfirmationPage /> },
