@@ -53,6 +53,11 @@
   @apply hover:bg-slate-50 transition-colors;
 }
 
+.fc .fc-daygrid-day-frame {
+  min-height: 112px;
+  overflow: hidden;
+}
+
 .fc .fc-daygrid-day-number {
   @apply text-slate-700 font-medium p-2;
 }
@@ -83,18 +88,96 @@
 
 /* Contenedor de eventos */
 .fc .fc-daygrid-event {
-  @apply rounded-md px-2 py-1 text-xs;
+  @apply rounded-md text-xs;
   @apply cursor-pointer transition-all;
-  @apply hover:shadow-md hover:scale-105;
+  @apply hover:shadow-sm;
+  margin: 1px 2px;
+  min-height: 28px;
+  max-width: calc(100% - 4px);
+  overflow: hidden;
+  padding: 0;
+}
+
+.fc .fc-daygrid-day-events {
+  overflow: hidden;
+}
+
+.fc .fc-daygrid-event-harness {
+  margin-top: 2px;
+}
+
+.fc .fc-daygrid-day-bottom {
+  margin: 2px;
 }
 
 .fc .fc-event {
   @apply border-l-4;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.fc .fc-event-main {
+  min-width: 0;
+  width: 100%;
 }
 
 /* Contenido personalizado del evento */
 .fc-event-content-custom {
   @apply flex flex-col gap-0.5;
+}
+
+.calendar-event-content {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  color: white !important;
+}
+
+.calendar-event-content--month {
+  min-height: 28px;
+  padding: 3px 6px;
+  gap: 1px;
+}
+
+.calendar-event-content--time {
+  min-height: 100%;
+  padding: 5px 7px;
+  gap: 2px;
+}
+
+.calendar-event-main-line {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.calendar-event-time {
+  flex: 0 0 auto;
+  max-width: 52px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.calendar-event-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.calendar-event-location {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .fc-event-time {
@@ -118,6 +201,38 @@
 .fc .fc-daygrid-more-link {
   @apply text-blue-600 hover:text-blue-700 font-medium text-xs;
   @apply hover:underline;
+  display: inline-flex;
+  max-width: calc(100% - 4px);
+  overflow: hidden;
+  padding: 2px 4px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.calendar-more-link-content {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fc .fc-more-popover {
+  @apply rounded-lg border border-slate-200 bg-white shadow-xl;
+  max-width: min(360px, calc(100vw - 2rem));
+  z-index: 40;
+}
+
+.fc .fc-popover-header {
+  @apply bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-800;
+}
+
+.fc .fc-popover-body {
+  max-height: min(420px, 60vh);
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.fc .fc-more-popover .fc-daygrid-event {
+  margin-bottom: 4px;
 }
 
 /* ====================================
@@ -152,10 +267,24 @@
 .fc .fc-timegrid-event {
   @apply rounded-md border-l-4;
   @apply shadow-sm;
+  overflow: hidden;
 }
 
 .fc .fc-timegrid-event .fc-event-main {
-  @apply p-1;
+  @apply p-0;
+  height: 100%;
+}
+
+.fc .fc-timegrid-event .calendar-event-time {
+  max-width: 104px;
+}
+
+.fc .fc-timegrid-event .calendar-event-title {
+  font-size: 0.75rem;
+}
+
+.fc .fc-timegrid-event .calendar-event-location {
+  font-size: 0.6875rem;
 }
 
 /* ====================================
@@ -181,6 +310,32 @@
   
   .fc .fc-event {
     @apply text-[10px];
+  }
+
+  .fc .fc-button {
+    @apply px-2 py-1.5 text-xs;
+  }
+
+  .fc .fc-daygrid-day-frame {
+    min-height: 84px;
+  }
+
+  .fc .fc-daygrid-event {
+    min-height: 24px;
+  }
+
+  .calendar-event-content--month {
+    min-height: 24px;
+    padding: 2px 4px;
+  }
+
+  .calendar-event-time,
+  .calendar-event-title {
+    font-size: 10px;
+  }
+
+  .calendar-event-location {
+    font-size: 9px;
   }
 }
 
@@ -221,6 +376,14 @@
 
 .dark .fc .fc-timegrid-slot {
   @apply hover:bg-slate-800;
+}
+
+.dark .fc .fc-more-popover {
+  @apply border-slate-700 bg-slate-900;
+}
+
+.dark .fc .fc-popover-header {
+  @apply bg-slate-800 text-slate-200;
 }
 
 /* ====================================
@@ -267,7 +430,6 @@
 
 /* Asegurar que el texto sea legible en todos los colores */
 .event-fc-color {
-  padding: 4px 6px;
   border-radius: 4px;
   color: white !important;
 }

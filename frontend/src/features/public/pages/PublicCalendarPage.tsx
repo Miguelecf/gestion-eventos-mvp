@@ -6,6 +6,12 @@ import interactionPlugin from '@fullcalendar/interaction';
 import type { EventInput } from '@fullcalendar/core';
 import { fetchPublicEvents } from '@/services/api/public-events';
 import type { Event } from '@/models/event';
+import {
+  getCalendarEventClassNames,
+  getPriorityCalendarColor,
+  renderCalendarEventContent,
+  renderCalendarMoreLinkContent,
+} from '@/components/calendar-event-content';
 
 interface CalendarEvent extends EventInput {
   extendedProps: {
@@ -39,7 +45,7 @@ export function PublicCalendarPage() {
         start: `${event.date}T${event.scheduleFrom}`,
         end: `${event.date}T${event.scheduleTo}`,
         extendedProps: {
-          calendar: getPriorityColor(event.priority),
+          calendar: getPriorityCalendarColor(event.priority),
           department: event.department?.name || '',
           space: event.space?.name || event.freeLocation || '',
           priority: event.priority,
@@ -132,8 +138,25 @@ export function PublicCalendarPage() {
                 firstDay={1}
                 events={events}
                 selectable={false}
-                eventContent={renderEventContent}
+                eventContent={renderCalendarEventContent}
+                eventClassNames={getCalendarEventClassNames}
                 height="auto"
+                expandRows={true}
+                dayMaxEvents={3}
+                dayMaxEventRows={4}
+                moreLinkClick="popover"
+                moreLinkContent={renderCalendarMoreLinkContent}
+                displayEventEnd={true}
+                eventTimeFormat={{
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  hour12: false,
+                }}
+                eventOrder="start,title"
+                slotEventOverlap={false}
+                eventMaxStack={4}
+                eventMinHeight={34}
+                eventShortHeight={28}
                 nowIndicator={true}
                 businessHours={{
                   daysOfWeek: [1, 2, 3, 4, 5],
@@ -190,45 +213,6 @@ export function PublicCalendarPage() {
               <span className="text-sm text-gray-600 dark:text-gray-400">Cargando eventos...</span>
             </div>
           </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ========== HELPERS ==========
-
-function getPriorityColor(priority?: string): 'danger' | 'success' | 'primary' | 'warning' {
-  switch (priority) {
-    case 'HIGH':
-      return 'danger';
-    case 'MEDIUM':
-      return 'warning';
-    case 'LOW':
-      return 'primary';
-    default:
-      return 'success';
-  }
-}
-
-function renderEventContent(eventInfo: {
-  timeText: string;
-  event: {
-    title: string;
-    extendedProps: {
-      calendar: string;
-      space?: string;
-    };
-  };
-}) {
-  const colorClass = `fc-bg-${eventInfo.event.extendedProps.calendar}`;
-  return (
-    <div className={`event-fc-color flex flex-col ${colorClass} p-1 rounded-sm`}>
-      <div className="fc-event-time text-xs font-semibold">{eventInfo.timeText}</div>
-      <div className="fc-event-title text-xs truncate">{eventInfo.event.title}</div>
-      {eventInfo.event.extendedProps.space && (
-        <div className="fc-event-location text-[10px] opacity-75">
-          📍 {eventInfo.event.extendedProps.space}
         </div>
       )}
     </div>
