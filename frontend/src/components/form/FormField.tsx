@@ -22,6 +22,25 @@ export default function FormField({
   children,
 }: Props) {
   const hasError = Boolean(error);
+  const generatedId = React.useId();
+  const baseId = htmlFor ?? generatedId;
+  const helpId = `${baseId}-help`;
+  const errorId = `${baseId}-error`;
+  const describedBy = hasError ? errorId : helpText ? helpId : undefined;
+  const renderedChildren =
+    React.isValidElement(children) && describedBy
+      ? React.cloneElement(
+          children as React.ReactElement<{ 'aria-describedby'?: string }>,
+          {
+            'aria-describedby': [
+              (children.props as { 'aria-describedby'?: string })['aria-describedby'],
+              describedBy,
+            ]
+              .filter(Boolean)
+              .join(' '),
+          }
+        )
+      : children;
 
   return (
     <div className={cn("space-y-1.5", className)}>
@@ -35,12 +54,12 @@ export default function FormField({
         {label} {required && <span className="text-red-600">*</span>}
       </Label>
 
-      {children}
+      {renderedChildren}
 
       {hasError ? (
-        <p className="text-xs text-red-600" role="alert">{error}</p>
+        <p id={errorId} className="text-xs text-red-600" role="alert">{error}</p>
       ) : helpText ? (
-        <p className="text-xs text-muted-foreground">{helpText}</p>
+        <p id={helpId} className="text-xs text-muted-foreground">{helpText}</p>
       ) : null}
     </div>
   );

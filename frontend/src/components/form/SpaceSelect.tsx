@@ -4,11 +4,9 @@ import { cn } from "@/lib/utils";
 import { catalogsApi } from "@/services/api";
 import type { Space } from "@/services/api";
 
-export interface SpaceSelectProps {
+export interface SpaceSelectProps extends Omit<React.SelectHTMLAttributes<HTMLSelectElement>, "value" | "onChange"> {
   value: number | null;
   onChange: (spaceId: number | null) => void;
-  disabled?: boolean;
-  className?: string;
   ariaInvalid?: boolean;
   placeholder?: string;
 }

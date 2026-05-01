@@ -11,11 +11,9 @@ const AUDIENCE_TYPES = [
 
 export type AudienceType = typeof AUDIENCE_TYPES[number]['value'];
 
-export interface AudienceTypeSelectProps {
+export interface AudienceTypeSelectProps extends Omit<React.SelectHTMLAttributes<HTMLSelectElement>, "value" | "onChange"> {
   value?: AudienceType;
   onChange: (value?: AudienceType) => void;
-  disabled?: boolean;
-  className?: string;
   ariaInvalid?: boolean;
   allowEmpty?: boolean;
 }

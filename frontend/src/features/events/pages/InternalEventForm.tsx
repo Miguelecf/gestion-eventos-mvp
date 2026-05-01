@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useForm } from 'react-hook-form';
+import { useForm, type FieldErrors } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 
@@ -16,6 +16,45 @@ import {
   toCreateEventInput,
   type EventFormValues,
 } from '@/schemas/eventForm.schema';
+
+const eventFieldFocusOrder: Array<keyof EventFormValues> = [
+  'date',
+  'scheduleFrom',
+  'scheduleTo',
+  'bufferBeforeMin',
+  'bufferAfterMin',
+  'spaceId',
+  'freeLocation',
+  'departmentId',
+  'requestingArea',
+  'contactName',
+  'contactEmail',
+  'contactPhone',
+  'name',
+  'priority',
+  'audienceType',
+  'internal',
+  'requiresTech',
+  'techSupportMode',
+  'technicalSchedule',
+  'requirements',
+  'coverage',
+  'observations',
+];
+
+function focusFieldById(fieldId: string): boolean {
+  const element =
+    document.getElementById(fieldId) ??
+    document.querySelector<HTMLElement>(`[name="${fieldId}"]`);
+
+  if (!(element instanceof HTMLElement)) {
+    return false;
+  }
+
+  element.focus({ preventScroll: true });
+  element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  return true;
+}
 
 export default function InternalEventForm() {
   const navigate = useNavigate();
@@ -61,6 +100,27 @@ export default function InternalEventForm() {
     } else {
       setValue('spaceId', null);
     }
+  };
+
+  const handleInvalidSubmit = (formErrors: FieldErrors<EventFormValues>) => {
+    requestAnimationFrame(() => {
+      for (const fieldName of eventFieldFocusOrder) {
+        if (!formErrors[fieldName]) {
+          continue;
+        }
+
+        const targetField =
+          fieldName === 'freeLocation' && locationType === 'space'
+            ? 'spaceId'
+            : fieldName === 'spaceId' && locationType === 'free'
+              ? 'freeLocation'
+              : fieldName;
+
+        if (focusFieldById(targetField)) {
+          return;
+        }
+      }
+    });
   };
 
   const onSubmit = async (data: EventFormValues) => {
@@ -112,7 +172,7 @@ export default function InternalEventForm() {
         </p>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+      <form onSubmit={handleSubmit(onSubmit, handleInvalidSubmit)} className="space-y-6">
         <EventFormSections
           form={form}
           mode="create"

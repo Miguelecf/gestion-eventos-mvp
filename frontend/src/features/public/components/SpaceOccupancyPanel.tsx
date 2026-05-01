@@ -8,7 +8,6 @@
  */
 
 import { useMemo } from 'react';
-import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import type { SpaceOccupancyResult } from '@/services/api';
 
@@ -104,31 +103,31 @@ export function SpaceOccupancyPanel({
   // Estado de carga
   if (isLoading) {
     return (
-      <Card className="p-4 bg-muted/30">
+      <div className="rounded-lg border bg-muted/30 p-4">
         <div className="flex items-center gap-2">
           <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full" />
           <span className="text-sm text-muted-foreground">Cargando ocupación del espacio...</span>
         </div>
-      </Card>
+      </div>
     );
   }
 
   if (error) {
     return (
-      <Card className="p-4 border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/20">
+      <div className="rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-900 dark:bg-red-950/20">
         <p className="text-sm text-red-700 dark:text-red-400">{error}</p>
-      </Card>
+      </div>
     );
   }
 
   // Sin datos
   if (!occupancy) {
     return (
-      <Card className="p-4 bg-muted/30">
+      <div className="rounded-lg border bg-muted/30 p-4">
         <p className="text-sm text-muted-foreground">
           No hay datos de ocupación disponibles para mostrar.
         </p>
-      </Card>
+      </div>
     );
   }
 
@@ -136,7 +135,7 @@ export function SpaceOccupancyPanel({
   const { start: startMinute, end: endMinute } = timelineRange;
 
   return (
-    <Card className="p-6">
+    <div className="rounded-lg border p-6">
       <div className="space-y-4">
         {/* Header */}
         <div>
@@ -269,7 +268,7 @@ export function SpaceOccupancyPanel({
           </div>
         )}
       </div>
-    </Card>
+    </div>
   );
 }
 

@@ -15,7 +15,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useForm, Controller } from 'react-hook-form';
+import { useForm, Controller, type FieldErrors } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigate, Link } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -76,6 +76,38 @@ function getSubmitErrorMessage(error: unknown): string {
   }
 
   return 'Error desconocido al enviar la solicitud';
+}
+
+const publicFieldFocusOrder: Array<keyof PublicEventFormInput> = [
+  'date',
+  'scheduleFrom',
+  'scheduleTo',
+  'bufferBeforeMin',
+  'bufferAfterMin',
+  'spaceId',
+  'freeLocation',
+  'contactName',
+  'contactEmail',
+  'contactPhone',
+  'name',
+  'audienceType',
+  'requirements',
+  'coverage',
+  'observations',
+];
+
+function focusFieldById(fieldId: string): boolean {
+  const element =
+    document.getElementById(fieldId) ??
+    document.querySelector<HTMLElement>(`[name="${fieldId}"]`);
+
+  if (!(element instanceof HTMLElement)) {
+    return false;
+  }
+
+  element.focus({ preventScroll: true });
+  element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  return true;
 }
 
 /**
@@ -353,6 +385,27 @@ export default function PublicEventForm() {
     }
   };
 
+  const handleInvalidSubmit = (formErrors: FieldErrors<PublicEventFormInput>) => {
+    requestAnimationFrame(() => {
+      for (const fieldName of publicFieldFocusOrder) {
+        if (!formErrors[fieldName]) {
+          continue;
+        }
+
+        const targetField =
+          fieldName === 'spaceId' && locationType === 'free'
+            ? 'freeLocation'
+            : fieldName === 'freeLocation' && locationType === 'space'
+              ? 'spaceId'
+              : fieldName;
+
+        if (focusFieldById(targetField)) {
+          return;
+        }
+      }
+    });
+  };
+
   /**
    * Submit del formulario
    */
@@ -420,56 +473,13 @@ export default function PublicEventForm() {
         </p>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-        {/* ==================== SECCIÓN: DATOS DEL EVENTO ==================== */}
-        <FormSectionCard title="Datos del Evento" description="Información básica del evento">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Nombre del evento */}
-            <FormField
-              label="Nombre del evento"
-              htmlFor="name"
-              required
-              error={errors.name?.message}
-              className="md:col-span-2"
-            >
-              <Input
-                id="name"
-                type="text"
-                placeholder="Ej: Conferencia sobre Inteligencia Artificial"
-                maxLength={200}
-                aria-invalid={!!errors.name}
-                {...register('name')}
-              />
-            </FormField>
-
-            {/* Tipo de audiencia */}
-            <FormField
-              label="Tipo de audiencia"
-              htmlFor="audienceType"
-              required
-              error={errors.audienceType?.message}
-              helpText="¿A quién está dirigido el evento?"
-              className="md:col-span-2"
-            >
-              <Controller
-                name="audienceType"
-                control={control}
-                render={({ field }) => (
-                  <PublicAudienceTypeSelect
-                    value={field.value}
-                    onChange={field.onChange}
-                    ariaInvalid={!!errors.audienceType}
-                  />
-                )}
-              />
-            </FormField>
-          </div>
-        </FormSectionCard>
-
-        {/* ==================== SECCIÓN: HORARIOS ==================== */}
-        <FormSectionCard title="Fecha y Horarios" description="Cuándo se realizará el evento">
+      <form onSubmit={handleSubmit(onSubmit, handleInvalidSubmit)} className="space-y-6">
+        {/* ==================== SECCIÓN 1: FECHA Y HORARIO ==================== */}
+        <FormSectionCard
+          title="1. Fecha y horario"
+          description="Fecha, horarios y tiempos de preparación del evento."
+        >
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Fecha */}
             <FormField
               label="Fecha"
               htmlFor="date"
@@ -483,15 +493,16 @@ export default function PublicEventForm() {
                 render={({ field }) => (
                   <DateField
                     id="date"
+                    ref={field.ref}
                     value={field.value ?? ''}
                     onChange={field.onChange}
                     ariaInvalid={!!errors.date}
+                    aria-describedby={errors.date ? 'date-error' : 'date-help'}
                   />
                 )}
               />
             </FormField>
 
-            {/* Hora desde */}
             <FormField
               label="Hora de inicio"
               htmlFor="scheduleFrom"
@@ -505,15 +516,16 @@ export default function PublicEventForm() {
                 render={({ field }) => (
                   <TimeField
                     id="scheduleFrom"
+                    ref={field.ref}
                     value={field.value ?? ''}
                     onChange={field.onChange}
                     ariaInvalid={!!errors.scheduleFrom}
+                    aria-describedby={errors.scheduleFrom ? 'scheduleFrom-error' : 'scheduleFrom-help'}
                   />
                 )}
               />
             </FormField>
 
-            {/* Hora hasta */}
             <FormField
               label="Hora de fin"
               htmlFor="scheduleTo"
@@ -527,9 +539,11 @@ export default function PublicEventForm() {
                 render={({ field }) => (
                   <TimeField
                     id="scheduleTo"
+                    ref={field.ref}
                     value={field.value ?? ''}
                     onChange={field.onChange}
                     ariaInvalid={!!errors.scheduleTo}
+                    aria-describedby={errors.scheduleTo ? 'scheduleTo-error' : 'scheduleTo-help'}
                   />
                 )}
               />
@@ -540,12 +554,160 @@ export default function PublicEventForm() {
           {scheduleFromValue && scheduleToValue && scheduleFromValue >= scheduleToValue && (
             <Alert variant="destructive" className="mt-4">
               <AlertDescription>
-                ⚠️ La hora de inicio debe ser anterior a la hora de fin
+                La hora de inicio debe ser anterior a la hora de fin.
               </AlertDescription>
             </Alert>
           )}
 
-          {/* Link al Calendario Público */}
+          <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+            <FormField
+              label="Tiempo antes del evento"
+              htmlFor="bufferBeforeMin"
+              error={errors.bufferBeforeMin?.message}
+              helpText="0-240 minutos"
+            >
+              <div className="flex items-center gap-2">
+                <Input
+                  id="bufferBeforeMin"
+                  type="number"
+                  min="0"
+                  max="240"
+                  step="5"
+                  aria-invalid={!!errors.bufferBeforeMin}
+                  aria-describedby={errors.bufferBeforeMin ? 'bufferBeforeMin-error' : 'bufferBeforeMin-help'}
+                  {...register('bufferBeforeMin', { valueAsNumber: true })}
+                />
+                <span className="text-sm text-muted-foreground">min</span>
+              </div>
+            </FormField>
+
+            <FormField
+              label="Tiempo después del evento"
+              htmlFor="bufferAfterMin"
+              error={errors.bufferAfterMin?.message}
+              helpText="0-240 minutos"
+            >
+              <div className="flex items-center gap-2">
+                <Input
+                  id="bufferAfterMin"
+                  type="number"
+                  min="0"
+                  max="240"
+                  step="5"
+                  aria-invalid={!!errors.bufferAfterMin}
+                  aria-describedby={errors.bufferAfterMin ? 'bufferAfterMin-error' : 'bufferAfterMin-help'}
+                  {...register('bufferAfterMin', { valueAsNumber: true })}
+                />
+                <span className="text-sm text-muted-foreground">min</span>
+              </div>
+            </FormField>
+          </div>
+
+          <Alert className="mt-4">
+            <AlertDescription>
+              Estos minutos bloquean el espacio antes y después del evento para montaje, desmontaje o limpieza.
+            </AlertDescription>
+          </Alert>
+        </FormSectionCard>
+
+        {/* ==================== SECCIÓN 2: UBICACIÓN ==================== */}
+        <FormSectionCard title="2. Ubicación" description="Espacio o lugar donde se realizará el evento.">
+          <fieldset className="space-y-2">
+            <legend className="text-sm font-medium">
+              Tipo de ubicación <span className="text-red-600">*</span>
+            </legend>
+            <div className="flex flex-col gap-3 sm:flex-row sm:gap-4">
+              <label className="flex items-center gap-2 cursor-pointer text-sm">
+                <input
+                  type="radio"
+                  name="locationType"
+                  value="space"
+                  checked={locationType === 'space'}
+                  onChange={() => handleLocationTypeChange('space')}
+                  className="w-4 h-4"
+                />
+                Espacio de la universidad
+              </label>
+
+              <label className="flex items-center gap-2 cursor-pointer text-sm">
+                <input
+                  type="radio"
+                  name="locationType"
+                  value="free"
+                  checked={locationType === 'free'}
+                  onChange={() => handleLocationTypeChange('free')}
+                  className="w-4 h-4"
+                />
+                Otra ubicación
+              </label>
+            </div>
+          </fieldset>
+
+          {locationType === 'space' && (
+            <>
+              <FormField
+                label="Espacio"
+                htmlFor="spaceId"
+                required
+                error={errors.spaceId?.message}
+                helpText="Seleccione el espacio donde se realizará el evento"
+              >
+                <PublicSpaceSelect
+                  id="spaceId"
+                  name="spaceId"
+                  value={spaceIdValue}
+                  onChange={handleSpaceChange}
+                  ariaInvalid={!!errors.spaceId}
+                  aria-describedby={errors.spaceId ? 'spaceId-error' : 'spaceId-help'}
+                  error={errors.spaceId?.message}
+                />
+              </FormField>
+
+              {spaceIdValue && dateValue && (
+                <div className="mt-4">
+                  <SpaceOccupancyPanel
+                    occupancy={occupancy}
+                    isLoading={isLoadingOccupancy}
+                    error={occupancyError}
+                    selectedFrom={scheduleFromValue}
+                    selectedTo={scheduleToValue}
+                  />
+                </div>
+              )}
+            </>
+          )}
+
+          {locationType === 'free' && (
+            <>
+              <FormField
+                label="Ubicación"
+                htmlFor="freeLocation"
+                required
+                error={errors.freeLocation?.message ?? errors.spaceId?.message}
+                helpText="Describa la ubicación del evento (máx. 200 caracteres)"
+              >
+                <Input
+                  id="freeLocation"
+                  type="text"
+                  placeholder="Ej: Centro Cultural Municipal, Av. Principal 123"
+                  maxLength={200}
+                  aria-invalid={!!errors.freeLocation || !!errors.spaceId}
+                  aria-describedby={
+                    errors.freeLocation || errors.spaceId ? 'freeLocation-error' : 'freeLocation-help'
+                  }
+                  {...register('freeLocation')}
+                />
+              </FormField>
+
+              <Alert className="mt-4">
+                <AlertDescription>
+                  Para ubicaciones libres no se valida ocupación por recurso. El equipo revisará la disponibilidad
+                  operativa.
+                </AlertDescription>
+              </Alert>
+            </>
+          )}
+
           <Alert className="mt-4">
             <AlertDescription>
               <div className="flex items-start gap-3">
@@ -554,6 +716,7 @@ export default function PublicEventForm() {
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
+                  aria-hidden="true"
                 >
                   <path
                     strokeLinecap="round"
@@ -575,12 +738,19 @@ export default function PublicEventForm() {
                     size="sm"
                     asChild
                   >
-                    <Link to="/public/calendar" target="_blank" className="inline-flex items-center gap-2">
+                    <Link
+                      to="/public/calendar"
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label="Ver calendario público en una pestaña nueva"
+                      className="inline-flex items-center gap-2"
+                    >
                       <svg
                         className="h-4 w-4"
                         fill="none"
                         viewBox="0 0 24 24"
                         stroke="currentColor"
+                        aria-hidden="true"
                       >
                         <path
                           strokeLinecap="round"
@@ -595,6 +765,7 @@ export default function PublicEventForm() {
                         fill="none"
                         viewBox="0 0 24 24"
                         stroke="currentColor"
+                        aria-hidden="true"
                       >
                         <path
                           strokeLinecap="round"
@@ -609,178 +780,25 @@ export default function PublicEventForm() {
               </div>
             </AlertDescription>
           </Alert>
-        </FormSectionCard>
 
-        {/* ==================== SECCIÓN: UBICACIÓN ==================== */}
-        <FormSectionCard title="Ubicación del Evento" description="Dónde se realizará el evento">
-          {/* Selector de tipo */}
-          <div className="mb-4">
-            <label className="text-sm font-medium mb-2 block">
-              Tipo de ubicación <span className="text-red-600">*</span>
-            </label>
-            <div className="flex gap-4">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="locationType"
-                  value="space"
-                  checked={locationType === 'space'}
-                  onChange={() => handleLocationTypeChange('space')}
-                  className="w-4 h-4"
-                />
-                <span className="text-sm">Espacio de la universidad</span>
-              </label>
-
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="locationType"
-                  value="free"
-                  checked={locationType === 'free'}
-                  onChange={() => handleLocationTypeChange('free')}
-                  className="w-4 h-4"
-                />
-                <span className="text-sm">Otra ubicación</span>
-              </label>
+          {locationType === 'space' && spaceIdValue && (
+            <div className="mt-4">
+              <AvailabilityChecker
+                availability={availability}
+                isChecking={isCheckingAvailability}
+                error={availabilityError}
+                onRecheck={checkAvailability}
+              />
             </div>
-          </div>
-
-          {/* Campo: Espacio físico */}
-          {locationType === 'space' && (
-            <>
-              <FormField
-                label="Espacio"
-                htmlFor="spaceId"
-                required
-                error={errors.spaceId?.message}
-                helpText="Seleccione el espacio donde se realizará el evento"
-              >
-                <PublicSpaceSelect
-                  value={spaceIdValue}
-                  onChange={handleSpaceChange}
-                  error={errors.spaceId?.message}
-                />
-              </FormField>
-
-              {/* Panel de ocupación */}
-              {spaceIdValue && dateValue && (
-                <div className="mt-4">
-                  <SpaceOccupancyPanel
-                    occupancy={occupancy}
-                    isLoading={isLoadingOccupancy}
-                    error={occupancyError}
-                    selectedFrom={scheduleFromValue}
-                    selectedTo={scheduleToValue}
-                  />
-                </div>
-              )}
-            </>
-          )}
-
-          {/* Campo: Ubicación libre */}
-          {locationType === 'free' && (
-            <>
-              <FormField
-                label="Ubicación"
-                htmlFor="freeLocation"
-                required
-                error={errors.freeLocation?.message}
-                helpText="Describa la ubicación del evento (máx. 200 caracteres)"
-              >
-                <Input
-                  id="freeLocation"
-                  type="text"
-                  placeholder="Ej: Centro Cultural Municipal, Av. Principal 123"
-                  maxLength={200}
-                  aria-invalid={!!errors.freeLocation}
-                  {...register('freeLocation')}
-                />
-              </FormField>
-
-              <Alert className="mt-4">
-                <AlertDescription>
-                  Para otra ubicación no se valida ocupación por recurso.
-                </AlertDescription>
-              </Alert>
-            </>
           )}
         </FormSectionCard>
 
-        {/* ==================== SECCIÓN: DISPONIBILIDAD ==================== */}
-        {locationType === 'space' && spaceIdValue && (
-          <AvailabilityChecker
-            availability={availability}
-            isChecking={isCheckingAvailability}
-            error={availabilityError}
-            onRecheck={checkAvailability}
-          />
-        )}
-
-        {/* ==================== SECCIÓN: BUFFERS ==================== */}
+        {/* ==================== SECCIÓN 3: SOLICITANTE ==================== */}
         <FormSectionCard
-          title="Tiempos de Preparación"
-          description="Tiempo adicional antes y después del evento"
+          title="3. Solicitante"
+          description="Datos de la persona responsable del evento."
         >
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Buffer antes */}
-            <FormField
-              label="Tiempo antes del evento"
-              htmlFor="bufferBeforeMin"
-              error={errors.bufferBeforeMin?.message}
-              helpText="Minutos para preparación (0-240)"
-            >
-              <div className="flex items-center gap-2">
-                <Input
-                  id="bufferBeforeMin"
-                  type="number"
-                  min="0"
-                  max="240"
-                  step="5"
-                  aria-invalid={!!errors.bufferBeforeMin}
-                  {...register('bufferBeforeMin', { valueAsNumber: true })}
-                />
-                <span className="text-sm text-muted-foreground">min</span>
-              </div>
-            </FormField>
-
-            {/* Buffer después */}
-            <FormField
-              label="Tiempo después del evento"
-              htmlFor="bufferAfterMin"
-              error={errors.bufferAfterMin?.message}
-              helpText="Minutos para limpieza (0-240)"
-            >
-              <div className="flex items-center gap-2">
-                <Input
-                  id="bufferAfterMin"
-                  type="number"
-                  min="0"
-                  max="240"
-                  step="5"
-                  aria-invalid={!!errors.bufferAfterMin}
-                  {...register('bufferAfterMin', { valueAsNumber: true })}
-                />
-                <span className="text-sm text-muted-foreground">min</span>
-              </div>
-            </FormField>
-          </div>
-
-          {/* Información contextual */}
-          <Alert className="mt-4">
-            <AlertDescription>
-              Los tiempos de preparación bloquean el espacio antes y después del evento para
-              permitir montaje y desmontaje. Por defecto: 15 minutos.
-            </AlertDescription>
-          </Alert>
-        </FormSectionCard>
-
-        {/* ==================== SECCIÓN: CONTACTO ==================== */}
-        <FormSectionCard
-          title="Datos de Contacto"
-          description="Información de la persona responsable"
-        >
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Nombre */}
             <FormField
               label="Nombre completo"
               htmlFor="contactName"
@@ -797,7 +815,6 @@ export default function PublicEventForm() {
               />
             </FormField>
 
-            {/* Email */}
             <FormField
               label="Email"
               htmlFor="contactEmail"
@@ -814,7 +831,6 @@ export default function PublicEventForm() {
               />
             </FormField>
 
-            {/* Teléfono */}
             <FormField
               label="Teléfono"
               htmlFor="contactPhone"
@@ -835,13 +851,61 @@ export default function PublicEventForm() {
           </div>
         </FormSectionCard>
 
-        {/* ==================== SECCIÓN: NOTAS OPCIONALES ==================== */}
+        {/* ==================== SECCIÓN 4: DETALLE DEL EVENTO ==================== */}
         <FormSectionCard
-          title="Información Adicional"
-          description="Detalles opcionales del evento"
+          title="4. Detalle del evento"
+          description="Información general del evento solicitado."
+        >
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <FormField
+              label="Nombre del evento"
+              htmlFor="name"
+              required
+              error={errors.name?.message}
+              className="md:col-span-2"
+            >
+              <Input
+                id="name"
+                type="text"
+                placeholder="Ej: Conferencia sobre Inteligencia Artificial"
+                maxLength={200}
+                aria-invalid={!!errors.name}
+                {...register('name')}
+              />
+            </FormField>
+
+            <FormField
+              label="Tipo de audiencia"
+              htmlFor="audienceType"
+              required
+              error={errors.audienceType?.message}
+              helpText="¿A quién está dirigido el evento?"
+              className="md:col-span-2"
+            >
+              <Controller
+                name="audienceType"
+                control={control}
+                render={({ field }) => (
+                  <PublicAudienceTypeSelect
+                    id="audienceType"
+                    ref={field.ref}
+                    value={field.value}
+                    onChange={field.onChange}
+                    ariaInvalid={!!errors.audienceType}
+                    aria-describedby={errors.audienceType ? 'audienceType-error' : 'audienceType-help'}
+                  />
+                )}
+              />
+            </FormField>
+          </div>
+        </FormSectionCard>
+
+        {/* ==================== SECCIÓN 5: OBSERVACIONES ==================== */}
+        <FormSectionCard
+          title="5. Observaciones"
+          description="Información complementaria para la revisión de la solicitud."
         >
           <div className="space-y-6">
-            {/* Requerimientos */}
             <FormField
               label="Requerimientos especiales"
               htmlFor="requirements"
@@ -859,7 +923,6 @@ export default function PublicEventForm() {
               />
             </FormField>
 
-            {/* Cobertura */}
             <FormField
               label="Cobertura deseada"
               htmlFor="coverage"
@@ -877,7 +940,6 @@ export default function PublicEventForm() {
               />
             </FormField>
 
-            {/* Observaciones */}
             <FormField
               label="Observaciones"
               htmlFor="observations"

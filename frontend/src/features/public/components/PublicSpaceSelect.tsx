@@ -12,11 +12,9 @@ import { cn } from '@/lib/utils';
 import { publicRequestsApi } from '@/services/api';
 import type { PublicSpaceOption } from '@/services/api/publicRequests.api';
 
-export interface PublicSpaceSelectProps {
+export interface PublicSpaceSelectProps extends Omit<React.SelectHTMLAttributes<HTMLSelectElement>, 'value' | 'onChange'> {
   value?: number | null;
   onChange: (spaceId: number | null) => void;
-  disabled?: boolean;
-  className?: string;
   ariaInvalid?: boolean;
   placeholder?: string;
   error?: string;

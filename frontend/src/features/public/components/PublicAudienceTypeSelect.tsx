@@ -20,11 +20,9 @@ const PUBLIC_AUDIENCE_TYPES = [
   { value: 'TERCERA_EDAD', label: 'Tercera Edad' },
 ] as const;
 
-export interface PublicAudienceTypeSelectProps {
+export interface PublicAudienceTypeSelectProps extends Omit<React.SelectHTMLAttributes<HTMLSelectElement>, 'value' | 'onChange'> {
   value: PublicAudienceType;
   onChange: (value: PublicAudienceType) => void;
-  disabled?: boolean;
-  className?: string;
   ariaInvalid?: boolean;
 }
 

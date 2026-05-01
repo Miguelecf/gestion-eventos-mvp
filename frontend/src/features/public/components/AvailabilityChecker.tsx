@@ -7,7 +7,6 @@
  * ===================================================================
  */
 
-import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -34,18 +33,18 @@ export function AvailabilityChecker({
   // Estado de verificación
   if (isChecking) {
     return (
-      <Card className="p-6">
+      <div className="rounded-lg border p-6">
         <div className="flex items-center gap-3">
           <div className="animate-spin h-5 w-5 border-2 border-primary border-t-transparent rounded-full" />
           <span className="text-sm font-medium">Verificando disponibilidad...</span>
         </div>
-      </Card>
+      </div>
     );
   }
 
   if (error) {
     return (
-      <Card className="p-6">
+      <div className="rounded-lg border p-6">
         <div className="flex items-start justify-between gap-4">
           <Alert variant="destructive" className="flex-1">
             <AlertDescription>{error}</AlertDescription>
@@ -57,7 +56,7 @@ export function AvailabilityChecker({
             </Button>
           )}
         </div>
-      </Card>
+      </div>
     );
   }
 
@@ -70,7 +69,7 @@ export function AvailabilityChecker({
   const conflicts = availability.conflicts ?? [];
 
   return (
-    <Card className="p-6">
+    <div className="rounded-lg border p-6">
       <div className="space-y-4">
         {/* Header con estado */}
         <div className="flex items-start justify-between gap-4">
@@ -230,7 +229,7 @@ export function AvailabilityChecker({
           </Alert>
         )}
       </div>
-    </Card>
+    </div>
   );
 }
 

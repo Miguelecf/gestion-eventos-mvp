@@ -9,11 +9,9 @@ const PRIORITIES = [
 
 export type Priority = typeof PRIORITIES[number]['value'];
 
-export interface PrioritySelectProps {
+export interface PrioritySelectProps extends Omit<React.SelectHTMLAttributes<HTMLSelectElement>, "value" | "onChange"> {
   value?: Priority;
   onChange: (value: Priority) => void;
-  disabled?: boolean;
-  className?: string;
   ariaInvalid?: boolean;
 }
 

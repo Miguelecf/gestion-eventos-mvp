@@ -4,11 +4,9 @@ import { cn } from "@/lib/utils";
 import { catalogsApi } from "@/services/api";
 import type { Department } from "@/services/api";
 
-export interface DepartmentSelectProps {
+export interface DepartmentSelectProps extends Omit<React.SelectHTMLAttributes<HTMLSelectElement>, "value" | "onChange"> {
   value: number | null;
   onChange: (deptId: number | null) => void;
-  disabled?: boolean;
-  className?: string;
   ariaInvalid?: boolean;
   placeholder?: string;
 }
