@@ -92,7 +92,7 @@
   @apply cursor-pointer transition-all;
   @apply hover:shadow-sm;
   margin: 1px 2px;
-  min-height: 28px;
+  min-height: 36px;
   max-width: calc(100% - 4px);
   overflow: hidden;
   padding: 0;
@@ -137,40 +137,40 @@
 }
 
 .calendar-event-content--month {
-  min-height: 28px;
-  padding: 3px 6px;
-  gap: 1px;
+  min-height: 36px;
+  padding: 2px 6px;
+  gap: 0;
 }
 
 .calendar-event-content--time {
   min-height: 100%;
   padding: 5px 7px;
-  gap: 2px;
+  gap: 1px;
 }
 
-.calendar-event-main-line {
-  display: flex;
-  align-items: center;
-  gap: 4px;
+.calendar-event-time-line {
+  display: block;
   min-width: 0;
   max-width: 100%;
 }
 
 .calendar-event-time {
-  flex: 0 0 auto;
-  max-width: 52px;
+  display: block;
+  min-width: 0;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-weight: 700;
 }
 
 .calendar-event-title {
-  flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: 600;
+  font-weight: 500;
+  opacity: 0.82;
 }
 
 .calendar-event-location {
@@ -178,10 +178,12 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-weight: 600;
+  opacity: 0.94;
 }
 
 .fc-event-time {
-  @apply text-xs font-semibold opacity-90;
+  @apply text-xs font-bold;
 }
 
 .fc-event-title {
@@ -195,6 +197,10 @@
 /* Evento seleccionado/hover */
 .fc .fc-event:hover {
   @apply z-10;
+}
+
+.fc .fc-event:focus-visible {
+  @apply outline-none ring-2 ring-white ring-offset-2 ring-offset-blue-600;
 }
 
 /* "More" link cuando hay muchos eventos */
@@ -276,15 +282,38 @@
 }
 
 .fc .fc-timegrid-event .calendar-event-time {
-  max-width: 104px;
+  font-size: 0.75rem;
+  line-height: 1.15;
 }
 
 .fc .fc-timegrid-event .calendar-event-title {
-  font-size: 0.75rem;
+  font-size: 0.6875rem;
+  line-height: 1.15;
 }
 
 .fc .fc-timegrid-event .calendar-event-location {
+  font-size: 0.75rem;
+  line-height: 1.15;
+}
+
+.calendar-event-content--month .calendar-event-time {
   font-size: 0.6875rem;
+  line-height: 1.05;
+}
+
+.calendar-event-content--month .calendar-event-location {
+  font-size: 0.625rem;
+  line-height: 1.1;
+}
+
+.calendar-event-content--month .calendar-event-title {
+  font-size: 0.5625rem;
+  line-height: 1.1;
+}
+
+.fc .fc-timegrid-event.fc-event-short .calendar-event-title,
+.fc .fc-timegrid-event.fc-timegrid-event-short .calendar-event-title {
+  display: none;
 }
 
 /* ====================================
@@ -321,21 +350,24 @@
   }
 
   .fc .fc-daygrid-event {
-    min-height: 24px;
+    min-height: 30px;
   }
 
   .calendar-event-content--month {
-    min-height: 24px;
+    min-height: 30px;
     padding: 2px 4px;
   }
 
-  .calendar-event-time,
-  .calendar-event-title {
+  .calendar-event-time {
     font-size: 10px;
   }
 
   .calendar-event-location {
     font-size: 9px;
+  }
+
+  .calendar-event-content--month .calendar-event-title {
+    display: none;
   }
 }
 
@@ -437,7 +469,6 @@
 .event-fc-color .fc-event-time,
 .event-fc-color .fc-event-title,
 .event-fc-color .fc-event-location {
-  line-height: 1.2;
   color: white !important;
 }
 

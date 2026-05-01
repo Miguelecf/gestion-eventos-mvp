@@ -8,8 +8,10 @@ import type { EventInput, DateSelectArg, EventClickArg } from '@fullcalendar/cor
 import { eventsApi } from '@/services/api';
 import type { Event } from '@/models/event';
 import {
+  applyInteractiveCalendarEventAccessibility,
   getCalendarEventClassNames,
   getPriorityCalendarColor,
+  removeInteractiveCalendarEventAccessibility,
   renderCalendarEventContent,
   renderCalendarMoreLinkContent,
 } from '@/components/calendar-event-content';
@@ -18,8 +20,14 @@ interface CalendarEvent extends EventInput {
   extendedProps: {
     calendar: 'danger' | 'success' | 'primary' | 'warning';
     department?: string;
+    freeLocation?: string;
     space?: string;
+    spaceName?: string;
     priority?: string;
+    audienceType?: string;
+    requiresTech?: boolean;
+    scheduleFrom?: string;
+    scheduleTo?: string;
     status?: string;
   };
 }
@@ -44,12 +52,18 @@ export function CalendarPage() {
         id: event.id.toString(),
         title: event.name,
         start: `${event.date}T${event.scheduleFrom}`,
-        end: `${event.date}T${event.scheduleTo}`,
+        end: event.scheduleTo ? `${event.date}T${event.scheduleTo}` : undefined,
         extendedProps: {
           calendar: getPriorityCalendarColor(event.priority),
           department: event.department?.name || '',
-          space: event.space?.name || event.freeLocation || '',
+          freeLocation: event.freeLocation || '',
+          space: event.space?.name || '',
+          spaceName: event.space?.name || '',
           priority: event.priority,
+          audienceType: event.audienceType,
+          requiresTech: event.requiresTech,
+          scheduleFrom: event.scheduleFrom,
+          scheduleTo: event.scheduleTo,
           status: event.status,
         },
       }));
@@ -135,6 +149,8 @@ export function CalendarPage() {
               eventClick={handleEventClick}
               eventContent={renderCalendarEventContent}
               eventClassNames={getCalendarEventClassNames}
+              eventDidMount={applyInteractiveCalendarEventAccessibility}
+              eventWillUnmount={removeInteractiveCalendarEventAccessibility}
               height="auto"
               expandRows={true}
               dayMaxEvents={3}
