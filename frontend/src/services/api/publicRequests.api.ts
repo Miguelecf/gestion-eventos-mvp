@@ -2,13 +2,19 @@ import { httpClient } from "./client";
 import { ENDPOINTS } from "./client/config";
 import type {
   AvailabilityCheckRequest,
-  AvailabilityCheckResponse,
   EventRequestCreatedResponse,
   EventRequestStatusResponse,
   EventStatus,
   PublicEventRequestPayload,
-  SpaceOccupancyResponse,
 } from "./types/backend.types";
+import {
+  normalizeAvailabilityResponse,
+  normalizeSpaceOccupancyResponse,
+  type AvailabilityResult,
+  type RawAvailabilityResponse,
+  type SpaceDailyOccupancyResponse,
+  type SpaceOccupancyResult,
+} from "./availability.api";
 import type { PageResponse, SpringPageResponse } from "./types/pagination.types";
 import {
   type PublicEventRequest,
@@ -374,11 +380,13 @@ export async function trackPublicEventRequest(
 
 export async function checkPublicAvailability(
   checkRequest: AvailabilityCheckRequest
-): Promise<AvailabilityCheckResponse> {
-  return await httpClient.post<AvailabilityCheckResponse>(
+): Promise<AvailabilityResult> {
+  const response = await httpClient.post<RawAvailabilityResponse>(
     ENDPOINTS.AVAILABILITY_PUBLIC_CHECK,
     checkRequest
   );
+
+  return normalizeAvailabilityResponse(response);
 }
 
 export async function getPublicSpaces(
@@ -399,17 +407,18 @@ export async function getPublicSpaces(
     .filter((space): space is PublicSpaceOption => space !== null);
 }
 
-export async function getSpaceMonthlyOccupancy(
+export async function getSpaceDailyOccupancy(
   spaceId: number,
-  year: number,
-  month: number
-): Promise<SpaceOccupancyResponse> {
-  return await httpClient.get<SpaceOccupancyResponse>(
+  date: string
+): Promise<SpaceOccupancyResult> {
+  const response = await httpClient.get<SpaceDailyOccupancyResponse>(
     ENDPOINTS.PUBLIC_SPACE_OCCUPANCY(spaceId),
     {
-      params: { year, month },
+      params: { date },
     }
   );
+
+  return normalizeSpaceOccupancyResponse(response, { spaceId, date });
 }
 
 export const publicRequestsApi = {
@@ -423,7 +432,7 @@ export const publicRequestsApi = {
   trackPublicEventRequest,
   checkPublicAvailability,
   getPublicSpaces,
-  getSpaceMonthlyOccupancy,
+  getSpaceDailyOccupancy,
 };
 
 export default publicRequestsApi;

@@ -1,8 +1,8 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-export type TimeFieldProps = React.InputHTMLAttributes<HTMLInputElement> & {
-  value: string;                    // "HH:mm"
+export type TimeFieldProps = Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "onChange"> & {
+  value?: string | null;            // "HH:mm"
   onChange: (value: string) => void;
   stepSec?: number;                 // tamaño de salto en segundos (default 60)
   ariaInvalid?: boolean;
@@ -14,7 +14,7 @@ const TimeField = React.forwardRef<HTMLInputElement, TimeFieldProps>(
       <input
         ref={ref}
         type="time"
-        value={value}
+        value={value ?? ""}
         step={stepSec}
         onChange={(e) => onChange(e.target.value)}
         aria-invalid={ariaInvalid ? true : undefined}

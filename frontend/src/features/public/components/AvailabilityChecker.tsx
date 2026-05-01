@@ -16,16 +16,18 @@ import type { AvailabilityResult } from '@/services/api';
 export interface AvailabilityCheckerProps {
   availability: AvailabilityResult | null;
   isChecking?: boolean;
+  error?: string | null;
   onRecheck?: () => void;
 }
 
 export function AvailabilityChecker({
   availability,
   isChecking,
+  error,
   onRecheck,
 }: AvailabilityCheckerProps) {
   // No mostrar nada si no hay resultado
-  if (!availability && !isChecking) {
+  if (!availability && !isChecking && !error) {
     return null;
   }
 
@@ -41,12 +43,31 @@ export function AvailabilityChecker({
     );
   }
 
+  if (error) {
+    return (
+      <Card className="p-6">
+        <div className="flex items-start justify-between gap-4">
+          <Alert variant="destructive" className="flex-1">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+
+          {onRecheck && (
+            <Button type="button" variant="outline" size="sm" onClick={onRecheck}>
+              Verificar nuevamente
+            </Button>
+          )}
+        </div>
+      </Card>
+    );
+  }
+
   // Sin resultado
   if (!availability) {
     return null;
   }
 
-  const { available, conflicts, message } = availability;
+  const { available, message } = availability;
+  const conflicts = availability.conflicts ?? [];
 
   return (
     <Card className="p-6">
@@ -104,7 +125,7 @@ export function AvailabilityChecker({
                     ✗ Conflicto Detectado
                   </h3>
                   <p className="text-sm text-muted-foreground mt-1">
-                    {message || `Hay ${conflicts.length} evento(s) que ocupan el espacio en ese horario`}
+                    {message || `Hay ${conflicts.length} horario(s) ocupado(s) en ese rango`}
                   </p>
                 </div>
               </>
@@ -144,14 +165,16 @@ export function AvailabilityChecker({
           <Alert variant="destructive">
             <AlertDescription>
               <div className="space-y-3">
-                <p className="font-medium">Eventos existentes en conflicto:</p>
+                <p className="font-medium">Horarios existentes en conflicto:</p>
                 <ul className="space-y-2">
-                  {conflicts.map((conflict) => (
-                    <li key={conflict.eventId} className="text-sm">
+                  {conflicts.map((conflict, index) => (
+                    <li key={`${conflict.from}-${conflict.to}-${index}`} className="text-sm">
                       <div className="flex items-start gap-2">
                         <span className="text-red-600 dark:text-red-400">•</span>
                         <div className="flex-1">
-                          <p className="font-medium">{conflict.eventName}</p>
+                          <p className="font-medium">
+                            {conflict.eventName || 'Horario ocupado'}
+                          </p>
                           <p className="text-xs text-muted-foreground">
                             {conflict.from} - {conflict.to}
                             {conflict.bufferBefore && ` (prep: ${conflict.bufferBefore} min)`}

@@ -1,8 +1,8 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-export type DateFieldProps = React.InputHTMLAttributes<HTMLInputElement> & {
-  value: string;                    // "yyyy-MM-dd"
+export type DateFieldProps = Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "onChange"> & {
+  value?: string | null;            // "yyyy-MM-dd"
   onChange: (value: string) => void;
   ariaInvalid?: boolean;
 };
@@ -13,7 +13,7 @@ const DateField = React.forwardRef<HTMLInputElement, DateFieldProps>(
       <input
         ref={ref}
         type="date"
-        value={value}
+        value={value ?? ""}
         onChange={(e) => onChange(e.target.value)}
         aria-invalid={ariaInvalid ? true : undefined}
         className={cn(

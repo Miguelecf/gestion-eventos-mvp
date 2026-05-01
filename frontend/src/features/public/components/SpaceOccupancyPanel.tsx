@@ -15,6 +15,7 @@ import type { SpaceOccupancyResult } from '@/services/api';
 export interface SpaceOccupancyPanelProps {
   occupancy: SpaceOccupancyResult | null;
   isLoading?: boolean;
+  error?: string | null;
   selectedFrom?: string;
   selectedTo?: string;
 }
@@ -63,9 +64,12 @@ const calculateWidth = (
 export function SpaceOccupancyPanel({
   occupancy,
   isLoading,
+  error,
   selectedFrom,
   selectedTo,
 }: SpaceOccupancyPanelProps) {
+  const hasValidSelection = !!selectedFrom && !!selectedTo && selectedFrom < selectedTo;
+
   // Calcular rango del timeline (hora más temprana y más tardía)
   const timelineRange = useMemo(() => {
     if (!occupancy || occupancy.occupied.length === 0) {
@@ -83,10 +87,10 @@ export function SpaceOccupancyPanel({
     });
 
     // Agregar selección actual si existe
-    if (selectedFrom) {
+    if (hasValidSelection && selectedFrom) {
       minMinutes = Math.min(minMinutes, timeToMinutes(selectedFrom));
     }
-    if (selectedTo) {
+    if (hasValidSelection && selectedTo) {
       maxMinutes = Math.max(maxMinutes, timeToMinutes(selectedTo));
     }
 
@@ -95,7 +99,7 @@ export function SpaceOccupancyPanel({
     maxMinutes = Math.min(1440, maxMinutes + 60);
 
     return { start: minMinutes, end: maxMinutes };
-  }, [occupancy, selectedFrom, selectedTo]);
+  }, [occupancy, hasValidSelection, selectedFrom, selectedTo]);
 
   // Estado de carga
   if (isLoading) {
@@ -109,9 +113,23 @@ export function SpaceOccupancyPanel({
     );
   }
 
+  if (error) {
+    return (
+      <Card className="p-4 border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/20">
+        <p className="text-sm text-red-700 dark:text-red-400">{error}</p>
+      </Card>
+    );
+  }
+
   // Sin datos
   if (!occupancy) {
-    return null;
+    return (
+      <Card className="p-4 bg-muted/30">
+        <p className="text-sm text-muted-foreground">
+          No hay datos de ocupación disponibles para mostrar.
+        </p>
+      </Card>
+    );
   }
 
   const { spaceName, date, occupied: slots } = occupancy;
@@ -122,7 +140,7 @@ export function SpaceOccupancyPanel({
       <div className="space-y-4">
         {/* Header */}
         <div>
-          <h3 className="text-lg font-semibold">{spaceName}</h3>
+          <h3 className="text-lg font-semibold">{spaceName || 'Espacio seleccionado'}</h3>
           <p className="text-sm text-muted-foreground">
             Ocupación del {new Date(date + 'T00:00:00').toLocaleDateString('es-AR')}
           </p>
@@ -158,12 +176,13 @@ export function SpaceOccupancyPanel({
             {slots.map((slot, index) => {
               const left = calculatePosition(slot.from, startMinute, endMinute);
               const width = calculateWidth(slot.from, slot.to, startMinute, endMinute);
+              const statusLabel = slot.status || 'OCUPADO';
 
               // Color según estado
               const colorClass =
-                slot.status === 'APROBADO'
+                statusLabel === 'APROBADO'
                   ? 'bg-green-500/80 border-green-600'
-                  : slot.status === 'RESERVADO'
+                  : statusLabel === 'RESERVADO'
                     ? 'bg-blue-500/80 border-blue-600'
                     : 'bg-yellow-500/80 border-yellow-600';
 
@@ -172,14 +191,14 @@ export function SpaceOccupancyPanel({
                   <div
                     className={`absolute h-full rounded border-2 ${colorClass} flex items-center px-2 overflow-hidden`}
                     style={{ left: `${left}%`, width: `${width}%` }}
-                    title={`${slot.eventName || 'Sin nombre'}\n${slot.from} - ${slot.to}\nEstado: ${slot.status}`}
+                    title={`${slot.eventName || 'Horario ocupado'}\n${slot.from} - ${slot.to}\nEstado: ${statusLabel}`}
                   >
                     <div className="flex items-center gap-2 min-w-0">
                       <Badge variant="outline" className="text-xs shrink-0">
-                        {slot.status}
+                        {statusLabel}
                       </Badge>
                       <span className="text-xs text-white font-medium truncate">
-                        {slot.eventName || 'Sin nombre'}
+                        {slot.eventName || 'Ocupado'}
                       </span>
                       <span className="text-xs text-white/80 shrink-0">
                         {slot.from} - {slot.to}
@@ -191,7 +210,7 @@ export function SpaceOccupancyPanel({
             })}
 
             {/* Bloque del horario seleccionado */}
-            {selectedFrom && selectedTo && (
+            {hasValidSelection && selectedFrom && selectedTo && (
               <div className="relative h-12">
                 <div
                   className="absolute h-full rounded border-2 border-dashed border-primary bg-primary/20 flex items-center px-2"

@@ -14,7 +14,7 @@
  * ===================================================================
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigate, Link } from 'react-router-dom';
@@ -51,6 +51,33 @@ import SpaceOccupancyPanel from './SpaceOccupancyPanel';
 import AvailabilityChecker from './AvailabilityChecker';
 import PublicAudienceTypeSelect from './PublicAudienceTypeSelect';
 
+type SubmitErrorLike = {
+  response?: {
+    data?: {
+      message?: unknown;
+    };
+  };
+  message?: unknown;
+};
+
+function getSubmitErrorMessage(error: unknown): string {
+  if (typeof error === 'object' && error !== null) {
+    const maybeError = error as SubmitErrorLike;
+    const responseMessage = maybeError.response?.data?.message;
+    const directMessage = maybeError.message;
+
+    if (typeof responseMessage === 'string' && responseMessage.trim()) {
+      return responseMessage;
+    }
+
+    if (typeof directMessage === 'string' && directMessage.trim()) {
+      return directMessage;
+    }
+  }
+
+  return 'Error desconocido al enviar la solicitud';
+}
+
 /**
  * Formulario completo de solicitud pública de eventos
  */
@@ -63,14 +90,29 @@ export default function PublicEventForm() {
 
   // Disponibilidad
   const [occupancy, setOccupancy] = useState<SpaceOccupancyResult | null>(null);
+  const [isLoadingOccupancy, setIsLoadingOccupancy] = useState(false);
+  const [occupancyError, setOccupancyError] = useState<string | null>(null);
   const [availability, setAvailability] = useState<AvailabilityResult | null>(null);
+  const [availabilityError, setAvailabilityError] = useState<string | null>(null);
   const [isCheckingAvailability, setIsCheckingAvailability] = useState(false);
+  const occupancyRequestId = useRef(0);
+  const availabilityRequestId = useRef(0);
 
   // ========== FORM SETUP ==========
   const form = useForm<PublicEventFormInput, unknown, PublicEventFormData>({
     resolver: zodResolver(publicEventSchema),
     defaultValues: {
+      name: '',
+      date: '',
+      scheduleFrom: '',
+      scheduleTo: '',
       audienceType: 'COMUNIDAD',
+      contactName: '',
+      contactEmail: '',
+      contactPhone: '',
+      requirements: '',
+      coverage: '',
+      observations: '',
       bufferBeforeMin: 15,
       bufferAfterMin: 15,
     },
@@ -80,6 +122,7 @@ export default function PublicEventForm() {
     register,
     handleSubmit,
     setValue,
+    clearErrors,
     watch,
     control,
     formState: { errors },
@@ -93,36 +136,71 @@ export default function PublicEventForm() {
   const bufferBeforeValue = watch('bufferBeforeMin');
   const bufferAfterValue = watch('bufferAfterMin');
 
-  // ========== EFFECTS ==========
-
-  // Cargar ocupación del espacio cuando cambia espacio o fecha
-  useEffect(() => {
-    if (spaceIdValue && dateValue) {
-      loadSpaceOccupancy(spaceIdValue, dateValue);
-    } else {
-      setOccupancy(null);
-    }
-  }, [spaceIdValue, dateValue]);
-
-  // Auto-verificar disponibilidad cuando cambian campos relevantes
-  useEffect(() => {
+  /**
+   * Verifica disponibilidad del horario seleccionado
+   */
+  const checkAvailability = useCallback(async () => {
     if (
-      spaceIdValue &&
-      dateValue &&
-      scheduleFromValue &&
-      scheduleToValue &&
-      locationType === 'space'
+      locationType !== 'space' ||
+      !spaceIdValue ||
+      !dateValue ||
+      !scheduleFromValue ||
+      !scheduleToValue ||
+      scheduleFromValue >= scheduleToValue
     ) {
-      // Debounce: esperar 500ms después del último cambio
-      const timer = setTimeout(() => {
-        checkAvailability();
-      }, 500);
-
-      return () => clearTimeout(timer);
-    } else {
       setAvailability(null);
+      setAvailabilityError(null);
+      setIsCheckingAvailability(false);
+      return;
+    }
+
+    const requestId = ++availabilityRequestId.current;
+    setAvailability(null);
+    setAvailabilityError(null);
+    setIsCheckingAvailability(true);
+
+    try {
+      const result = await availabilityApi.checkPublicAvailability({
+        spaceId: spaceIdValue,
+        date: dateValue,
+        scheduleFrom: scheduleFromValue,
+        scheduleTo: scheduleToValue,
+        bufferBeforeMin: Number.isFinite(bufferBeforeValue) ? bufferBeforeValue : 15,
+        bufferAfterMin: Number.isFinite(bufferAfterValue) ? bufferAfterValue : 15,
+      });
+
+      if (requestId !== availabilityRequestId.current) {
+        return;
+      }
+
+      setAvailability(result);
+
+      // Toast según resultado
+      if (result.available) {
+        toast.success('Horario disponible', {
+          description: result.message || 'El espacio está libre para el horario seleccionado',
+        });
+      } else {
+        toast.warning('Conflicto detectado', {
+          description: `Hay ${result.conflicts.length} horario(s) ocupado(s) en ese rango`,
+        });
+      }
+    } catch (error) {
+      if (requestId !== availabilityRequestId.current) {
+        return;
+      }
+
+      console.error('Error al verificar disponibilidad:', error);
+      setAvailability(null);
+      setAvailabilityError('No se pudo verificar la disponibilidad');
+      toast.error('No se pudo verificar la disponibilidad');
+    } finally {
+      if (requestId === availabilityRequestId.current) {
+        setIsCheckingAvailability(false);
+      }
     }
   }, [
+    locationType,
     spaceIdValue,
     dateValue,
     scheduleFromValue,
@@ -131,92 +209,147 @@ export default function PublicEventForm() {
     bufferAfterValue,
   ]);
 
-  // ========== HANDLERS ==========
+  // ========== EFFECTS ==========
 
-  /**
-   * Carga panel de ocupación del espacio
-   */
-  const loadSpaceOccupancy = async (spaceId: number, date: string) => {
-    try {
-      // Extraer año y mes de la fecha yyyy-MM-dd
-      const [year, month] = date.split('-').map(Number);
-      const occupancyData = await publicRequestsApi.getSpaceMonthlyOccupancy(spaceId, year, month);
-      
-      // Adaptar SpaceOccupancyResponse a SpaceOccupancyResult
-      const result: SpaceOccupancyResult = {
-        spaceId: occupancyData.spaceId,
-        spaceName: occupancyData.spaceName,
-        date: date,
-        occupied: occupancyData.events.map(evt => ({
-          from: evt.scheduleFrom,
-          to: evt.scheduleTo,
-          eventName: evt.eventName || 'Sin nombre',
-          status: evt.status as any,
-        })),
-        availableSlots: [], // No necesario para el panel
-      };
-      setOccupancy(result);
-    } catch (error) {
-      console.error('Error al cargar ocupación:', error);
-      toast.error('No se pudo cargar la ocupación del espacio');
-    }
-  };
-
-  /**
-   * Verifica disponibilidad del horario seleccionado
-   */
-  const checkAvailability = async () => {
-    if (!spaceIdValue || !dateValue || !scheduleFromValue || !scheduleToValue) {
+  // Cargar ocupación del espacio cuando cambia espacio o fecha
+  useEffect(() => {
+    if (locationType !== 'space' || !spaceIdValue || !dateValue) {
+      occupancyRequestId.current += 1;
+      setOccupancy(null);
+      setOccupancyError(null);
+      setIsLoadingOccupancy(false);
       return;
     }
 
-    setIsCheckingAvailability(true);
+    const requestId = ++occupancyRequestId.current;
 
-    try {
-      const result = await availabilityApi.checkAvailability({
-        spaceId: spaceIdValue,
-        date: dateValue,
-        scheduleFrom: scheduleFromValue,
-        scheduleTo: scheduleToValue,
-        bufferBeforeMin: bufferBeforeValue,
-        bufferAfterMin: bufferAfterValue,
-      });
+    const loadSpaceOccupancy = async () => {
+      setOccupancy(null);
+      setIsLoadingOccupancy(true);
+      setOccupancyError(null);
 
-      setAvailability(result);
+      try {
+        const occupancyData = await publicRequestsApi.getSpaceDailyOccupancy(spaceIdValue, dateValue);
 
-      // Toast según resultado
-      if (result.available) {
-        toast.success('✅ Horario disponible', {
-          description: result.message || 'El espacio está libre para el horario seleccionado',
-        });
-      } else {
-        toast.warning('⚠️ Conflicto detectado', {
-          description: `Hay ${result.conflicts.length} evento(s) en ese horario`,
-        });
+        if (requestId !== occupancyRequestId.current) {
+          return;
+        }
+
+        setOccupancy(occupancyData);
+      } catch (error) {
+        if (requestId !== occupancyRequestId.current) {
+          return;
+        }
+
+        console.error('Error al cargar ocupación:', error);
+        setOccupancy(null);
+        setOccupancyError('No se pudo cargar la ocupación del espacio');
+        toast.error('No se pudo cargar la ocupación del espacio');
+      } finally {
+        if (requestId === occupancyRequestId.current) {
+          setIsLoadingOccupancy(false);
+        }
       }
-    } catch (error) {
-      console.error('Error al verificar disponibilidad:', error);
-      toast.error('No se pudo verificar la disponibilidad');
-    } finally {
+    };
+
+    loadSpaceOccupancy();
+  }, [locationType, spaceIdValue, dateValue]);
+
+  // Auto-verificar disponibilidad cuando cambian campos relevantes
+  useEffect(() => {
+    availabilityRequestId.current += 1;
+    setAvailability(null);
+    setAvailabilityError(null);
+
+    if (locationType !== 'space') {
       setIsCheckingAvailability(false);
+      return;
     }
-  };
+
+    if (!spaceIdValue || !dateValue || !scheduleFromValue || !scheduleToValue) {
+      setIsCheckingAvailability(false);
+      return;
+    }
+
+    if (scheduleFromValue >= scheduleToValue) {
+      setIsCheckingAvailability(false);
+      return;
+    }
+
+    // Debounce: esperar 500ms después del último cambio
+    const timer = setTimeout(() => {
+      checkAvailability();
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [
+    locationType,
+    spaceIdValue,
+    dateValue,
+    scheduleFromValue,
+    scheduleToValue,
+    bufferBeforeValue,
+    bufferAfterValue,
+    checkAvailability,
+  ]);
+
+  // ========== HANDLERS ==========
 
   /**
    * Handler de cambio de tipo de ubicación
    */
   const handleLocationTypeChange = (type: 'space' | 'free') => {
     setLocationType(type);
+    occupancyRequestId.current += 1;
+    availabilityRequestId.current += 1;
+    setOccupancy(null);
+    setOccupancyError(null);
+    setIsLoadingOccupancy(false);
+    setAvailability(null);
+    setAvailabilityError(null);
+    setIsCheckingAvailability(false);
 
     // Limpiar campo no seleccionado
     if (type === 'space') {
-      setValue('freeLocation', undefined);
-      setOccupancy(null);
-      setAvailability(null);
+      setValue('freeLocation', undefined, {
+        shouldDirty: true,
+        shouldTouch: true,
+        shouldValidate: true,
+      });
+      clearErrors('freeLocation');
     } else {
-      setValue('spaceId', undefined);
-      setOccupancy(null);
-      setAvailability(null);
+      setValue('spaceId', undefined, {
+        shouldDirty: true,
+        shouldTouch: true,
+        shouldValidate: true,
+      });
+      clearErrors('spaceId');
+    }
+  };
+
+  const handleSpaceChange = (spaceId: number | null) => {
+    occupancyRequestId.current += 1;
+    availabilityRequestId.current += 1;
+    setOccupancy(null);
+    setOccupancyError(null);
+    setIsLoadingOccupancy(false);
+    setAvailability(null);
+    setAvailabilityError(null);
+    setIsCheckingAvailability(false);
+
+    setValue('spaceId', spaceId ?? undefined, {
+      shouldDirty: true,
+      shouldTouch: true,
+      shouldValidate: true,
+    });
+
+    if (spaceId !== null) {
+      setValue('freeLocation', undefined, {
+        shouldDirty: true,
+        shouldTouch: true,
+        shouldValidate: true,
+      });
+      clearErrors(['spaceId', 'freeLocation']);
     }
   };
 
@@ -250,16 +383,11 @@ export default function PublicEventForm() {
 
       // Redirigir a pantalla de confirmación con tracking UUID
       navigate(`/solicitud/confirmacion/${response.tracking_uuid}`);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error al crear solicitud:', error);
 
-      const errorMessage =
-        error.response?.data?.message ||
-        error.message ||
-        'Error desconocido al enviar la solicitud';
-
       toast.error('❌ Error al enviar solicitud', {
-        description: errorMessage,
+        description: getSubmitErrorMessage(error),
         duration: 7000,
       });
     } finally {
@@ -355,7 +483,7 @@ export default function PublicEventForm() {
                 render={({ field }) => (
                   <DateField
                     id="date"
-                    value={field.value}
+                    value={field.value ?? ''}
                     onChange={field.onChange}
                     ariaInvalid={!!errors.date}
                   />
@@ -377,7 +505,7 @@ export default function PublicEventForm() {
                 render={({ field }) => (
                   <TimeField
                     id="scheduleFrom"
-                    value={field.value}
+                    value={field.value ?? ''}
                     onChange={field.onChange}
                     ariaInvalid={!!errors.scheduleFrom}
                   />
@@ -399,7 +527,7 @@ export default function PublicEventForm() {
                 render={({ field }) => (
                   <TimeField
                     id="scheduleTo"
-                    value={field.value}
+                    value={field.value ?? ''}
                     onChange={field.onChange}
                     ariaInvalid={!!errors.scheduleTo}
                   />
@@ -529,7 +657,7 @@ export default function PublicEventForm() {
               >
                 <PublicSpaceSelect
                   value={spaceIdValue}
-                  onChange={(spaceId: number | null) => setValue('spaceId', spaceId ?? undefined)}
+                  onChange={handleSpaceChange}
                   error={errors.spaceId?.message}
                 />
               </FormField>
@@ -539,7 +667,8 @@ export default function PublicEventForm() {
                 <div className="mt-4">
                   <SpaceOccupancyPanel
                     occupancy={occupancy}
-                    isLoading={!occupancy}
+                    isLoading={isLoadingOccupancy}
+                    error={occupancyError}
                     selectedFrom={scheduleFromValue}
                     selectedTo={scheduleToValue}
                   />
@@ -550,22 +679,30 @@ export default function PublicEventForm() {
 
           {/* Campo: Ubicación libre */}
           {locationType === 'free' && (
-            <FormField
-              label="Ubicación"
-              htmlFor="freeLocation"
-              required
-              error={errors.freeLocation?.message}
-              helpText="Describa la ubicación del evento (máx. 200 caracteres)"
-            >
-              <Input
-                id="freeLocation"
-                type="text"
-                placeholder="Ej: Centro Cultural Municipal, Av. Principal 123"
-                maxLength={200}
-                aria-invalid={!!errors.freeLocation}
-                {...register('freeLocation')}
-              />
-            </FormField>
+            <>
+              <FormField
+                label="Ubicación"
+                htmlFor="freeLocation"
+                required
+                error={errors.freeLocation?.message}
+                helpText="Describa la ubicación del evento (máx. 200 caracteres)"
+              >
+                <Input
+                  id="freeLocation"
+                  type="text"
+                  placeholder="Ej: Centro Cultural Municipal, Av. Principal 123"
+                  maxLength={200}
+                  aria-invalid={!!errors.freeLocation}
+                  {...register('freeLocation')}
+                />
+              </FormField>
+
+              <Alert className="mt-4">
+                <AlertDescription>
+                  Para otra ubicación no se valida ocupación por recurso.
+                </AlertDescription>
+              </Alert>
+            </>
           )}
         </FormSectionCard>
 
@@ -574,6 +711,7 @@ export default function PublicEventForm() {
           <AvailabilityChecker
             availability={availability}
             isChecking={isCheckingAvailability}
+            error={availabilityError}
             onRecheck={checkAvailability}
           />
         )}
@@ -765,7 +903,7 @@ export default function PublicEventForm() {
             Cancelar
           </Button>
 
-          <Button type="submit" disabled={isSubmitting}>
+          <Button type="submit" disabled={isSubmitting || availability?.available === false}>
             {isSubmitting ? (
               <>
                 <svg

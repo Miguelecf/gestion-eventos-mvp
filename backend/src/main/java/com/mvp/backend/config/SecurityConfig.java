@@ -51,7 +51,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/public/event-requests").permitAll()
                         .requestMatchers(HttpMethod.POST, "/public/event-requests").permitAll()
                         .requestMatchers(HttpMethod.POST, "/public/availability/check").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/public/spaces/*/occupancy").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/public/spaces/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/public/track/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/public/catalogs/spaces").permitAll()
                         .requestMatchers(HttpMethod.GET, "/public/events").permitAll()

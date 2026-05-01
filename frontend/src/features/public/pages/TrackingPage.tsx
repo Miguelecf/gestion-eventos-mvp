@@ -17,6 +17,12 @@ import { toast } from 'sonner';
 import { publicRequestsApi } from '@/services/api';
 import type { EventRequestStatusResponse } from '@/services/api';
 
+const primaryActionClassName =
+  'h-11 rounded-xl bg-[#6f1717] px-5 text-white no-underline shadow-lg shadow-[#6f1717]/20 hover:bg-[#5b1111] hover:text-white hover:no-underline dark:bg-white dark:text-[#6f1717] dark:hover:bg-white/90 dark:hover:text-[#6f1717]';
+
+const secondaryActionClassName =
+  'h-11 rounded-xl border-[#6f1717]/15 bg-white/90 px-5 text-[#6f1717] no-underline hover:bg-[#f7eded] hover:text-[#6f1717] hover:no-underline dark:border-white/15 dark:bg-white/10 dark:text-white dark:hover:bg-white/15 dark:hover:text-white';
+
 export function TrackingPage() {
   const { uuid } = useParams<{ uuid: string }>();
   const [data, setData] = useState<EventRequestStatusResponse | null>(null);
@@ -84,10 +90,10 @@ export function TrackingPage() {
         </Alert>
 
         <div className="flex justify-center gap-3">
-          <Button asChild variant="default">
-            <Link to="/solicitud">Nueva Solicitud</Link>
+          <Button asChild className={primaryActionClassName}>
+            <Link to="/solicitud">Nueva solicitud</Link>
           </Button>
-          <Button asChild variant="outline">
+          <Button asChild variant="outline" className={secondaryActionClassName}>
             <Link to="/public/calendar">Ver Calendario</Link>
           </Button>
         </div>
@@ -228,11 +234,11 @@ export function TrackingPage() {
 
       {/* Acciones */}
       <div className="flex justify-center gap-3">
-        <Button asChild variant="outline">
+        <Button asChild variant="outline" className={secondaryActionClassName}>
           <Link to="/public/calendar">Ver Calendario Público</Link>
         </Button>
-        <Button asChild variant="ghost">
-          <Link to="/solicitud">Nueva Solicitud</Link>
+        <Button asChild className={primaryActionClassName}>
+          <Link to="/solicitud">Nueva solicitud</Link>
         </Button>
       </div>
     </div>

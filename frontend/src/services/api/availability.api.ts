@@ -10,7 +10,6 @@
 import { httpClient } from './client';
 import { ENDPOINTS } from './client/config';
 import type { 
-  BackendSpaceAvailabilityResponse,
   BackendTechnicalCapacityResponse,
   EventStatus,
   Priority
@@ -36,11 +35,11 @@ export interface CheckAvailabilityParams {
  * Conflicto de disponibilidad adaptado
  */
 export interface AvailabilityConflict {
-  eventId: number;
-  eventName: string;
+  eventId?: number;
+  eventName?: string;
   from: string; // HH:mm
   to: string; // HH:mm
-  status?: EventStatus;
+  status?: EventStatus | string | null;
   priority?: Priority;
   bufferBefore?: number;
   bufferAfter?: number;
@@ -51,7 +50,12 @@ export interface AvailabilityConflict {
  */
 export interface AvailabilityResult {
   available: boolean;
+  skipped?: boolean;
+  reason?: string | null;
+  effectiveFrom?: string | null;
+  effectiveTo?: string | null;
   conflicts: AvailabilityConflict[];
+  suggestions?: Array<{ from: string; to: string }>;
   message: string; // Mensaje descriptivo
 }
 
@@ -122,7 +126,7 @@ export interface OccupancySlot {
   from: string; // HH:mm
   to: string; // HH:mm
   eventName?: string;
-  status: EventStatus;
+  status?: EventStatus | string | null;
 }
 
 /**
@@ -130,10 +134,134 @@ export interface OccupancySlot {
  */
 export interface SpaceOccupancyResult {
   spaceId: number;
-  spaceName: string;
+  spaceName?: string | null;
   date: string;
   occupied: OccupancySlot[];
   availableSlots: Array<{ from: string; to: string }>;
+}
+
+export interface RawAvailabilityConflict {
+  eventId?: number | null;
+  id?: number | null;
+  eventName?: string | null;
+  title?: string | null;
+  name?: string | null;
+  from?: string | null;
+  to?: string | null;
+  scheduleFrom?: string | null;
+  scheduleTo?: string | null;
+  status?: EventStatus | string | null;
+  priority?: Priority | null;
+  bufferBefore?: number | null;
+  bufferAfter?: number | null;
+  bufferBeforeMin?: number | null;
+  bufferAfterMin?: number | null;
+}
+
+export interface RawAvailabilityResponse {
+  available?: boolean | null;
+  isAvailable?: boolean | null;
+  skipped?: boolean | null;
+  reason?: string | null;
+  effectiveFrom?: string | null;
+  effectiveTo?: string | null;
+  conflicts?: RawAvailabilityConflict[] | null;
+  existingEvents?: RawAvailabilityConflict[] | null;
+  suggestions?: Array<{ from?: string | null; to?: string | null } | Record<string, unknown>> | null;
+}
+
+export interface SpaceDailyOccupancyResponse {
+  spaceId: number;
+  date: string;
+  blocks?: Array<{
+    from?: string | null;
+    to?: string | null;
+    status?: EventStatus | string | null;
+  }> | null;
+}
+
+function normalizeAvailabilityConflict(conflict: RawAvailabilityConflict): AvailabilityConflict {
+  return {
+    eventId: conflict.eventId ?? conflict.id ?? undefined,
+    eventName: conflict.eventName ?? conflict.title ?? conflict.name ?? undefined,
+    from: conflict.from ?? conflict.scheduleFrom ?? '',
+    to: conflict.to ?? conflict.scheduleTo ?? '',
+    status: conflict.status ?? undefined,
+    priority: conflict.priority ?? undefined,
+    bufferBefore: conflict.bufferBefore ?? conflict.bufferBeforeMin ?? undefined,
+    bufferAfter: conflict.bufferAfter ?? conflict.bufferAfterMin ?? undefined,
+  };
+}
+
+function normalizeSuggestions(
+  suggestions: RawAvailabilityResponse['suggestions']
+): Array<{ from: string; to: string }> {
+  if (!Array.isArray(suggestions)) {
+    return [];
+  }
+
+  return suggestions
+    .map((suggestion) => ({
+      from: typeof suggestion.from === 'string' ? suggestion.from : '',
+      to: typeof suggestion.to === 'string' ? suggestion.to : '',
+    }))
+    .filter((suggestion) => suggestion.from && suggestion.to);
+}
+
+export function normalizeAvailabilityResponse(
+  response: RawAvailabilityResponse
+): AvailabilityResult {
+  const rawAvailable = response.available ?? response.isAvailable;
+  const skipped = response.skipped ?? false;
+  const conflicts = (response.conflicts ?? response.existingEvents ?? [])
+    .map(normalizeAvailabilityConflict)
+    .filter((conflict) => conflict.from && conflict.to);
+  const available = rawAvailable == null ? conflicts.length === 0 : rawAvailable;
+  const suggestions = normalizeSuggestions(response.suggestions);
+
+  let message = response.reason ?? '';
+  if (!message) {
+    if (skipped) {
+      message = 'No se valida disponibilidad por recurso para esta ubicación';
+    } else if (available) {
+      message = 'Espacio disponible para la fecha y horario solicitado';
+    } else {
+      const count = conflicts.length;
+      message = `Espacio no disponible (${count} ${count === 1 ? 'conflicto' : 'conflictos'})`;
+    }
+  }
+
+  return {
+    available,
+    skipped,
+    reason: response.reason ?? null,
+    effectiveFrom: response.effectiveFrom ?? null,
+    effectiveTo: response.effectiveTo ?? null,
+    conflicts,
+    suggestions,
+    message,
+  };
+}
+
+export function normalizeSpaceOccupancyResponse(
+  response: SpaceDailyOccupancyResponse,
+  fallback: { spaceId: number; date: string; spaceName?: string | null }
+): SpaceOccupancyResult {
+  const occupied = (response.blocks ?? [])
+    .map((block) => ({
+      from: block.from ?? '',
+      to: block.to ?? '',
+      status: block.status ?? null,
+    }))
+    .filter((block) => block.from && block.to);
+
+  return {
+    spaceId: response.spaceId ?? fallback.spaceId,
+    spaceName: fallback.spaceName ?? null,
+    date: response.date ?? fallback.date,
+    occupied,
+    availableSlots: [],
+  };
 }
 
 // ==================== FUNCIONES DEL SDK ====================
@@ -177,37 +305,12 @@ export async function checkAvailability(
     excludeEventId: params.excludeEventId
   };
 
-  const response = await httpClient.post<BackendSpaceAvailabilityResponse>(
+  const response = await httpClient.post<RawAvailabilityResponse>(
     ENDPOINTS.AVAILABILITY_CHECK,
     requestBody
   );
 
-  // Adaptar respuesta
-  const conflicts: AvailabilityConflict[] = response.conflicts.map(conflict => ({
-    eventId: conflict.eventId,
-    eventName: conflict.eventName,
-    from: conflict.from,
-    to: conflict.to,
-    status: conflict.status,
-    priority: conflict.priority,
-    bufferBefore: conflict.bufferBefore,
-    bufferAfter: conflict.bufferAfter
-  }));
-
-  // Generar mensaje descriptivo
-  let message = '';
-  if (response.available) {
-    message = '✅ Espacio disponible para la fecha y horario solicitado';
-  } else {
-    const count = conflicts.length;
-    message = `❌ Espacio no disponible (${count} ${count === 1 ? 'conflicto' : 'conflictos'} detectado${count === 1 ? '' : 's'})`;
-  }
-
-  return {
-    available: response.available,
-    conflicts,
-    message
-  };
+  return normalizeAvailabilityResponse(response);
 }
 
 /**
@@ -241,34 +344,12 @@ export async function checkPublicAvailability(
     bufferAfterMin: params.bufferAfterMin
   };
 
-  const response = await httpClient.post<BackendSpaceAvailabilityResponse>(
+  const response = await httpClient.post<RawAvailabilityResponse>(
     ENDPOINTS.AVAILABILITY_PUBLIC_CHECK,
     requestBody
   );
 
-  const conflicts: AvailabilityConflict[] = response.conflicts.map(conflict => ({
-    eventId: conflict.eventId,
-    eventName: conflict.eventName,
-    from: conflict.from,
-    to: conflict.to,
-    status: conflict.status,
-    priority: conflict.priority,
-    bufferBefore: conflict.bufferBefore,
-    bufferAfter: conflict.bufferAfter
-  }));
-
-  let message = '';
-  if (response.available) {
-    message = '✅ Espacio disponible';
-  } else {
-    message = `❌ Espacio no disponible (${conflicts.length} ${conflicts.length === 1 ? 'conflicto' : 'conflictos'})`;
-  }
-
-  return {
-    available: response.available,
-    conflicts,
-    message
-  };
+  return normalizeAvailabilityResponse(response);
 }
 
 /**
@@ -409,11 +490,17 @@ export async function getPublicSpaceOccupancy(
     ? params.date 
     : toBackendDate(params.date);
 
-  const response = await httpClient.get<SpaceOccupancyResult>(
-    ENDPOINTS.PUBLIC_SPACE_OCCUPANCY(params.spaceId) + `?date=${date}`
+  const response = await httpClient.get<SpaceDailyOccupancyResponse>(
+    ENDPOINTS.PUBLIC_SPACE_OCCUPANCY(params.spaceId),
+    {
+      params: { date },
+    }
   );
 
-  return response;
+  return normalizeSpaceOccupancyResponse(response, {
+    spaceId: params.spaceId,
+    date,
+  });
 }
 
 /**
