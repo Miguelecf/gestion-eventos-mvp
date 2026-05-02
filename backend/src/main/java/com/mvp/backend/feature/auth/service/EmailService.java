@@ -15,7 +15,7 @@ public class EmailService {
 
     private final JavaMailSender emailSender;
 
-    @Value("${app.mail.from:noreply@gestion-eventos.local}")
+    @Value("${app.mail.from:no-reply@example.com}")
     private String from;
 
     @Value("${app.mail.mock-mode:true}")
@@ -52,7 +52,7 @@ public class EmailService {
         }
 
         SimpleMailMessage message = new SimpleMailMessage();
-        message.setFrom(from);
+        message.setFrom(from.trim());
         message.setTo(to);
         message.setSubject(subject);
         message.setText(textBody);

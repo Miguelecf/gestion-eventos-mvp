@@ -36,7 +36,9 @@ import type { SpaceOccupancyResult, AvailabilityResult } from '@/services/api';
 import {
   FormSectionCard,
   DateField,
-  TimeField,
+  getNextTimeOption,
+  getTimeRangeDurationLabel,
+  TimePicker,
 } from '@/components/form';
 import FormField from '@/components/form/FormField';
 
@@ -165,6 +167,9 @@ export default function PublicEventForm() {
   const dateValue = watch('date');
   const scheduleFromValue = watch('scheduleFrom');
   const scheduleToValue = watch('scheduleTo');
+  const scheduleToMinTime = getNextTimeOption(scheduleFromValue);
+  const isScheduleToDisabled = Boolean(scheduleFromValue && !scheduleToMinTime);
+  const scheduleDurationText = getTimeRangeDurationLabel(scheduleFromValue, scheduleToValue);
   const bufferBeforeValue = watch('bufferBeforeMin');
   const bufferAfterValue = watch('bufferAfterMin');
 
@@ -242,6 +247,18 @@ export default function PublicEventForm() {
   ]);
 
   // ========== EFFECTS ==========
+
+  useEffect(() => {
+    if (!scheduleFromValue || !scheduleToValue || scheduleToValue > scheduleFromValue) {
+      return;
+    }
+
+    setValue('scheduleTo', '', {
+      shouldDirty: true,
+      shouldTouch: true,
+      shouldValidate: true,
+    });
+  }, [scheduleFromValue, scheduleToValue, setValue]);
 
   // Cargar ocupación del espacio cuando cambia espacio o fecha
   useEffect(() => {
@@ -514,7 +531,7 @@ export default function PublicEventForm() {
                 name="scheduleFrom"
                 control={control}
                 render={({ field }) => (
-                  <TimeField
+                  <TimePicker
                     id="scheduleFrom"
                     ref={field.ref}
                     value={field.value ?? ''}
@@ -537,11 +554,13 @@ export default function PublicEventForm() {
                 name="scheduleTo"
                 control={control}
                 render={({ field }) => (
-                  <TimeField
+                  <TimePicker
                     id="scheduleTo"
                     ref={field.ref}
                     value={field.value ?? ''}
                     onChange={field.onChange}
+                    minTime={scheduleToMinTime}
+                    disabled={isScheduleToDisabled}
                     ariaInvalid={!!errors.scheduleTo}
                     aria-describedby={errors.scheduleTo ? 'scheduleTo-error' : 'scheduleTo-help'}
                   />
@@ -557,6 +576,10 @@ export default function PublicEventForm() {
                 La hora de inicio debe ser anterior a la hora de fin.
               </AlertDescription>
             </Alert>
+          )}
+
+          {scheduleDurationText && (
+            <p className="mt-2 text-xs text-muted-foreground">Duración: {scheduleDurationText}</p>
           )}
 
           <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">

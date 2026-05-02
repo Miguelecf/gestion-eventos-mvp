@@ -1,3 +1,5 @@
+export { default as TimePicker } from './TimePicker';
+export type { TimePickerProps } from './TimePicker';
 export { default as TimeField } from './TimeField';
 export { default as DateField } from './DateField';
 export { default as FormSectionCard } from './FormSectionCard';
@@ -6,3 +8,8 @@ export { default as PrioritySelect } from './PrioritySelect';
 export { default as AudienceTypeSelect } from './AudienceTypeSelect';
 export { default as SpaceSelect } from './SpaceSelect';
 export { default as DepartmentSelect } from './DepartmentSelect';
+export {
+  generateTimeOptions,
+  getNextTimeOption,
+  getTimeRangeDurationLabel,
+} from './time-picker-utils';

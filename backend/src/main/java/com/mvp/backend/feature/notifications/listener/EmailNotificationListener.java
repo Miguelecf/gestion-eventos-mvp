@@ -160,16 +160,26 @@ public class EmailNotificationListener {
         String body = """
                 Hola %s,
 
-                Recibimos tu solicitud de evento "%s".
-                Estado actual: %s
+                Recibimos correctamente tu solicitud de evento "%s".
+
+                Estos son los datos principales de la solicitud:
+
+                Código de seguimiento: %s
+                Estado actual: RECIBIDO
                 Fecha y horario: %s
                 Ubicación: %s
 
-                Gracias por contactarnos. Te informaremos cualquier novedad.
+                Podés consultar el estado de tu solicitud ingresando el código de seguimiento en la pantalla de seguimiento del sistema.
+
+                Gracias por contactarnos.
+                Te informaremos por este medio cualquier novedad sobre la revisión, aprobación, rechazo o modificación de la solicitud.
+
+                Universidad Nacional de Lanús
+                Gestión de Eventos
                 """.formatted(
                 safeString(request.getContactName()),
                 safeString(request.getName()),
-                request.getStatus(),
+                safeString(request.getTrackingUuid()),
                 formatSchedule(request.getDate(), request.getScheduleFrom(), request.getScheduleTo()),
                 formatLocation(request.getSpace() != null ? request.getSpace().getName() : null,
                         request.getFreeLocation()));

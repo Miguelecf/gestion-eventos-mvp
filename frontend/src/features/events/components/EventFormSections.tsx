@@ -7,9 +7,11 @@ import {
   DepartmentSelect,
   FormField,
   FormSectionCard,
+  getNextTimeOption,
+  getTimeRangeDurationLabel,
   PrioritySelect,
   SpaceSelect,
-  TimeField,
+  TimePicker,
 } from '@/components/form';
 import { Input } from '@/components/ui/input';
 import type { EventFormValues } from '@/schemas/eventForm.schema';
@@ -62,6 +64,9 @@ export function EventFormSections({
 
   const scheduleFromValue = watch('scheduleFrom');
   const scheduleToValue = watch('scheduleTo');
+  const scheduleToMinTime = getNextTimeOption(scheduleFromValue);
+  const isScheduleToDisabled = Boolean(scheduleFromValue && !scheduleToMinTime);
+  const scheduleDurationText = getTimeRangeDurationLabel(scheduleFromValue, scheduleToValue);
   const requiresTechValue = watch('requiresTech');
   const requestingAreaValue = watch('requestingArea');
   const priorityValue = watch('priority');
@@ -81,6 +86,18 @@ export function EventFormSections({
     });
     hasInitializedPrioritySync.current = true;
   }, [isRectoradoRequestingArea, priorityValue, setValue, syncPriorityWithRequestingArea]);
+
+  useEffect(() => {
+    if (!scheduleFromValue || !scheduleToValue || scheduleToValue > scheduleFromValue) {
+      return;
+    }
+
+    setValue('scheduleTo', '', {
+      shouldDirty: true,
+      shouldTouch: true,
+      shouldValidate: true,
+    });
+  }, [scheduleFromValue, scheduleToValue, setValue]);
 
   const locationError =
     locationType === 'space'
@@ -121,7 +138,7 @@ export function EventFormSections({
               name="scheduleFrom"
               control={control}
               render={({ field }) => (
-                <TimeField
+                <TimePicker
                   id="scheduleFrom"
                   ref={field.ref}
                   value={field.value}
@@ -138,11 +155,13 @@ export function EventFormSections({
               name="scheduleTo"
               control={control}
               render={({ field }) => (
-                <TimeField
+                <TimePicker
                   id="scheduleTo"
                   ref={field.ref}
                   value={field.value}
                   onChange={field.onChange}
+                  minTime={scheduleToMinTime}
+                  disabled={isScheduleToDisabled}
                   ariaInvalid={!!errors.scheduleTo}
                   aria-describedby={errors.scheduleTo ? 'scheduleTo-error' : undefined}
                 />
@@ -155,6 +174,10 @@ export function EventFormSections({
           <p className="mt-2 text-xs text-red-600" role="alert">
             La hora de inicio debe ser anterior a la hora de fin.
           </p>
+        ) : null}
+
+        {scheduleDurationText ? (
+          <p className="mt-2 text-xs text-muted-foreground">Duración: {scheduleDurationText}</p>
         ) : null}
 
         <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2">
@@ -567,7 +590,7 @@ export function EventFormSections({
                     name="technicalSchedule"
                     control={control}
                     render={({ field }) => (
-                      <TimeField
+                      <TimePicker
                         id="technicalSchedule"
                         ref={field.ref}
                         value={field.value}
@@ -581,6 +604,7 @@ export function EventFormSections({
                         aria-describedby={
                           errors.technicalSchedule ? 'technicalSchedule-error' : 'technicalSchedule-help'
                         }
+                        allowClear={allowTechnicalScheduleClear}
                       />
                     )}
                   />

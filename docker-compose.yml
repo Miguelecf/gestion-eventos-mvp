@@ -51,7 +51,7 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:-root}
       MAIL_HOST: ${MAIL_HOST:-mailhog}
       MAIL_PORT: ${MAIL_PORT:-1025}
-      MAIL_FROM: ${MAIL_FROM:-noreply@gestion-eventos.local}
+      MAIL_FROM: ${MAIL_FROM:-no-reply@example.com}
       MAIL_MOCK_MODE: ${MAIL_MOCK_MODE:-false}
       MAIL_FAIL_ON_ERROR: ${MAIL_FAIL_ON_ERROR:-true}
       MAIL_USERNAME: "${MAIL_USERNAME:-}"

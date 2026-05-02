@@ -1,33 +1,16 @@
 import * as React from "react";
-import { cn } from "@/lib/utils";
+import TimePicker, { type TimePickerProps } from "./TimePicker";
 
-export type TimeFieldProps = Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "onChange"> & {
-  value?: string | null;            // "HH:mm"
-  onChange: (value: string) => void;
-  stepSec?: number;                 // tamaño de salto en segundos (default 60)
-  ariaInvalid?: boolean;
+export type TimeFieldProps = TimePickerProps & {
+  stepSec?: number;
 };
 
-const TimeField = React.forwardRef<HTMLInputElement, TimeFieldProps>(
-  ({ className, value, onChange, stepSec = 60, ariaInvalid, ...rest }, ref) => {
-    return (
-      <input
-        ref={ref}
-        type="time"
-        value={value ?? ""}
-        step={stepSec}
-        onChange={(e) => onChange(e.target.value)}
-        aria-invalid={ariaInvalid ? true : undefined}
-        className={cn(
-          "w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none",
-          "focus-visible:ring-4 focus-visible:ring-primary/20 focus-visible:border-primary",
-          "disabled:cursor-not-allowed disabled:opacity-60",
-          ariaInvalid ? "border-red-500" : "border-input",
-          className
-        )}
-        {...rest}
-      />
-    );
+const TimeField = React.forwardRef<HTMLButtonElement, TimeFieldProps>(
+  ({ stepSec, stepMinutes, ...props }, ref) => {
+    const resolvedStepMinutes =
+      stepMinutes ?? (stepSec ? Math.max(1, Math.round(stepSec / 60)) : undefined);
+
+    return <TimePicker ref={ref} stepMinutes={resolvedStepMinutes} {...props} />;
   }
 );
 
