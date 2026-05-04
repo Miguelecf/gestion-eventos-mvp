@@ -5,6 +5,7 @@ target/
 node_modules/
 .env
 .DS_Store
-.DS_Store
-.DS_Store
+# Agentic workspace
+.opencode/
+AGENTS.md
 
