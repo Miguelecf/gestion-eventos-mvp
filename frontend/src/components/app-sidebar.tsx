@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import logo from "@/assets/unla-logo.svg";
 import { useRole } from "@/hooks/useRole";
+import { useCan } from "@/hooks/useCan";
 
 interface NavigationItem {
   label: string;
@@ -23,32 +24,6 @@ interface NavigationItem {
   icon: LucideIcon;
   badge?: string;
 }
-
-const primaryNavigation: NavigationItem[] = [
-  { label: "Dashboard", to: "/dashboard", icon: LayoutDashboard },
-  { label: "Calendario", to: "/calendar", icon: Calendar },
-  { label: "Eventos", to: "/events", icon: ListChecks },
-  {
-    label: "Nuevo evento",
-    to: "/events/new",
-    icon: PlusCircle,
-    badge: "NEW",
-  },
-  {
-    label: "Solicitudes",
-    to: "/solicitudes",
-    icon: ClipboardList,
-  },
-];
-
-const catalogsNavigation: NavigationItem[] = [
-  { label: "Espacios", to: "/catalog/spaces", icon: Building2 },
-  { label: "Departamentos", to: "/catalog/departments", icon: MapPinned },
-];
-
-const adminNavigation: NavigationItem[] = [
-  { label: "Usuarios & Roles", to: "/admin/users", icon: Users2 },
-];
 
 interface AppSidebarProps {
   variant?: "desktop" | "drawer";
@@ -60,8 +35,35 @@ export default function AppSidebar({
   className,
 }: AppSidebarProps) {
   const { isAdminFull } = useRole();
+  const can = useCan();
   const showAdminSection = isAdminFull();
+  const canCreateEvent = can('create', 'Event');
+  const canManageCatalogs = can('manageCatalogs', 'Space');
+  const canReadPublicRequests = can('read', 'PublicRequest');
   const year = new Date().getFullYear();
+
+  const primaryNavigation: NavigationItem[] = [
+    { label: "Dashboard", to: "/dashboard", icon: LayoutDashboard },
+    { label: "Calendario", to: "/calendar", icon: Calendar },
+    { label: "Eventos", to: "/events", icon: ListChecks },
+    ...(canCreateEvent
+      ? [{ label: "Nuevo evento", to: "/events/new", icon: PlusCircle, badge: "NEW" as const }]
+      : [{ label: "Nueva solicitud", to: "/solicitud", icon: PlusCircle }]),
+    ...(canReadPublicRequests ? [{ label: "Solicitudes", to: "/solicitudes", icon: ClipboardList }] : []),
+  ];
+
+  const catalogsNavigation: NavigationItem[] = [
+    ...(canManageCatalogs
+      ? [
+          { label: "Espacios", to: "/catalog/spaces", icon: Building2 },
+          { label: "Departamentos", to: "/catalog/departments", icon: MapPinned },
+        ]
+      : []),
+  ];
+
+  const adminNavigation: NavigationItem[] = [
+    { label: "Usuarios & Roles", to: "/admin/users", icon: Users2 },
+  ];
 
   return (
     <aside
@@ -90,7 +92,9 @@ export default function AppSidebar({
       <ScrollArea className="flex-1 px-4">
         <div className="space-y-8 pb-8">
           <SidebarSection title="Menu" items={primaryNavigation} />
-          <SidebarSection title="Catálogos" items={catalogsNavigation} />
+          {catalogsNavigation.length > 0 && (
+            <SidebarSection title="Catálogos" items={catalogsNavigation} />
+          )}
           {showAdminSection ? <SidebarSection title="Administración" items={adminNavigation} /> : null}
         </div>
       </ScrollArea>
