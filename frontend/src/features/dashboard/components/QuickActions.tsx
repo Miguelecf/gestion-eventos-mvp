@@ -16,6 +16,7 @@ import {
   CardHeader, 
   CardTitle 
 } from '@/components/ui/card';
+import { useCan } from '@/hooks/useCan';
 
 /**
  * Panel de accesos rápidos
@@ -27,6 +28,9 @@ import {
  */
 export function QuickActions() {
   const today = format(new Date(), 'yyyy-MM-dd');
+  const can = useCan();
+  const canCreateEvent = can('create', 'Event');
+  const canManageCatalogs = can('manageCatalogs', 'Space');
 
   return (
     <Card className="rounded-2xl border-slate-200 shadow-sm">
@@ -57,21 +61,23 @@ export function QuickActions() {
           variant="primary"
         />
 
-        {/* Gestionar espacios */}
-        <QuickActionButton
-          icon={MapPin}
-          label="Gestionar espacios"
-          description="Catálogo de espacios disponibles"
-          href="/catalog/spaces"
-          variant="secondary"
-        />
+        {/* Gestionar espacios - solo admins con manageCatalogs */}
+        {canManageCatalogs && (
+          <QuickActionButton
+            icon={MapPin}
+            label="Gestionar espacios"
+            description="Catálogo de espacios disponibles"
+            href="/catalog/spaces"
+            variant="secondary"
+          />
+        )}
 
-        {/* Nueva solicitud */}
+        {/* Nueva solicitud - ruta según permisos */}
         <QuickActionButton
           icon={Plus}
           label="Nueva solicitud"
-          description="Crear un nuevo evento"
-          href="/events/new"
+          description={canCreateEvent ? "Crear un nuevo evento" : "Crear una solicitud pública de evento"}
+          href={canCreateEvent ? "/events/new" : "/solicitud"}
           variant="accent"
         />
       </CardContent>
