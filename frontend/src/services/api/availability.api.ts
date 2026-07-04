@@ -9,6 +9,15 @@
 
 import { httpClient } from './client';
 import { ENDPOINTS } from './client/config';
+import {
+  END_AFTER_START_TIME_MESSAGE,
+  END_TIME_REQUIRED_MESSAGE,
+  START_TIME_REQUIRED_MESSAGE,
+  TIME_FORMAT_ERROR_MESSAGE,
+  isEndAfterStart,
+  isValidTimeFormat,
+  normalizeTimeInput,
+} from '@/utils/time-validation';
 import type { 
   BackendTechnicalCapacityResponse,
   EventStatus,
@@ -264,6 +273,32 @@ export function normalizeSpaceOccupancyResponse(
   };
 }
 
+function getValidAvailabilityTimeRange(params: Pick<CheckAvailabilityParams, 'scheduleFrom' | 'scheduleTo'>): {
+  scheduleFrom: string;
+  scheduleTo: string;
+} {
+  const scheduleFrom = normalizeTimeInput(params.scheduleFrom);
+  const scheduleTo = normalizeTimeInput(params.scheduleTo);
+
+  if (!scheduleFrom) {
+    throw new Error(START_TIME_REQUIRED_MESSAGE);
+  }
+
+  if (!scheduleTo) {
+    throw new Error(END_TIME_REQUIRED_MESSAGE);
+  }
+
+  if (!isValidTimeFormat(scheduleFrom) || !isValidTimeFormat(scheduleTo)) {
+    throw new Error(TIME_FORMAT_ERROR_MESSAGE);
+  }
+
+  if (!isEndAfterStart(scheduleFrom, scheduleTo)) {
+    throw new Error(END_AFTER_START_TIME_MESSAGE);
+  }
+
+  return { scheduleFrom, scheduleTo };
+}
+
 // ==================== FUNCIONES DEL SDK ====================
 
 /**
@@ -290,6 +325,8 @@ export function normalizeSpaceOccupancyResponse(
 export async function checkAvailability(
   params: CheckAvailabilityParams
 ): Promise<AvailabilityResult> {
+  const { scheduleFrom, scheduleTo } = getValidAvailabilityTimeRange(params);
+
   // Normalizar fecha si viene como Date
   const date = typeof params.date === 'string' 
     ? params.date 
@@ -298,8 +335,8 @@ export async function checkAvailability(
   const requestBody = {
     spaceId: params.spaceId,
     date,
-    scheduleFrom: params.scheduleFrom,
-    scheduleTo: params.scheduleTo,
+    scheduleFrom,
+    scheduleTo,
     bufferBeforeMin: params.bufferBeforeMin,
     bufferAfterMin: params.bufferAfterMin,
     excludeEventId: params.excludeEventId
@@ -331,6 +368,8 @@ export async function checkAvailability(
 export async function checkPublicAvailability(
   params: Omit<CheckAvailabilityParams, 'excludeEventId'>
 ): Promise<AvailabilityResult> {
+  const { scheduleFrom, scheduleTo } = getValidAvailabilityTimeRange(params);
+
   const date = typeof params.date === 'string' 
     ? params.date 
     : toBackendDate(params.date);
@@ -338,8 +377,8 @@ export async function checkPublicAvailability(
   const requestBody = {
     spaceId: params.spaceId,
     date,
-    scheduleFrom: params.scheduleFrom,
-    scheduleTo: params.scheduleTo,
+    scheduleFrom,
+    scheduleTo,
     bufferBeforeMin: params.bufferBeforeMin,
     bufferAfterMin: params.bufferAfterMin
   };

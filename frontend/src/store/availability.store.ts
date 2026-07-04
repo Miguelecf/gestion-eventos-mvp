@@ -18,6 +18,7 @@ import {
   handleApiError,
   logError
 } from '@/services/api';
+import { isEndAfterStart, normalizeTimeInput } from '@/utils/time-validation';
 
 // ==================== TIPOS ====================
 
@@ -67,15 +68,30 @@ const createAvailabilityStore: StateCreator<AvailabilityStore> = (set, get) => (
   ...initialState,
   
   checkAvailability: async (params: CheckAvailabilityParams) => {
+    const scheduleFrom = normalizeTimeInput(params.scheduleFrom);
+    const scheduleTo = normalizeTimeInput(params.scheduleTo);
+
+    if (!isEndAfterStart(scheduleFrom, scheduleTo)) {
+      set((state) => ({
+        loading: { ...state.loading, availability: false },
+        errors: { ...state.errors, availability: null },
+      }));
+      return null;
+    }
+
     set((state) => ({
       loading: { ...state.loading, availability: true },
       errors: { ...state.errors, availability: null },
     }));
     
     try {
-      const result = await availabilityApi.checkAvailability(params);
+      const result = await availabilityApi.checkAvailability({
+        ...params,
+        scheduleFrom,
+        scheduleTo,
+      });
       
-      const key = `${params.spaceId}-${params.date}-${params.scheduleFrom}-${params.scheduleTo}`;
+      const key = `${params.spaceId}-${params.date}-${scheduleFrom}-${scheduleTo}`;
       set((state) => ({
         availabilityResults: { ...state.availabilityResults, [key]: result },
         loading: { ...state.loading, availability: false },
@@ -119,7 +135,7 @@ const createAvailabilityStore: StateCreator<AvailabilityStore> = (set, get) => (
     }
   },
   
-  getSpaceOccupancy: async (_spaceId: number, _startDate: string, _endDate: string) => {
+  getSpaceOccupancy: async () => {
     set((state) => ({
       loading: { ...state.loading, spaceOccupancy: true },
       errors: { ...state.errors, spaceOccupancy: null },

@@ -9,6 +9,15 @@
 
 import { z } from 'zod';
 import { emailSchema } from '@/services/api/utils/validation-schemas';
+import {
+  END_AFTER_START_TIME_MESSAGE,
+  END_TIME_REQUIRED_MESSAGE,
+  START_TIME_REQUIRED_MESSAGE,
+  TIME_FORMAT_ERROR_MESSAGE,
+  isEndAfterStart,
+  isValidTimeFormat,
+  normalizeTimeInput,
+} from '@/utils/time-validation';
 
 // ==================== ENUMS REUTILIZADOS ====================
 
@@ -44,15 +53,44 @@ const futureDateValidation = (dateStr: string) => {
 const dateFormatRegex = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 
 /**
- * Validación de formato de hora HH:mm (24h)
- */
-const timeFormatRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
-
-/**
  * Validación de teléfono (flexible para público)
  * Acepta formatos internacionales y locales
  */
 const flexiblePhoneRegex = /^[\d\s\-+()]{8,30}$/;
+
+function requiredTimeSchema(requiredMessage: string) {
+  return z
+    .string()
+    .transform(normalizeTimeInput)
+    .superRefine((value, ctx) => {
+      if (!value) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: requiredMessage,
+        });
+        return;
+      }
+
+      if (!isValidTimeFormat(value)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: TIME_FORMAT_ERROR_MESSAGE,
+        });
+      }
+    });
+}
+
+const optionalTimeSchema = z
+  .string()
+  .transform(normalizeTimeInput)
+  .superRefine((value, ctx) => {
+    if (value && !isValidTimeFormat(value)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: TIME_FORMAT_ERROR_MESSAGE,
+      });
+    }
+  });
 
 // ==================== SCHEMA PRINCIPAL ====================
 
@@ -98,18 +136,11 @@ export const publicEventSchema = z
         message: 'La fecha debe ser hoy o posterior',
       }),
 
-    scheduleFrom: z
-      .string()
-      .regex(timeFormatRegex, 'La hora debe estar en formato HH:mm (ej: 09:30)'),
+    scheduleFrom: requiredTimeSchema(START_TIME_REQUIRED_MESSAGE),
 
-    scheduleTo: z
-      .string()
-      .regex(timeFormatRegex, 'La hora debe estar en formato HH:mm (ej: 14:30)'),
+    scheduleTo: requiredTimeSchema(END_TIME_REQUIRED_MESSAGE),
 
-    technicalSchedule: z
-      .string()
-      .regex(timeFormatRegex, 'La hora debe estar en formato HH:mm (ej: 08:00)')
-      .optional(),
+    technicalSchedule: optionalTimeSchema.optional(),
 
     // ========== UBICACIÓN (XOR) ==========
     spaceId: z
@@ -197,28 +228,32 @@ export const publicEventSchema = z
       path: ['spaceId'],
     }
   )
-  .refine(
-    (data) => {
-      // scheduleFrom debe ser anterior a scheduleTo
-      if (!data.scheduleFrom || !data.scheduleTo) return true;
-      return data.scheduleFrom < data.scheduleTo;
-    },
-    {
-      message: 'La hora de inicio debe ser anterior a la hora de fin',
-      path: ['scheduleTo'],
+  .superRefine((data, ctx) => {
+    if (
+      isValidTimeFormat(data.scheduleFrom) &&
+      isValidTimeFormat(data.scheduleTo) &&
+      !isEndAfterStart(data.scheduleFrom, data.scheduleTo)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: END_AFTER_START_TIME_MESSAGE,
+        path: ['scheduleTo'],
+      });
     }
-  )
-  .refine(
-    (data) => {
-      // Si tiene technicalSchedule, debe ser anterior a scheduleFrom
-      if (!data.technicalSchedule || !data.scheduleFrom) return true;
-      return data.technicalSchedule < data.scheduleFrom;
-    },
-    {
-      message: 'El horario técnico debe ser anterior al inicio del evento',
-      path: ['technicalSchedule'],
+
+    if (
+      data.technicalSchedule &&
+      isValidTimeFormat(data.technicalSchedule) &&
+      isValidTimeFormat(data.scheduleFrom) &&
+      !isEndAfterStart(data.technicalSchedule, data.scheduleFrom)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'El horario técnico debe ser anterior al inicio del evento',
+        path: ['technicalSchedule'],
+      });
     }
-  );
+  });
 
 /**
  * Tipo de entrada cruda del formulario
@@ -303,12 +338,12 @@ export function isDateValid(dateStr: string): boolean {
  * Valida si un horario es válido (HH:mm)
  */
 export function isTimeValid(timeStr: string): boolean {
-  return timeFormatRegex.test(timeStr);
+  return isValidTimeFormat(normalizeTimeInput(timeStr));
 }
 
 /**
  * Valida si scheduleFrom < scheduleTo
  */
 export function isTimeRangeValid(from: string, to: string): boolean {
-  return from < to;
+  return isEndAfterStart(normalizeTimeInput(from), normalizeTimeInput(to));
 }

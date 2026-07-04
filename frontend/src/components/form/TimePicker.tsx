@@ -106,6 +106,7 @@ const TimePicker = React.forwardRef<HTMLButtonElement, TimePickerProps>(
           id={id}
           ref={ref}
           disabled={disabled}
+          aria-disabled={disabled ? true : undefined}
           aria-invalid={invalid ? true : undefined}
           aria-haspopup="listbox"
           className={cn(

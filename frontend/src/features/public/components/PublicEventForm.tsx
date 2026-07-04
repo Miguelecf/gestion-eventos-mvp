@@ -27,6 +27,12 @@ import {
   type PublicEventFormData,
   toPublicEventRequestPayload,
 } from '@/schemas/eventPublic.schema';
+import {
+  END_AFTER_START_TIME_MESSAGE,
+  isEndAfterStart,
+  isValidTimeFormat,
+  normalizeTimeInput,
+} from '@/utils/time-validation';
 
 // API
 import { publicRequestsApi, availabilityApi } from '@/services/api';
@@ -167,9 +173,26 @@ export default function PublicEventForm() {
   const dateValue = watch('date');
   const scheduleFromValue = watch('scheduleFrom');
   const scheduleToValue = watch('scheduleTo');
-  const scheduleToMinTime = getNextTimeOption(scheduleFromValue);
-  const isScheduleToDisabled = Boolean(scheduleFromValue && !scheduleToMinTime);
-  const scheduleDurationText = getTimeRangeDurationLabel(scheduleFromValue, scheduleToValue);
+  const normalizedScheduleFrom = normalizeTimeInput(scheduleFromValue);
+  const normalizedScheduleTo = normalizeTimeInput(scheduleToValue);
+  const isScheduleFromValid = isValidTimeFormat(normalizedScheduleFrom);
+  const isScheduleToFormatValid = isValidTimeFormat(normalizedScheduleTo);
+  const scheduleToMinTime = isScheduleFromValid ? getNextTimeOption(normalizedScheduleFrom) : undefined;
+  const isScheduleToDisabled = !isScheduleFromValid || !scheduleToMinTime;
+  const hasScheduleRangeError =
+    isScheduleFromValid && isScheduleToFormatValid && !isEndAfterStart(normalizedScheduleFrom, normalizedScheduleTo);
+  const scheduleToError = errors.scheduleTo?.message ?? (hasScheduleRangeError ? END_AFTER_START_TIME_MESSAGE : undefined);
+  const scheduleToHelpText = !isScheduleFromValid
+    ? 'Seleccioná primero la hora de inicio'
+    : END_AFTER_START_TIME_MESSAGE;
+  const scheduleDurationText = getTimeRangeDurationLabel(normalizedScheduleFrom, normalizedScheduleTo);
+  const selectedOccupancyFrom = isScheduleFromValid ? normalizedScheduleFrom : undefined;
+  const selectedOccupancyTo = isScheduleToFormatValid ? normalizedScheduleTo : undefined;
+  const canCheckAvailability =
+    locationType === 'space' &&
+    Boolean(spaceIdValue) &&
+    Boolean(dateValue) &&
+    isEndAfterStart(normalizedScheduleFrom, normalizedScheduleTo);
   const bufferBeforeValue = watch('bufferBeforeMin');
   const bufferAfterValue = watch('bufferAfterMin');
 
@@ -178,12 +201,9 @@ export default function PublicEventForm() {
    */
   const checkAvailability = useCallback(async () => {
     if (
-      locationType !== 'space' ||
+      !canCheckAvailability ||
       !spaceIdValue ||
-      !dateValue ||
-      !scheduleFromValue ||
-      !scheduleToValue ||
-      scheduleFromValue >= scheduleToValue
+      !dateValue
     ) {
       setAvailability(null);
       setAvailabilityError(null);
@@ -200,8 +220,8 @@ export default function PublicEventForm() {
       const result = await availabilityApi.checkPublicAvailability({
         spaceId: spaceIdValue,
         date: dateValue,
-        scheduleFrom: scheduleFromValue,
-        scheduleTo: scheduleToValue,
+        scheduleFrom: normalizedScheduleFrom,
+        scheduleTo: normalizedScheduleTo,
         bufferBeforeMin: Number.isFinite(bufferBeforeValue) ? bufferBeforeValue : 15,
         bufferAfterMin: Number.isFinite(bufferAfterValue) ? bufferAfterValue : 15,
       });
@@ -237,11 +257,11 @@ export default function PublicEventForm() {
       }
     }
   }, [
-    locationType,
+    canCheckAvailability,
     spaceIdValue,
     dateValue,
-    scheduleFromValue,
-    scheduleToValue,
+    normalizedScheduleFrom,
+    normalizedScheduleTo,
     bufferBeforeValue,
     bufferAfterValue,
   ]);
@@ -249,16 +269,17 @@ export default function PublicEventForm() {
   // ========== EFFECTS ==========
 
   useEffect(() => {
-    if (!scheduleFromValue || !scheduleToValue || scheduleToValue > scheduleFromValue) {
+    if (normalizedScheduleFrom || !scheduleToValue) {
       return;
     }
 
     setValue('scheduleTo', '', {
       shouldDirty: true,
-      shouldTouch: true,
-      shouldValidate: true,
+      shouldTouch: false,
+      shouldValidate: false,
     });
-  }, [scheduleFromValue, scheduleToValue, setValue]);
+    clearErrors('scheduleTo');
+  }, [clearErrors, normalizedScheduleFrom, scheduleToValue, setValue]);
 
   // Cargar ocupación del espacio cuando cambia espacio o fecha
   useEffect(() => {
@@ -310,17 +331,7 @@ export default function PublicEventForm() {
     setAvailability(null);
     setAvailabilityError(null);
 
-    if (locationType !== 'space') {
-      setIsCheckingAvailability(false);
-      return;
-    }
-
-    if (!spaceIdValue || !dateValue || !scheduleFromValue || !scheduleToValue) {
-      setIsCheckingAvailability(false);
-      return;
-    }
-
-    if (scheduleFromValue >= scheduleToValue) {
+    if (!canCheckAvailability) {
       setIsCheckingAvailability(false);
       return;
     }
@@ -332,11 +343,7 @@ export default function PublicEventForm() {
 
     return () => clearTimeout(timer);
   }, [
-    locationType,
-    spaceIdValue,
-    dateValue,
-    scheduleFromValue,
-    scheduleToValue,
+    canCheckAvailability,
     bufferBeforeValue,
     bufferAfterValue,
     checkAvailability,
@@ -547,8 +554,8 @@ export default function PublicEventForm() {
               label="Hora de fin"
               htmlFor="scheduleTo"
               required
-              error={errors.scheduleTo?.message}
-              helpText="HH:mm (24h)"
+              error={scheduleToError}
+              helpText={scheduleToHelpText}
             >
               <Controller
                 name="scheduleTo"
@@ -561,22 +568,13 @@ export default function PublicEventForm() {
                     onChange={field.onChange}
                     minTime={scheduleToMinTime}
                     disabled={isScheduleToDisabled}
-                    ariaInvalid={!!errors.scheduleTo}
-                    aria-describedby={errors.scheduleTo ? 'scheduleTo-error' : 'scheduleTo-help'}
+                    ariaInvalid={!!scheduleToError}
+                    aria-describedby={scheduleToError ? 'scheduleTo-error' : 'scheduleTo-help'}
                   />
                 )}
               />
             </FormField>
           </div>
-
-          {/* Validación cruzada */}
-          {scheduleFromValue && scheduleToValue && scheduleFromValue >= scheduleToValue && (
-            <Alert variant="destructive" className="mt-4">
-              <AlertDescription>
-                La hora de inicio debe ser anterior a la hora de fin.
-              </AlertDescription>
-            </Alert>
-          )}
 
           {scheduleDurationText && (
             <p className="mt-2 text-xs text-muted-foreground">Duración: {scheduleDurationText}</p>
@@ -692,8 +690,8 @@ export default function PublicEventForm() {
                     occupancy={occupancy}
                     isLoading={isLoadingOccupancy}
                     error={occupancyError}
-                    selectedFrom={scheduleFromValue}
-                    selectedTo={scheduleToValue}
+                    selectedFrom={selectedOccupancyFrom}
+                    selectedTo={selectedOccupancyTo}
                   />
                 </div>
               )}

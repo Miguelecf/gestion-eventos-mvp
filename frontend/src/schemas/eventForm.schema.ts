@@ -1,9 +1,17 @@
 import { z } from 'zod';
 
 import type { Event, Priority, AudienceType, TechSupportMode } from '@/models/event';
+import {
+  END_AFTER_START_TIME_MESSAGE,
+  END_TIME_REQUIRED_MESSAGE,
+  START_TIME_REQUIRED_MESSAGE,
+  TIME_FORMAT_ERROR_MESSAGE,
+  isEndAfterStart,
+  isValidTimeFormat,
+  normalizeTimeInput,
+} from '@/utils/time-validation';
 
 const DATE_FORMAT_REGEX = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
-const TIME_FORMAT_REGEX = /^([01]\d|2[0-3]):([0-5]\d)$/;
 const ARGENTINE_PHONE_REGEX = /^(\+?54)?[\s-]?9?[\s-]?\d{2,4}[\s-]?\d{6,8}$/;
 
 const prioritySchema = z.enum(['LOW', 'MEDIUM', 'HIGH']);
@@ -16,11 +24,38 @@ const audienceTypeSchema = z.enum([
 ]);
 const techSupportModeSchema = z.enum(['SETUP_ONLY', 'ATTENDED']);
 
+function requiredTimeStringSchema(requiredMessage: string) {
+  return z
+    .string()
+    .transform(normalizeTimeInput)
+    .superRefine((value, ctx) => {
+      if (!value) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: requiredMessage,
+        });
+        return;
+      }
+
+      if (!isValidTimeFormat(value)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: TIME_FORMAT_ERROR_MESSAGE,
+        });
+      }
+    });
+}
+
 const optionalTimeStringSchema = z
   .string()
-  .trim()
-  .refine((value) => value === '' || TIME_FORMAT_REGEX.test(value), {
-    message: 'La hora debe estar en formato HH:mm',
+  .transform(normalizeTimeInput)
+  .superRefine((value, ctx) => {
+    if (value && !isValidTimeFormat(value)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: TIME_FORMAT_ERROR_MESSAGE,
+      });
+    }
   });
 
 const baseEventFormSchema = z
@@ -46,14 +81,8 @@ const baseEventFormSchema = z
       .string()
       .trim()
       .regex(DATE_FORMAT_REGEX, 'La fecha debe estar en formato yyyy-MM-dd'),
-    scheduleFrom: z
-      .string()
-      .trim()
-      .regex(TIME_FORMAT_REGEX, 'La hora debe estar en formato HH:mm'),
-    scheduleTo: z
-      .string()
-      .trim()
-      .regex(TIME_FORMAT_REGEX, 'La hora debe estar en formato HH:mm'),
+    scheduleFrom: requiredTimeStringSchema(START_TIME_REQUIRED_MESSAGE),
+    scheduleTo: requiredTimeStringSchema(END_TIME_REQUIRED_MESSAGE),
     spaceId: z
       .number()
       .int('Espacio inválido')
@@ -106,11 +135,15 @@ const baseEventFormSchema = z
       });
     }
 
-    if (data.scheduleFrom >= data.scheduleTo) {
+    if (
+      isValidTimeFormat(data.scheduleFrom) &&
+      isValidTimeFormat(data.scheduleTo) &&
+      !isEndAfterStart(data.scheduleFrom, data.scheduleTo)
+    ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['scheduleTo'],
-        message: 'La hora de fin debe ser posterior a la hora de inicio',
+        message: END_AFTER_START_TIME_MESSAGE,
       });
     }
 
@@ -122,7 +155,12 @@ const baseEventFormSchema = z
       });
     }
 
-    if (data.requiresTech && data.technicalSchedule !== '' && data.technicalSchedule >= data.scheduleFrom) {
+    if (
+      data.requiresTech &&
+      isValidTimeFormat(data.technicalSchedule) &&
+      isValidTimeFormat(data.scheduleFrom) &&
+      !isEndAfterStart(data.technicalSchedule, data.scheduleFrom)
+    ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['technicalSchedule'],
@@ -140,6 +178,10 @@ const getNowInArgentina = (): Date => {
 export const eventFormSchema = baseEventFormSchema;
 
 export const createEventFormSchema = baseEventFormSchema.superRefine((data, ctx) => {
+  if (!DATE_FORMAT_REGEX.test(data.date) || !isValidTimeFormat(data.scheduleFrom)) {
+    return;
+  }
+
   const nowArgentina = getNowInArgentina();
   const [year, month, day] = data.date.split('-').map(Number);
   const [hour, minute] = data.scheduleFrom.split(':').map(Number);

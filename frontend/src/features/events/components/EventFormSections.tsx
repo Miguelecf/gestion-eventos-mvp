@@ -15,6 +15,12 @@ import {
 } from '@/components/form';
 import { Input } from '@/components/ui/input';
 import type { EventFormValues } from '@/schemas/eventForm.schema';
+import {
+  END_AFTER_START_TIME_MESSAGE,
+  isEndAfterStart,
+  isValidTimeFormat,
+  normalizeTimeInput,
+} from '@/utils/time-validation';
 
 type EventFormMode = 'create' | 'edit';
 
@@ -57,6 +63,7 @@ export function EventFormSections({
   const {
     control,
     register,
+    clearErrors,
     setValue,
     watch,
     formState: { errors },
@@ -64,9 +71,19 @@ export function EventFormSections({
 
   const scheduleFromValue = watch('scheduleFrom');
   const scheduleToValue = watch('scheduleTo');
-  const scheduleToMinTime = getNextTimeOption(scheduleFromValue);
-  const isScheduleToDisabled = Boolean(scheduleFromValue && !scheduleToMinTime);
-  const scheduleDurationText = getTimeRangeDurationLabel(scheduleFromValue, scheduleToValue);
+  const normalizedScheduleFrom = normalizeTimeInput(scheduleFromValue);
+  const normalizedScheduleTo = normalizeTimeInput(scheduleToValue);
+  const isScheduleFromValid = isValidTimeFormat(normalizedScheduleFrom);
+  const isScheduleToFormatValid = isValidTimeFormat(normalizedScheduleTo);
+  const scheduleToMinTime = isScheduleFromValid ? getNextTimeOption(normalizedScheduleFrom) : undefined;
+  const isScheduleToDisabled = !isScheduleFromValid || !scheduleToMinTime;
+  const hasScheduleRangeError =
+    isScheduleFromValid && isScheduleToFormatValid && !isEndAfterStart(normalizedScheduleFrom, normalizedScheduleTo);
+  const scheduleToError = getErrorMessage(errors.scheduleTo) ?? (hasScheduleRangeError ? END_AFTER_START_TIME_MESSAGE : undefined);
+  const scheduleToHelpText = !isScheduleFromValid
+    ? 'Seleccioná primero la hora de inicio'
+    : END_AFTER_START_TIME_MESSAGE;
+  const scheduleDurationText = getTimeRangeDurationLabel(normalizedScheduleFrom, normalizedScheduleTo);
   const requiresTechValue = watch('requiresTech');
   const requestingAreaValue = watch('requestingArea');
   const priorityValue = watch('priority');
@@ -88,16 +105,17 @@ export function EventFormSections({
   }, [isRectoradoRequestingArea, priorityValue, setValue, syncPriorityWithRequestingArea]);
 
   useEffect(() => {
-    if (!scheduleFromValue || !scheduleToValue || scheduleToValue > scheduleFromValue) {
+    if (normalizedScheduleFrom || !scheduleToValue) {
       return;
     }
 
     setValue('scheduleTo', '', {
       shouldDirty: true,
-      shouldTouch: true,
-      shouldValidate: true,
+      shouldTouch: false,
+      shouldValidate: false,
     });
-  }, [scheduleFromValue, scheduleToValue, setValue]);
+    clearErrors('scheduleTo');
+  }, [clearErrors, normalizedScheduleFrom, scheduleToValue, setValue]);
 
   const locationError =
     locationType === 'space'
@@ -150,7 +168,13 @@ export function EventFormSections({
             />
           </FormField>
 
-          <FormField label="Hora de fin" htmlFor="scheduleTo" required error={getErrorMessage(errors.scheduleTo)}>
+          <FormField
+            label="Hora de fin"
+            htmlFor="scheduleTo"
+            required
+            error={scheduleToError}
+            helpText={scheduleToHelpText}
+          >
             <Controller
               name="scheduleTo"
               control={control}
@@ -162,19 +186,13 @@ export function EventFormSections({
                   onChange={field.onChange}
                   minTime={scheduleToMinTime}
                   disabled={isScheduleToDisabled}
-                  ariaInvalid={!!errors.scheduleTo}
-                  aria-describedby={errors.scheduleTo ? 'scheduleTo-error' : undefined}
+                  ariaInvalid={!!scheduleToError}
+                  aria-describedby={scheduleToError ? 'scheduleTo-error' : 'scheduleTo-help'}
                 />
               )}
             />
           </FormField>
         </div>
-
-        {scheduleFromValue && scheduleToValue && scheduleFromValue >= scheduleToValue ? (
-          <p className="mt-2 text-xs text-red-600" role="alert">
-            La hora de inicio debe ser anterior a la hora de fin.
-          </p>
-        ) : null}
 
         {scheduleDurationText ? (
           <p className="mt-2 text-xs text-muted-foreground">Duración: {scheduleDurationText}</p>
