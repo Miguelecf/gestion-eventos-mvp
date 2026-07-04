@@ -476,7 +476,7 @@ export default function PublicEventForm() {
    * Handler de cancelar
    */
   const handleCancel = () => {
-    navigate('/login', { replace: true });
+    navigate('/', { replace: true });
   };
 
   // ========== RENDER ==========
