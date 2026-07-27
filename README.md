@@ -58,17 +58,6 @@ Los usuarios internos, según su rol, pueden:
 - `CONVERTIDO`: la solicitud generó un evento.
 - `RECHAZADO`: la solicitud fue rechazada.
 
-```mermaid
-stateDiagram-v2
-    [*] --> RECIBIDO
-    RECIBIDO --> EN_REVISION
-    RECIBIDO --> RECHAZADO
-    EN_REVISION --> CONVERTIDO
-    EN_REVISION --> RECHAZADO
-    CONVERTIDO --> [*]
-    RECHAZADO --> [*]
-```
-
 ### Eventos
 
 - `SOLICITADO`: estado contemplado cuya única transición es `EN_REVISION`.
@@ -76,20 +65,6 @@ stateDiagram-v2
 - `RESERVADO`: el evento queda reservado tras validar disponibilidad y, cuando corresponde, capacidad técnica.
 - `APROBADO`: el evento cuenta con las conformidades necesarias.
 - `RECHAZADO`: el evento no fue aprobado.
-
-```mermaid
-stateDiagram-v2
-    [*] --> EN_REVISION
-    SOLICITADO --> EN_REVISION
-    EN_REVISION --> RESERVADO
-    EN_REVISION --> APROBADO
-    EN_REVISION --> RECHAZADO
-    RESERVADO --> APROBADO
-    RESERVADO --> EN_REVISION
-    RESERVADO --> RECHAZADO
-    APROBADO --> EN_REVISION
-    RECHAZADO --> [*]
-```
 
 Las altas actuales se crean en `EN_REVISION`. La aprobación definitiva requiere las conformidades de las áreas de Ceremonial y Técnica.
 
